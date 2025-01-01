@@ -21,5 +21,6 @@ import { MembreStruct } from 'src/membre-struct/entities/membre-struct.entity';
       ],
   controllers: [UserController],
   providers: [UserService,JwtStrategy],
+  exports:[UserService]
 })
 export class UserModule {}

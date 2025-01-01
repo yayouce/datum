@@ -15,12 +15,13 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 
 import { UserModule } from 'src/user/user.module';
 import { MembreStructModule } from 'src/membre-struct/membre-struct.module';
+import { MembreStruct } from 'src/membre-struct/entities/membre-struct.entity';
 
 @Module({
   imports: [UserModule,
     PassportModule,
     JwtCustomModule,
-    TypeOrmModule.forFeature([MembreStructModule])
+    TypeOrmModule.forFeature([MembreStruct])
   ],
  
   providers: [
@@ -29,5 +30,6 @@ import { MembreStructModule } from 'src/membre-struct/membre-struct.module';
     JwtStrategy    
   ],
   controllers: [AuthController],
+  
 })
 export class AuthModule {}

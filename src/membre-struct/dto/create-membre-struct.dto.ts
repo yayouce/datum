@@ -39,7 +39,6 @@ emailStruct : string;
 @IsString()
 localisationStruc:string
 
- @Type(() =>Structure)
+@Type(() =>Structure)
 structure
-  
 }

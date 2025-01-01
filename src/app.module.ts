@@ -6,6 +6,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { MembreStructModule } from './membre-struct/membre-struct.module';
 import { UserModule } from './user/user.module';
 import { StructureModule } from './structure/structure.module';
+import { AuthModule } from './Auth/auth.module';
 
 @Module({
   imports: [
@@ -23,9 +24,8 @@ import { StructureModule } from './structure/structure.module';
     }),
     
     MembreStructModule,
-    
     UserModule,
-    
+    AuthModule,
     StructureModule],
   controllers: [AppController],
   providers: [AppService],
