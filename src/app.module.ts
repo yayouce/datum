@@ -7,6 +7,9 @@ import { MembreStructModule } from './membre-struct/membre-struct.module';
 import { UserModule } from './user/user.module';
 import { StructureModule } from './structure/structure.module';
 import { AuthModule } from './Auth/auth.module';
+import { ProjetModule } from './projet/projet.module';
+import { AteliersModule } from './ateliers/ateliers.module';
+import { EnqueteModule } from './enquete/enquete.module';
 
 @Module({
   imports: [
@@ -26,7 +29,10 @@ import { AuthModule } from './Auth/auth.module';
     MembreStructModule,
     UserModule,
     AuthModule,
-    StructureModule],
+    StructureModule,
+    ProjetModule,
+    AteliersModule,
+    EnqueteModule],
   controllers: [AppController],
   providers: [AppService],
 })

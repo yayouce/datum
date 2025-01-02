@@ -1,4 +1,5 @@
 import { roleMembreEnum } from "generique/rolemembre.enum";
+import { Projet } from "src/projet/entities/projet.entity";
 import { Structure } from "src/structure/entities/structure.entity";
 import { UserEntity } from "src/user/entities/user.entity";
 import { Column, Entity, ManyToOne, OneToMany } from "typeorm";
@@ -29,4 +30,7 @@ MembreStruct extends UserEntity {
   
     @OneToMany(() => MembreStruct, (MembreStruct) => MembreStruct.superieur)
     subordonne: MembreStruct[];
+
+    @OneToMany(()=>Projet,(materiel)=>materiel.membreStruct,{eager:true})
+    projet:Projet[]
 }
