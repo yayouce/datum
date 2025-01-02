@@ -10,6 +10,7 @@ import { rejoindrestructureDto } from './dto/rejoindreStructure.dto';
 import { roleMembreEnum } from 'generique/rolemembre.enum';
 import { randomInt } from 'crypto';
 import { ForgotmembrePassword } from './dto/forgotpassword.dto';
+import { MailService } from 'src/utils/mail.service';
 const saltOrRounds = 10
 @Injectable()
 export class MembreStructService {
@@ -87,7 +88,7 @@ async findOnemembreByemail(email){
  })
  }
 
- async forgotpassword(email:ForgotmembrePassword){
+ async forgotpassword(email: ForgotmembrePassword){
   try{
 
     const fundmembre = await this.membreRepository.findOne({where:email})
@@ -103,6 +104,11 @@ async findOnemembreByemail(email){
     
 
     await this.membreRepository.save(fundmembre)
+   
+
+    return {
+      message: `voici lee code temporaéire ${code}`,
+    };
 
 
   }
