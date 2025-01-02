@@ -1,8 +1,9 @@
 import { Type } from "class-transformer";
-import { IsNotEmpty, IsString } from "class-validator";
+import { IsNotEmpty, IsOptional, IsString } from "class-validator";
 import { Structure } from "src/structure/entities/structure.entity";
+import { MembreStruct } from "../entities/membre-struct.entity";
 
-export class CreateMembreStructDto {
+export class rejoindrestructureDto {
 
 
 @IsNotEmpty()
@@ -28,18 +29,18 @@ contact:string;
 nomStruct : string;
 @IsNotEmpty()
 @IsString()
-descStruct : string;
-@IsNotEmpty()
+emailSuperieur : string;
+
+@IsOptional()
 @IsString()
-contactStruct : string;
-@IsNotEmpty()
-@IsString()
-emailStruct : string;
-@IsNotEmpty()
-@IsString()
-localisationStruc:string
-@IsString()
+
 roleMembre:string
+
+
+
+
+@Type(() =>MembreStruct)
+superieur
 
 @Type(() =>Structure)
 structure

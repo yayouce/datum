@@ -7,4 +7,7 @@ import { UpdateStructureDto } from './dto/update-structure.dto';
 export class StructureController {
   constructor(private readonly structureService: StructureService) {}
 
+    
+
+  
 }

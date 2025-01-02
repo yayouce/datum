@@ -1,4 +1,4 @@
-export enum roleMembre{
-    RESP="Top manager",
-    RESP_A="coordinateur",
+export enum roleMembreEnum{
+    TOPMANAGER="Top manager",
+    COORDINATEUR="coordinateur",
 }

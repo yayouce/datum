@@ -20,7 +20,7 @@ export class Structure extends TimestampEntites {
     localisationStruc:string
   
   
-    @OneToMany(()=>MembreStruct,(membre)=>membre.structure,{eager:true})
+    @OneToMany(()=>MembreStruct,(membre)=>membre.structure)
     membres:MembreStruct[]
    
 }

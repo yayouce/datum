@@ -26,4 +26,13 @@ export class StructureService {
  
    }
 
+   async getStructureByname(nomStruct){
+    try{
+      return await this.structureRepo.findOneBy({nomStruct})
+    }
+    catch(err){
+      throw err
+    }
+   }
+
 }

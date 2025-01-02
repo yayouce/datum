@@ -4,7 +4,7 @@ import { JwtService } from '@nestjs/jwt';
 
 import * as bcrypt from "bcrypt"
 
-import { roleMembre } from 'generique/rolemembre.enum';
+import { roleMembreEnum } from 'generique/rolemembre.enum';
 import { log } from 'console';
 import { UserService } from 'src/user/user.service';
 import { MembreStruct } from 'src/membre-struct/entities/membre-struct.entity';

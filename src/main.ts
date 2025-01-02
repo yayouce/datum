@@ -4,7 +4,6 @@ import { DocumentBuilder, SwaggerDocumentOptions, SwaggerModule } from '@nestjs/
 import { ConfigService } from '@nestjs/config';
 import { ValidationPipe } from '@nestjs/common';
 
-
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   const configService = app.get(ConfigService)
@@ -26,6 +25,8 @@ async function bootstrap() {
       forbidNonWhitelisted:true  // j'envoie une erreur
     }
   ));
+
+  // app.use(duplicateEntryHandler);
   
   
 //documentation
