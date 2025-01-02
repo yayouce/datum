@@ -14,6 +14,10 @@ MembreStruct extends UserEntity {
     roleMembre:string
 
 
+    @Column()
+    nomStruct:string
+
+   
 
     @ManyToOne(()=>Structure,(structure)=>structure.membres,{eager:true})
     structure:Structure;

@@ -31,14 +31,6 @@ nomStruct : string;
 @IsString()
 emailSuperieur : string;
 
-@IsOptional()
-@IsString()
-
-roleMembre:string
-
-
-
-
 @Type(() =>MembreStruct)
 superieur
 

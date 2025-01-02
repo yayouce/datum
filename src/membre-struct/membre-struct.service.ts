@@ -8,6 +8,8 @@ import { CreateMembreStructDto } from './dto/create-membre-struct.dto';
 import * as bcrypt from "bcrypt"
 import { rejoindrestructureDto } from './dto/rejoindreStructure.dto';
 import { roleMembreEnum } from 'generique/rolemembre.enum';
+import { randomInt } from 'crypto';
+import { ForgotmembrePassword } from './dto/forgotpassword.dto';
 const saltOrRounds = 10
 @Injectable()
 export class MembreStructService {
@@ -20,7 +22,7 @@ export class MembreStructService {
 )
 {}
 async createMembreStruct(createmembre:CreateMembreStructDto){
-  const {nomStruct,roleMembre,descStruct,contactStruct,emailStruct,localisationStruc,password,email,structure,...membredata}=createmembre
+  const {nomStruct,descStruct,contactStruct,emailStruct,localisationStruc,password,email,structure,...membredata}=createmembre
 
   
   
@@ -38,7 +40,8 @@ async createMembreStruct(createmembre:CreateMembreStructDto){
     password:hashedpassword,
     roleMembre:roleMembreEnum.TOPMANAGER,
     email:createmembre.email,
-    structure:creatredStructure
+    structure:creatredStructure,
+    nomStruct:creatredStructure.nomStruct
     
   })
   
@@ -51,7 +54,7 @@ async createMembreStruct(createmembre:CreateMembreStructDto){
 async rejoindreStructure(rejoindrestructures:rejoindrestructureDto){
   
   try{
-  const {emailSuperieur,superieur,structure,password,roleMembre,...data} = rejoindrestructures
+  const {emailSuperieur,superieur,structure,password,...data} = rejoindrestructures
 
   const sup = await this.findOnemembreByemail(emailSuperieur)
 
@@ -64,7 +67,6 @@ async rejoindreStructure(rejoindrestructures:rejoindrestructureDto){
 
   const hashedpassword =await  bcrypt.hash(rejoindrestructures.password,saltOrRounds)
   const rejoindrestructure = await this.membreRepository.create({
-
     ...data,
     roleMembre:roleMembreEnum.COORDINATEUR,
     password:hashedpassword,
@@ -76,13 +78,37 @@ async rejoindreStructure(rejoindrestructures:rejoindrestructureDto){
   }
 
   catch(err){
-    throw new HttpException(err,900)
+    throw new HttpException(err.message,900)
+  }
+}
+async findOnemembreByemail(email){
+  return await this.membreRepository.findOne({
+   where: { email },
+ })
+ }
+
+ async forgotpassword(email:ForgotmembrePassword){
+  try{
+
+    const fundmembre = await this.membreRepository.findOne({where:email})
+    if(!fundmembre){
+      throw new HttpException("n'existe pas!",803)
+    }
+    //je genere un code à envoyer
+    const code=randomInt(80000,90000).toString()
+   
+    const hashedcode = await bcrypt.hash(code,saltOrRounds)
+    fundmembre.password=hashedcode
+    console.log(`voici lee code temporaéire ${code}`)
+    
+
+    await this.membreRepository.save(fundmembre)
+
 
   }
-
-
-
-
+  catch(err){
+    throw new HttpException(err.message,804)
+  }
 }
 
 
@@ -91,10 +117,16 @@ async rejoindreStructure(rejoindrestructures:rejoindrestructureDto){
 
 
 
-async findOnemembreByemail(email){
-  return await this.membreRepository.findOne({
-   where: { email },
- })
- }
+
+
+
+
+
+
+
+
+
+
+
 
 }

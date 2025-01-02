@@ -3,6 +3,7 @@ import { MembreStructService } from './membre-struct.service';
 import { CreateMembreStructDto } from './dto/create-membre-struct.dto';
 import { UpdateMembreStructDto } from './dto/update-membre-struct.dto';
 import { rejoindrestructureDto } from './dto/rejoindreStructure.dto';
+import { ForgotmembrePassword } from './dto/forgotpassword.dto';
 
 @Controller('membrestruct')
 export class MembreStructController {
@@ -21,6 +22,14 @@ export class MembreStructController {
     @Body() data:rejoindrestructureDto
   ){
     return await this.membreStructService.rejoindreStructure(data)
+  }
+
+
+  @Post("forgotpassword")
+  async forgotpassword(
+    @Body() data : ForgotmembrePassword
+  ){
+    return await this.membreStructService.forgotpassword(data)
   }
 
 }

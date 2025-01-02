@@ -38,8 +38,7 @@ emailStruct : string;
 @IsNotEmpty()
 @IsString()
 localisationStruc:string
-@IsString()
-roleMembre:string
+
 
 @Type(() =>Structure)
 structure

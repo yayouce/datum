@@ -4,6 +4,7 @@ import { UpdateStructureDto } from './dto/update-structure.dto';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Structure } from './entities/structure.entity';
 import { Repository } from 'typeorm';
+import { MembreStruct } from 'src/membre-struct/entities/membre-struct.entity';
 
 @Injectable()
 export class StructureService {
@@ -34,5 +35,37 @@ export class StructureService {
       throw err
     }
    }
+
+
+   async findAllStruct(){
+    try{
+    return await this.structureRepo.find()
+      
+    }
+    catch(err){
+      throw err
+    }
+   }
+
+ 
+
+   async mapStructureWithmembers(){
+    try{
+      const structures = await this.structureRepo.find({
+        relations: ["membres"]
+      })
+
+      return structures
+    }
+    catch(err){
+      throw new HttpException(err.message,805)
+    }
+   }
+
+
+
+
+ 
+
 
 }

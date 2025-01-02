@@ -7,7 +7,6 @@ export class Structure extends TimestampEntites {
   
     @PrimaryGeneratedColumn("uuid")
     idStruct :string;
-
     @Column()
     nomStruct : string;
     @Column()
@@ -22,5 +21,4 @@ export class Structure extends TimestampEntites {
   
     @OneToMany(()=>MembreStruct,(membre)=>membre.structure)
     membres:MembreStruct[]
-   
 }
