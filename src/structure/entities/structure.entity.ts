@@ -7,7 +7,7 @@ export class Structure extends TimestampEntites {
   
     @PrimaryGeneratedColumn("uuid")
     idStruct :string;
-    @Column()
+    @Column({unique:true})
     nomStruct : string;
     @Column()
     descStruct : string;

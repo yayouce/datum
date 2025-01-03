@@ -9,7 +9,14 @@ import { User } from 'src/decorator/user.decorator';
 export class ProjetController {
   constructor(private readonly projetService: ProjetService) {}
 
-  
+  @UseGuards(JwtAuthGuard)
+  @Get('getAll')
+  async getAllFor(
+    @User() user,
+  ){
+
+    return this.projetService.getAll(user)
+  }
 
 
   @UseGuards(JwtAuthGuard)
@@ -21,5 +28,26 @@ export class ProjetController {
 
     return await this.projetService.createProjet(data,user)
 
+  }
+
+
+
+  @UseGuards(JwtAuthGuard)
+  @Patch('update/:id')
+  async updateMateriel(
+    @User() user,
+    @Param('id') id:string,
+    @Body() projet:UpdateProjetDto
+  ){
+
+    return this.projetService.updateProjet(id,projet,user)
+  }
+
+
+  @Get("getone/:id")
+  async getById(
+    @Param('id') idprojet:string
+  ){
+    return this.projetService.getById(idprojet)
   }
 }

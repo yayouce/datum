@@ -1,4 +1,5 @@
 import { roleMembreEnum } from "generique/rolemembre.enum";
+import { Enquete } from "src/enquete/entities/enquete.entity";
 import { Projet } from "src/projet/entities/projet.entity";
 import { Structure } from "src/structure/entities/structure.entity";
 import { UserEntity } from "src/user/entities/user.entity";
@@ -33,4 +34,7 @@ MembreStruct extends UserEntity {
 
     @OneToMany(()=>Projet,(materiel)=>materiel.membreStruct,{eager:true})
     projet:Projet[]
+
+    @OneToMany(()=>Projet,(materiel)=>materiel.membreStruct )
+    enquete:Enquete[]
 }

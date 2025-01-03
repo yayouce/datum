@@ -1,34 +1,41 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards } from '@nestjs/common';
 import { EnqueteService } from './enquete.service';
 import { CreateEnqueteDto } from './dto/create-enquete.dto';
 import { UpdateEnqueteDto } from './dto/update-enquete.dto';
+import { JwtAuthGuard } from 'src/Auth/jwt-auth.guard';
+import { User } from 'src/decorator/user.decorator';
 
 @Controller('enquete')
 export class EnqueteController {
   constructor(private readonly enqueteService: EnqueteService) {}
 
-  @Post()
-  create(@Body() createEnqueteDto: CreateEnqueteDto) {
-    return this.enqueteService.create(createEnqueteDto);
+
+  @UseGuards(JwtAuthGuard)
+  @Post('add/:idProjet')
+  async creationProjet(
+    @Body() data : CreateEnqueteDto,
+    @User() user,
+    @Param('idProjet') idProjet:string,
+  ){
+
+    return await this.enqueteService.createEnquete(data,user,idProjet)
+
   }
 
-  @Get()
-  findAll() {
-    return this.enqueteService.findAll();
+
+  @UseGuards(JwtAuthGuard)
+  @Get('getAll')
+  async getAllFor(
+    @User() user,
+  ){
+
+    return this.enqueteService.getAll(user)
   }
 
-  @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.enqueteService.findOne(+id);
-  }
 
-  @Patch(':id')
-  update(@Param('id') id: string, @Body() updateEnqueteDto: UpdateEnqueteDto) {
-    return this.enqueteService.update(+id, updateEnqueteDto);
-  }
 
-  @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.enqueteService.remove(+id);
-  }
+
+
+
+  
 }

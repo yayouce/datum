@@ -20,8 +20,6 @@ export class CreateProjetDto {
         @IsNotEmpty()
         @IsString()
         etatprojet:string
-
-
-    @Type(() => MembreStruct)
-    membreStruct:MembreStruct
+        @Type(() => MembreStruct)
+        membreStruct:MembreStruct
 }

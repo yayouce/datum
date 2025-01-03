@@ -1,26 +1,50 @@
-import { Injectable } from '@nestjs/common';
+import { HttpException, Injectable } from '@nestjs/common';
 import { CreateEnqueteDto } from './dto/create-enquete.dto';
 import { UpdateEnqueteDto } from './dto/update-enquete.dto';
+import { roleMembreEnum } from 'generique/rolemembre.enum';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Enquete } from './entities/enquete.entity';
+import { Repository } from 'typeorm';
+import { ProjetService } from 'src/projet/projet.service';
 
 @Injectable()
 export class EnqueteService {
-  create(createEnqueteDto: CreateEnqueteDto) {
-    return 'This action adds a new enquete';
-  }
+  constructor(
+      @InjectRepository(Enquete)
+      private enqueteRepo:Repository<Enquete>,
+      private projetservice: ProjetService
+    ) {}
 
-  findAll() {
-    return `This action returns all enquete`;
-  }
 
-  findOne(id: number) {
-    return `This action returns a #${id} enquete`;
-  }
+    async getAll(user:any) {
+      try {
+        const enquete = await this.enqueteRepo.find({
+          where: { membreStruct: { iduser: user.idStruct } },
+        });
+        return enquete;
+      } catch (err) {
+        throw err
+      }
+    }
 
-  update(id: number, updateEnqueteDto: UpdateEnqueteDto) {
-    return `This action updates a #${id} enquete`;
-  }
+  async createEnquete(createenquete: CreateEnqueteDto, user,idProjet) {
+      const { membreStruct, ...creation } = createenquete;
+      try {
+        // if (user?.roleMembre !== roleMembreEnum.TOPMANAGER) {
+        //   throw new HttpException("pas autorisé à ajouter une  enquête",702);
+        // }
 
-  remove(id: number) {
-    return `This action removes a #${id} enquete`;
-  }
+        const theprojet = await this.projetservice.getById(idProjet)
+     
+         const newenquete = this.enqueteRepo.create({
+          ...creation,
+          membreStruct: user,
+          nomStructure:user.nomStruct,
+          projet:theprojet
+        });
+        return await this.enqueteRepo.save(newenquete)
+      } catch (err) {
+        throw new HttpException(err.message,803)
+      }
+    }
 }
