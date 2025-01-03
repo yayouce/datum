@@ -10,6 +10,9 @@ import { AuthModule } from './Auth/auth.module';
 import { ProjetModule } from './projet/projet.module';
 import { AteliersModule } from './ateliers/ateliers.module';
 import { EnqueteModule } from './enquete/enquete.module';
+import { FormatfichierModule } from './formatfichier/formatfichier.module';
+import { DataTypeModule } from './data_type/data_type.module';
+import { UnitefrequenceModule } from './data_type copy/unitefrequence.module';
 
 @Module({
   imports: [
@@ -32,7 +35,10 @@ import { EnqueteModule } from './enquete/enquete.module';
     StructureModule,
     ProjetModule,
     AteliersModule,
-    EnqueteModule],
+    EnqueteModule,
+    FormatfichierModule,
+    DataTypeModule,
+    UnitefrequenceModule],
   controllers: [AppController],
   providers: [AppService],
 })
