@@ -19,7 +19,7 @@ export class UnitefrequenceController {
 
   @Get(':id')
   findOne(@Param('id') id: string) {
-    return this.unitefrequence.getone(+id);
+    return this.unitefrequence.getone(id);
   }
 
  

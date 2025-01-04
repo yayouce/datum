@@ -12,7 +12,9 @@ import { AteliersModule } from './ateliers/ateliers.module';
 import { EnqueteModule } from './enquete/enquete.module';
 import { FormatfichierModule } from './formatfichier/formatfichier.module';
 import { DataTypeModule } from './data_type/data_type.module';
-import { UnitefrequenceModule } from './data_type copy/unitefrequence.module';
+
+import { SourceDonneesModule } from './source_donnees/source_donnees.module';
+import { UnitefrequenceModule } from './frequence/unitefrequence.module';
 
 @Module({
   imports: [
@@ -38,7 +40,8 @@ import { UnitefrequenceModule } from './data_type copy/unitefrequence.module';
     EnqueteModule,
     FormatfichierModule,
     DataTypeModule,
-    UnitefrequenceModule],
+    UnitefrequenceModule,
+    SourceDonneesModule],
   controllers: [AppController],
   providers: [AppService],
 })

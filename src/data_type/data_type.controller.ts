@@ -19,7 +19,7 @@ export class DataTypeController {
 
   @Get(':id')
   findOne(@Param('id') id: string) {
-    return this.dataTypeService.getone(+id);
+    return this.dataTypeService.getone(id);
   }
 
  

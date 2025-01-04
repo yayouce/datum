@@ -1,7 +1,7 @@
 import { Controller, Get, Post, Body, Patch, Param, Delete } from '@nestjs/common';
 import { FormatfichierService } from './formatfichier.service';
 import { CreateFormatfichierDto } from './dto/create-formatfichier.dto';
-import { UpdateFormatfichierDto } from './dto/update-formatfichier.dto';
+
 
 @Controller('formatfichier')
 export class FormatfichierController {
@@ -19,7 +19,7 @@ export class FormatfichierController {
 
   @Get(':id')
   findOne(@Param('id') id: string) {
-    return this.formatfichierService.getone(+id);
+    return this.formatfichierService.getone(id);
   }
 
   
