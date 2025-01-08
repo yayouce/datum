@@ -9,5 +9,6 @@ import { unitefrequence } from './entities/unitefrequence.entity';
   imports:[TypeOrmModule.forFeature([unitefrequence])],
   controllers: [UnitefrequenceController],
   providers: [UnitefrequenceService],
+  exports:[UnitefrequenceService]
 })
 export class UnitefrequenceModule {}

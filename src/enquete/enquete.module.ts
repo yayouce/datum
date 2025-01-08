@@ -11,5 +11,6 @@ import { ProjetModule } from 'src/projet/projet.module';
   imports:[TypeOrmModule.forFeature([Enquete]),ProjetModule],
   controllers: [EnqueteController],
   providers: [EnqueteService],
+  exports:[EnqueteService]
 })
 export class EnqueteModule {}

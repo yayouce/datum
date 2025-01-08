@@ -8,5 +8,6 @@ import { DataType } from './entities/data_type.entity';
   imports:[TypeOrmModule.forFeature([DataType])],
   controllers: [DataTypeController],
   providers: [DataTypeService],
+  exports:[DataTypeService]
 })
 export class DataTypeModule {}

@@ -42,4 +42,17 @@ export class UnitefrequenceService {
    throw new HttpException(err.message,805)
  }
  }
+
+
+
+ async getoneBylibelle(libelleunitefrequence){
+  try{
+    return await this.datatyepeRepo.findOneBy({libelleunitefrequence})
+  }
+  catch(err){
+    throw new HttpException(err.message,805)
+  }
+  }
+
+
 }

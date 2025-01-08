@@ -29,7 +29,7 @@ async getAllFormat(){
     return await this.formatRepo.find()
   }
   catch(err){
-    throw new HttpException(err.message,800)
+    throw new HttpException(err.message,801)
   }
 }
 
@@ -39,9 +39,23 @@ try{
   return await this.formatRepo.findOneBy({idformat})
 }
 catch(err){
-  throw new HttpException(err.message,800)
+  throw new HttpException(err.message,802)
 }
 }
 
 
+
+async getoneByLibelle(libelleFormat){
+  try{
+    return await this.formatRepo.findOneBy({libelleFormat})
+  }
+  catch(err){
+    throw new HttpException(err.message,803)
+  }
+  }
+
+
+
+
+  
 }

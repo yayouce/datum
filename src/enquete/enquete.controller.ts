@@ -23,6 +23,14 @@ export class EnqueteController {
   }
 
 
+  @Get('getone/:idenquete')
+  async getenqueteByID(
+    @Param('idenquete') idenquete:string
+  ){
+    return await this.enqueteService.getenqueteByID(idenquete)
+  }
+
+
   @UseGuards(JwtAuthGuard)
   @Get('getAll')
   async getAllFor(

@@ -1,7 +1,8 @@
 import { etatprojetEnum } from "generique/etatprojetEnum.enum"
 import { MembreStruct } from "src/membre-struct/entities/membre-struct.entity"
 import { Projet } from "src/projet/entities/projet.entity"
-import { Column, Entity, ManyToOne, PrimaryGeneratedColumn } from "typeorm"
+import { SourceDonnee } from "src/source_donnees/entities/source_donnee.entity"
+import { Column, Entity, ManyToOne, OneToMany, PrimaryGeneratedColumn } from "typeorm"
 
 
 @Entity('enquete')
@@ -31,5 +32,10 @@ export class Enquete {
 
         @ManyToOne(()=>Projet,(membreStruct)=>membreStruct.enquete)
         projet:Projet
+
+        @OneToMany(()=>SourceDonnee,(SourceDonnee)=>SourceDonnee.source)
+        source:SourceDonnee[]
+
+
 
 }

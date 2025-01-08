@@ -1,23 +1,57 @@
-import { Column, PrimaryGeneratedColumn } from "typeorm";
+import { DataType } from "src/data_type/entities/data_type.entity";
+import { Enquete } from "src/enquete/entities/enquete.entity";
+import { Formatfichier } from "src/formatfichier/entities/formatfichier.entity";
+import { unitefrequence } from "src/frequence/entities/unitefrequence.entity";
+import { Column, Entity, ManyToOne, OneToMany, PrimaryGeneratedColumn } from "typeorm";
 
+
+@Entity("sourcedonnees")
 export class SourceDonnee {
 
-    // @PrimaryGeneratedColumn()
-    // idsourceDonnes:string
+    @PrimaryGeneratedColumn()
+    idsourceDonnes:string
 
-    // @Column()
-    // typeDonnees:string
+    @Column()
+    typeDonnees:string
 
-    // @Column()
-    // nomSource:string
+    @Column()
+    nomSource:string
 
-    // @Column()
-    // commentaire:string
+    @Column()
+    commentaire:string
 
-    // @Column()
-    // format
+    @ManyToOne(()=>Formatfichier,(formatfichier)=>formatfichier.source)
+    format:Formatfichier
+    @Column()
+    libelleformat:string
 
-    // @Column()
+    @ManyToOne(()=>DataType,(DataType)=>DataType.source)
+    typedonnes:DataType
+
+    @Column()
+    libelletypedonnees:string;
+
+    @ManyToOne(()=>unitefrequence,(unitefrequence)=>unitefrequence.source)
+    unitefrequence:unitefrequence
+    @Column()
+    libelleunite:string;
     
+    @Column()
+    frequence :number
+
+    @Column({
+        type:"longblob",
+        nullable:true
+    })
+    fichier:Buffer
+
+    @Column({
+        nullable:true
+    })
+    source:string
+
+    @ManyToOne(()=>Enquete,(enquete)=>enquete.source)
+    enquete:Enquete
+
 
 }

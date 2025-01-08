@@ -8,5 +8,6 @@ import { Formatfichier } from './entities/formatfichier.entity';
   imports:[TypeOrmModule.forFeature([Formatfichier])],
   controllers: [FormatfichierController],
   providers: [FormatfichierService],
+  exports:[FormatfichierService]
 })
 export class FormatfichierModule {}

@@ -27,6 +27,16 @@ export class EnqueteService {
       }
     }
 
+
+    async getenqueteByID(idenquete){
+      try {
+        const enquete = await this.enqueteRepo.findOneBy({idenquete});
+        return enquete;
+      } catch (err) {
+        throw new HttpException(err,807)
+      }
+    }
+
   async createEnquete(createenquete: CreateEnqueteDto, user,idProjet) {
       const { membreStruct, ...creation } = createenquete;
       try {

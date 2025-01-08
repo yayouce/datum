@@ -29,7 +29,7 @@ export class DataTypeService {
      return await this.datatyepeRepo.find()
    }
    catch(err){
-     throw new HttpException(err.message,800)
+     throw new HttpException(err.message,801)
    }
  }
  
@@ -39,7 +39,19 @@ export class DataTypeService {
    return await this.datatyepeRepo.findOneBy({iddatatype})
  }
  catch(err){
-   throw new HttpException(err.message,800)
+   throw new HttpException(err.message,802)
  }
  }
+
+
+ async getoneByLibelle(libelledatatype){
+  try{
+    return await this.datatyepeRepo.findOneBy({libelledatatype})
+  }
+  catch(err){
+    throw new HttpException(err.message,803)
+  }
+  }
+
+
 }
