@@ -23,24 +23,24 @@ export class SourceDonneesService {
   ) {}
 
   async CreationSourcededonnees(data: CreateSourceDonneeDto, idenquete: string) {
-    const { libelleformat, libelletypedonnees, libelleunite, fichier, source, ...reste } = data;
+    const { libelleformat, libelletypedonnees, libelleunite, ...reste } = data;
 
-    try {
-      // 1. Validation du fichier ou du lien API
-      if (fichier) {
-        // Si fichier présent, validez le format
-        const fileType = await this.fileHandlerService.validateFile(fichier);
-        console.log(`Fichier validé de type : ${fileType}`);
-      } else if (source) {
-        // Si source (lien API) est fourni, vérifiez qu'il s'agit d'une URL valide
-        if (!isURL(source)) {
-          throw new BadRequestException('Le lien API fourni est invalide.');
-        }
-      } else {
-        throw new BadRequestException(
-          'Un fichier ou un lien API est requis pour créer une source de données.',
-        );
-      }
+    // try {
+    //   // 1. Validation du fichier ou du lien API
+    //   if (fichier) {
+    //     // Si fichier présent, validez le format
+    //     const fileType = await this.fileHandlerService.validateFile(fichier);
+    //     console.log(`Fichier validé de type : ${fileType}`);
+    //   } else if (source) {
+    //     // Si source (lien API) est fourni, vérifiez qu'il s'agit d'une URL valide
+    //     if (!isURL(source)) {
+    //       throw new BadRequestException('Le lien API fourni est invalide.');
+    //     }
+    //   } else {
+    //     throw new BadRequestException(
+    //       'Un fichier ou un lien API est requis pour créer une source de données.',
+    //     );
+    //   }
 
       // 2. Récupération des entités associées
       const typedonnees = await this.datatypeservice.getoneByLibelle(libelletypedonnees);
@@ -57,9 +57,7 @@ export class SourceDonneesService {
         libelleunite: unitefrequence.libelleunitefrequence,
         typedonnes: typedonnees,
         format: format,
-        unitefrequence: unitefrequence,
-        fichier, // Enregistrement direct si nécessaire
-        source,
+  
       });
 
       // 4. Sauvegarde dans la base de données
@@ -68,4 +66,4 @@ export class SourceDonneesService {
       throw new HttpException(err.message, 801);
     }
   }
-}
+

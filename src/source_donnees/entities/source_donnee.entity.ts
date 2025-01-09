@@ -39,11 +39,8 @@ export class SourceDonnee {
     @Column()
     frequence :number
 
-    @Column({
-        type:"longblob",
-        nullable:true
-    })
-    fichier:Buffer
+    @Column({ type: 'json', nullable: true })
+    fichier:any
 
     @Column({
         nullable:true

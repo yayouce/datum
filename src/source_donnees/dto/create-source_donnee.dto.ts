@@ -37,9 +37,9 @@ export class CreateSourceDonneeDto {
         frequecnce:number
         
         @ValidateIf((o) => !o.source)
-        @IsBuffer({ message: "Le fichier doit être un Buffer valide." })
+        // @IsBuffer({ message: "Le fichier doit être un Buffer valide." })
         @IsOptional()
-        fichier:Buffer
+        fichier:any
         
         @ValidateIf((o) => !o.fichier)
         @IsNotEmpty({ message: "Le lien source est obligatoire si aucun fichier n'est fourni." })
