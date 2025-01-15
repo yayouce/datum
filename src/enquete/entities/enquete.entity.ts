@@ -36,6 +36,4 @@ export class Enquete {
         @OneToMany(()=>SourceDonnee,(SourceDonnee)=>SourceDonnee.source)
         source:SourceDonnee[]
 
-
-
 }

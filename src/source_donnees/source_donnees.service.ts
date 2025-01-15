@@ -25,23 +25,6 @@ export class SourceDonneesService {
   async CreationSourcededonnees(data: CreateSourceDonneeDto, idenquete: string) {
     const { libelleformat, libelletypedonnees, libelleunite, ...reste } = data;
 
-    // try {
-    //   // 1. Validation du fichier ou du lien API
-    //   if (fichier) {
-    //     // Si fichier présent, validez le format
-    //     const fileType = await this.fileHandlerService.validateFile(fichier);
-    //     console.log(`Fichier validé de type : ${fileType}`);
-    //   } else if (source) {
-    //     // Si source (lien API) est fourni, vérifiez qu'il s'agit d'une URL valide
-    //     if (!isURL(source)) {
-    //       throw new BadRequestException('Le lien API fourni est invalide.');
-    //     }
-    //   } else {
-    //     throw new BadRequestException(
-    //       'Un fichier ou un lien API est requis pour créer une source de données.',
-    //     );
-    //   }
-
       // 2. Récupération des entités associées
       const typedonnees = await this.datatypeservice.getoneByLibelle(libelletypedonnees);
       const format = await this.formatservice.getoneByLibelle(libelleformat);
@@ -65,5 +48,50 @@ export class SourceDonneesService {
     } catch (err) {
       throw new HttpException(err.message, 801);
     }
-  }
+
+
+    async getAllsource(){
+      try{
+         return await this.sourcededonneesrepo.find()
+      }
+      catch(err){
+        throw new HttpException(err.message,804)
+        
+      }
+    }
+
+
+
+    async getSourceById(idsourceDonnes: string): Promise<SourceDonnee> {
+      const source = await this.sourcededonneesrepo.findOne({
+        where: { idsourceDonnes },
+      });
+      if (!source) {
+        throw new BadRequestException(`Source de données avec l'ID ${idsourceDonnes} non trouvée.`);
+      }
+      return source;
+    }
+
+
+// sources des données par enquete par projet
+
+async getSourcesByEnquete(idenquete: string): Promise<SourceDonnee[]> {
+  return this.sourcededonneesrepo.find({
+    where: { enquete: { idenquete } },
+    relations: ['enquete'], // Charge la relation si nécessaire
+  });
+}
+
+
+
+async getSourcesByProjet(idprojet: string): Promise<SourceDonnee[]> {
+  return this.sourcededonneesrepo.find({
+    where: { enquete: { projet: { idprojet } } },
+    relations: ['enquete', 'enquete.projet'], // Charge les relations imbriquées
+  });
+}
+
+   
+
+}
 

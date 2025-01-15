@@ -8,7 +8,7 @@ import { Column, Entity, ManyToOne, OneToMany, PrimaryGeneratedColumn } from "ty
 @Entity("sourcedonnees")
 export class SourceDonnee {
 
-    @PrimaryGeneratedColumn()
+    @PrimaryGeneratedColumn("uuid")
     idsourceDonnes:string
 
     @Column()
