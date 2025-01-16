@@ -6,6 +6,7 @@ import { SourceDonnee } from './entities/source_donnee.entity';
 import { addColumnDto } from './dto/addcolumn.dto';
 import { modifyColumnDto } from './dto/modify.dto';
 import { removeColumnDto } from './dto/removeclumn.dto';
+import { ApplyFunctionDto } from './dto/ApplyFunctionDto.dto';
 
 
 @Controller('source-donnees')
@@ -98,6 +99,17 @@ export class SourceDonneesController {
       idsource,
       body
     );
+  }
+
+
+
+
+  @Post('apply-function/:idsource')
+  async applyFunction(
+    @Body() applyFunctionDto: ApplyFunctionDto,
+    @Param('idsource') idsource:string
+  ) {
+    return await this.sourceDonneesService.applyFunctionAndSave(idsource,applyFunctionDto);
   }
 
 
