@@ -13,6 +13,7 @@ import { getSheetOrDefault } from './getSheetOrdefault';
 import { generateNextColumnLetter } from './generateNextColumnLetter';
 import { addColumnDto } from './dto/addcolumn.dto';
 import { modifyColumnDto } from './dto/modify.dto';
+import { removeColumnDto } from './dto/removeclumn.dto';
 
 
 @Injectable()
@@ -180,15 +181,12 @@ async modifyColumn(
 
 async removeColumn(
   idsource: string,
-  nomFeuille: string | null, // Nom de la feuille ou null pour utiliser la première feuille
-  nomColonne: string // Nom de l'entête à supprimer
+  body:removeColumnDto
 ): Promise<SourceDonnee> {
   const source = await this.getSourceById(idsource);
   const fichier = source.fichier;
-
+  const { nomFeuille, nomColonne } = body;
   const sheet = getSheetOrDefault(fichier, nomFeuille);
-
-  // Étape 3 : Vérifier si la feuille est vide ou mal initialisée
   if (!sheet.donnees || sheet.donnees.length === 0) {
     throw new HttpException(`La feuille spécifiée est vide ou mal initialisée.`, 806);
   }
@@ -200,7 +198,7 @@ async removeColumn(
   );
 
   if (!columnLetter) {
-    throw new HttpException(`L'entête "${nomColonne}" n'existe pas.`, 404);
+    throw new HttpException(`L'entête "${nomColonne}" n'existe pas.`, 803);
   }
 
   delete headers[columnLetter]; // Supprimer l'entête

@@ -5,6 +5,7 @@ import { UpdateSourceDonneeDto } from './dto/update-source_donnee.dto';
 import { SourceDonnee } from './entities/source_donnee.entity';
 import { addColumnDto } from './dto/addcolumn.dto';
 import { modifyColumnDto } from './dto/modify.dto';
+import { removeColumnDto } from './dto/removeclumn.dto';
 
 
 @Controller('source-donnees')
@@ -87,17 +88,15 @@ export class SourceDonneesController {
 
   @Delete('remove-column/:idsource')
   async removeColumn(
-    @Body() body: any,
+    @Body() body: removeColumnDto,
     @Param('idsource') idsource:string
   
   ) {
-    const { nomFeuille, nomColonne } = body;
 
     // Appel du service pour supprimer une colonne
     return await this.sourceDonneesService.removeColumn(
       idsource,
-      nomFeuille || null, // Nom de la feuille ou null pour utiliser la première feuille
-      nomColonne
+      body
     );
   }
 
