@@ -9,6 +9,11 @@ import { UnitefrequenceService } from 'src/frequence/unitefrequence.service';
 import { EnqueteService } from 'src/enquete/enquete.service';
 import { isURL } from 'class-validator';
 import { FileHandlerService } from 'src/utils/file-handler.service';
+import { getSheetOrDefault } from './getSheetOrdefault';
+import { generateNextColumnLetter } from './generateNextColumnLetter';
+import { addColumnDto } from './dto/addcolumn.dto';
+import { modifyColumnDto } from './dto/modify.dto';
+
 
 @Injectable()
 export class SourceDonneesService {
@@ -90,6 +95,126 @@ async getSourcesByProjet(idprojet: string): Promise<SourceDonnee[]> {
     relations: ['enquete', 'enquete.projet'], // Charge les relations imbriquées
   });
 }
+
+
+
+//----------------Ajout de nouvelle colonne 
+async addColumn(
+  idsource,
+body:addColumnDto
+): Promise<SourceDonnee> {
+
+  const { nomFeuille, nomColonne } = body;
+  if (!nomColonne) {
+    throw new HttpException(' la source et le nom de la nouvelle colonne sont obligatoires.',701);
+  }
+  // Étape 1 : Récupérer la source de données
+  const source = await this.getSourceById(idsource);
+  const fichier = source.fichier;
+
+  // Étape 2 : Récupérer la feuille ou les données principales
+  const sheet = getSheetOrDefault(fichier, nomFeuille);
+  if (!sheet.donnees || sheet.donnees.length === 0) {
+    throw new HttpException(`La feuille spécifiée est vide ou mal initialisée.`, 806);
+  }
+  const headers = sheet.donnees[0]; // Première ligne contient les entêtes
+  if (Object.values(headers).includes(nomColonne)) {
+    throw new HttpException(`L'entête "${nomColonne}" existe déjà.`, 805);
+  }
+  const newColumnLetter =generateNextColumnLetter(sheet.colonnes);
+  headers[`${newColumnLetter}1`] = nomColonne;
+  sheet.colonnes.push(newColumnLetter);
+
+  sheet.donnees.slice(1).forEach((row, index) => {
+    row[`${newColumnLetter}${index + 2}`] = null; // Initialiser à null
+  });
+  source.fichier = fichier;
+  return await this.sourcededonneesrepo.save(source);
+}
+
+
+
+//----------------- modification de colonne
+
+async modifyColumn(
+  idsourceDonnes: string,
+ body:modifyColumnDto // Transformation des valeurs (facultatif)
+): Promise<SourceDonnee> {
+
+  const { nomFeuille, nomColonne, newnomColonne, transform } = body;
+  const source = await this.getSourceById(idsourceDonnes);
+  const fichier = source.fichier;
+  const sheet = getSheetOrDefault(fichier, nomFeuille);
+  if (!sheet.donnees || sheet.donnees.length === 0) {
+    throw new HttpException(`La feuille spécifiée est vide ou mal initialisée.`, 806);
+  }
+  const headers = sheet.donnees[0]; 
+  const columnLetter = Object.keys(headers).find(
+    (key) => headers[key] === nomColonne
+  );
+
+  if (!columnLetter) {
+    throw new HttpException(`L'entête "${nomColonne}" n'existe pas.`, 404);
+  }
+
+  if (newnomColonne) {
+    headers[columnLetter] = newnomColonne;
+  }
+
+  if (transform) {
+    sheet.donnees.slice(1).forEach((row, index) => {
+      const cellKey = `${columnLetter}${index + 2}`;
+      if (row[cellKey] !== undefined) {
+        row[cellKey] = transform(row[cellKey]); // Appliquer la transformation
+      }
+    });
+  }
+
+  source.fichier = fichier;
+  return await this.sourcededonneesrepo.save(source);
+}
+
+
+
+// suppression
+
+async removeColumn(
+  idsource: string,
+  nomFeuille: string | null, // Nom de la feuille ou null pour utiliser la première feuille
+  nomColonne: string // Nom de l'entête à supprimer
+): Promise<SourceDonnee> {
+  const source = await this.getSourceById(idsource);
+  const fichier = source.fichier;
+
+  const sheet = getSheetOrDefault(fichier, nomFeuille);
+
+  // Étape 3 : Vérifier si la feuille est vide ou mal initialisée
+  if (!sheet.donnees || sheet.donnees.length === 0) {
+    throw new HttpException(`La feuille spécifiée est vide ou mal initialisée.`, 806);
+  }
+
+  // Étape 4 : Trouver la lettre associée à l'entête
+  const headers = sheet.donnees[0]; // Première ligne contient les entêtes
+  const columnLetter = Object.keys(headers).find(
+    (key) => headers[key] === nomColonne
+  );
+
+  if (!columnLetter) {
+    throw new HttpException(`L'entête "${nomColonne}" n'existe pas.`, 404);
+  }
+
+  delete headers[columnLetter]; // Supprimer l'entête
+  sheet.donnees.slice(1).forEach((row, index) => {
+    delete row[`${columnLetter}${index + 2}`];
+  });
+  sheet.colonnes = sheet.colonnes.filter((col) => col !== columnLetter);
+  source.fichier = fichier;
+  return await this.sourcededonneesrepo.save(source);
+}
+
+
+
+
 
    
 

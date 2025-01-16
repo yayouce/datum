@@ -1,8 +1,11 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, UploadedFile, ParseIntPipe } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, UploadedFile, ParseIntPipe, HttpException } from '@nestjs/common';
 import { SourceDonneesService } from './source_donnees.service';
 import { CreateSourceDonneeDto } from './dto/create-source_donnee.dto';
 import { UpdateSourceDonneeDto } from './dto/update-source_donnee.dto';
 import { SourceDonnee } from './entities/source_donnee.entity';
+import { addColumnDto } from './dto/addcolumn.dto';
+import { modifyColumnDto } from './dto/modify.dto';
+
 
 @Controller('source-donnees')
 export class SourceDonneesController {
@@ -46,8 +49,57 @@ export class SourceDonneesController {
   ){
     return this.sourceDonneesService.getSourceById(idsource)
   }
-  
 
+
+
+
+  //ajout de colonne 
+  @Post('add-column/:idsource')
+  async addColumn(
+    @Body() body: addColumnDto,
+  @Param('idsource') idsource:string
+  ) {
+   
+    return await this.sourceDonneesService.addColumn(idsource,body);
+  }
+
+
+
+  // modifier colonne
+
+  @Patch('modify_column/:idsource')
+  async modifyColumn(
+    @Body() body: modifyColumnDto,
+    @Param('idsource') idsource:string
+  
+  ) {
+ 
+
+    // Appel du service pour modifier une colonne
+    return await this.sourceDonneesService.modifyColumn(
+      idsource,
+      body
+    );
+  }
+
+
+  //suppression
+
+  @Delete('remove-column/:idsource')
+  async removeColumn(
+    @Body() body: any,
+    @Param('idsource') idsource:string
+  
+  ) {
+    const { nomFeuille, nomColonne } = body;
+
+    // Appel du service pour supprimer une colonne
+    return await this.sourceDonneesService.removeColumn(
+      idsource,
+      nomFeuille || null, // Nom de la feuille ou null pour utiliser la première feuille
+      nomColonne
+    );
+  }
 
 
 }
