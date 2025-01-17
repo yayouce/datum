@@ -11,7 +11,8 @@ export class SourceDonnee {
     @PrimaryGeneratedColumn("uuid")
     idsourceDonnes:string
 
-    @Column()
+
+    @Column( {nullable: true })
     typeDonnees:string
 
     @Column()

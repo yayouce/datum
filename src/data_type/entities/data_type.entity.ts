@@ -3,7 +3,7 @@ import { Column, Entity, OneToMany, PrimaryGeneratedColumn } from "typeorm";
 
 @Entity("datatype")
 export class DataType {
-    @PrimaryGeneratedColumn("uuid")
+        @PrimaryGeneratedColumn("uuid")
         iddatatype :string;
         @Column({unique:true})
         libelledatatype : string;
