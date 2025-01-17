@@ -100,6 +100,27 @@ async getSourcesByProjet(idprojet: string): Promise<SourceDonnee[]> {
 }
 
 
+// nombre
+async getBdsCountByProjet(idprojet: string): Promise<{ normales: number; jointes: number; total: number }> {
+  // Récupérer toutes les sources du projet
+  const sources = await this.sourcededonneesrepo.find({
+    where: { enquete: { projet: { idprojet } } },
+    relations: ['enquete', 'enquete.projet'], // Charge les relations nécessaires
+  });
+
+  // Compter les bases de données normales et jointes
+  const normales = sources.filter((source) => source.bd_normales).length;
+  const jointes = sources.filter((source) => source.bd_jointes).length;
+
+  return {
+    normales,
+    jointes,
+    total: normales + jointes,
+  };
+}
+
+
+
 async getBdsByProjetWithFilter(
   idprojet: string,
   bdType: 'normales' | 'jointes' | 'tous'
@@ -114,13 +135,19 @@ async getBdsByProjetWithFilter(
   if (bdType === 'normales') {
     return sources
       .filter((source) => source.bd_normales)
-      .map((source) => source.bd_normales);
+      .map((source) => ({
+        nomSource: source.nomSource,
+        bd_jointes: source.bd_normales,
+      }));
   }
 
   if (bdType === 'jointes') {
     return sources
       .filter((source) => source.bd_jointes)
-      .map((source) => source.bd_jointes);
+      .map((source) => ({
+        nomSource: source.nomSource,
+        bd_jointes: source.bd_jointes,
+      }));;
   }
 
   if (bdType === 'tous') {

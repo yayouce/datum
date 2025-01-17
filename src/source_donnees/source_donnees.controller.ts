@@ -54,6 +54,16 @@ async getBdsByProjet(
 }
 
 
+
+@Get('TotalBdsByprojet/:idprojet')
+async getBdsCountByProjet(
+  @Param('idprojet') idprojet: string
+): Promise<{ normales: number; jointes: number; total: number }> {
+  return await this.sourceDonneesService.getBdsCountByProjet(idprojet);
+} 
+
+
+
   @Get('getone/:idsource')
   async  geto(
     @Param('idsource') idsource:string
