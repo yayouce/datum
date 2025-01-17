@@ -51,14 +51,14 @@ export class CreateSourceDonneeDto {
         @Type(() => unitefrequence)
         unitefrequence:unitefrequence
         
-        
+        @IsOptional()
         @Type(() => Formatfichier)
         format:Formatfichier
         
-        
+        @IsOptional()
         @Type(() => DataType)
         typedonnes:DataType
-        
+        @IsOptional()
         @Type(() => Enquete)
         enquete:Enquete
         
