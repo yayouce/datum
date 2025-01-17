@@ -154,7 +154,8 @@ async getBdsByProjetWithFilter(
 
   if (bdType === 'tous') {
     return sources.map((source) => ({
-      bd_normales: source.bd_normales || null,
+      nomSource: source.nomSource,
+      // bd_normales: source.bd_normales || null,
       idsource:source.idsourceDonnes
       // bd_jointes: source.bd_jointes || null,
     }));
