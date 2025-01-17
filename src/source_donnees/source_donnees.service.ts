@@ -70,15 +70,32 @@ export class SourceDonneesService {
 
 
 
-    async getSourceById(idsourceDonnes: string): Promise<SourceDonnee> {
+    async getSourceById(idsourceDonnes: string): Promise<any> {
       const source = await this.sourcededonneesrepo.findOne({
         where: { idsourceDonnes },
       });
       if (!source) {
-        throw new BadRequestException(`Source de données avec l'ID ${idsourceDonnes} non trouvée.`);
+        throw new HttpException(
+          `Source de données avec l'ID ${idsourceDonnes} non trouvée.`,
+          803
+        );
       }
-      return source;
+    
+      // Transformer `fichier` pour le format attendu
+      const transformedFichier = Object.entries(source.fichier).reduce(
+        (acc, [sheetName, sheetData]) => {
+          acc.push({ [sheetName]: sheetData });
+          return acc;
+        },
+        []
+      );
+    
+      return {
+        ...source,
+        fichier: transformedFichier,
+      };
     }
+    
 
 
 // sources des données par enquete par projet
