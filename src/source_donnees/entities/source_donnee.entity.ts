@@ -23,21 +23,21 @@ export class SourceDonnee {
 
     @ManyToOne(()=>Formatfichier,(formatfichier)=>formatfichier.source)
     format:Formatfichier
-    @Column()
+    @Column({nullable: true })
     libelleformat:string
 
     @ManyToOne(()=>DataType,(DataType)=>DataType.source)
     typedonnes:DataType
 
-    @Column()
+    @Column({nullable: true })
     libelletypedonnees:string;
 
     @ManyToOne(()=>unitefrequence,(unitefrequence)=>unitefrequence.source)
     unitefrequence:unitefrequence
-    @Column()
+    @Column({nullable: true })
     libelleunite:string;
     
-    @Column()
+    @Column({nullable: true })
     frequence :number
 
     @Column({ type: 'json', nullable: true })
