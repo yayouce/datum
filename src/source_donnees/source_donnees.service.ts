@@ -137,7 +137,8 @@ async getBdsByProjetWithFilter(
       .filter((source) => source.bd_normales)
       .map((source) => ({
         nomSource: source.nomSource,
-        bd_jointes: source.bd_normales,
+        idsource:source.idsourceDonnes
+        // bd_jointes: source.bd_normales,
       }));
   }
 
@@ -146,14 +147,16 @@ async getBdsByProjetWithFilter(
       .filter((source) => source.bd_jointes)
       .map((source) => ({
         nomSource: source.nomSource,
-        bd_jointes: source.bd_jointes,
+        idsource:source.idsourceDonnes
+        // bd_jointes: source.bd_jointes,
       }));;
   }
 
   if (bdType === 'tous') {
     return sources.map((source) => ({
       bd_normales: source.bd_normales || null,
-      bd_jointes: source.bd_jointes || null,
+      idsource:source.idsourceDonnes
+      // bd_jointes: source.bd_jointes || null,
     }));
   }
 
