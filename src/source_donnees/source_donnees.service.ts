@@ -130,7 +130,7 @@ async getBdsByProjetWithFilter(
     }));
   }
 
-  throw new HttpException(`Type "${bdType}" non supporté. Utilisez "normales", "jointes", ou "tous".`, 400);
+  throw new HttpException(`Type "${bdType}" non supporté. Utilisez "normales", "jointes", ou "tous".`, 800);
 }
 
 
