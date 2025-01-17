@@ -47,6 +47,7 @@ export class SourceDonneesService {
         libelleunite: unitefrequence.libelleunitefrequence,
         typedonnes: typedonnees,
         format: format,
+        bd_normales: data.fichier,
   
       });
 
@@ -97,6 +98,48 @@ async getSourcesByProjet(idprojet: string): Promise<SourceDonnee[]> {
     relations: ['enquete', 'enquete.projet'], // Charge les relations imbriquées
   });
 }
+
+
+async getBdsByProjetWithFilter(
+  idprojet: string,
+  bdType: 'normales' | 'jointes' | 'tous'
+): Promise<any[]> {
+  // Récupérer toutes les sources du projet
+  const sources = await this.sourcededonneesrepo.find({
+    where: { enquete: { projet: { idprojet } } },
+    relations: ['enquete', 'enquete.projet'], // Charge les relations nécessaires
+  });
+
+  // Appliquer le filtre en fonction du paramètre `bdType`
+  if (bdType === 'normales') {
+    return sources
+      .filter((source) => source.bd_normales)
+      .map((source) => source.bd_normales);
+  }
+
+  if (bdType === 'jointes') {
+    return sources
+      .filter((source) => source.bd_jointes)
+      .map((source) => source.bd_jointes);
+  }
+
+  if (bdType === 'tous') {
+    return sources.map((source) => ({
+      bd_normales: source.bd_normales || null,
+      bd_jointes: source.bd_jointes || null,
+    }));
+  }
+
+  throw new HttpException(`Type "${bdType}" non supporté. Utilisez "normales", "jointes", ou "tous".`, 400);
+}
+
+
+
+
+
+
+
+
 
 
 

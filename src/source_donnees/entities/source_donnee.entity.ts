@@ -52,4 +52,12 @@ export class SourceDonnee {
     enquete:Enquete
 
 
+
+     @Column({ type: 'json', nullable: true })
+     bd_normales: any;
+ 
+     @Column({ type: 'json', nullable: true })
+     bd_jointes: any;
+
+
 }

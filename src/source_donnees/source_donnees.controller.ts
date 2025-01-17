@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, UploadedFile, ParseIntPipe, HttpException } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, UploadedFile, ParseIntPipe, HttpException, Query } from '@nestjs/common';
 import { SourceDonneesService } from './source_donnees.service';
 import { CreateSourceDonneeDto } from './dto/create-source_donnee.dto';
 import { UpdateSourceDonneeDto } from './dto/update-source_donnee.dto';
@@ -43,6 +43,15 @@ export class SourceDonneesController {
   async getSourcesByProjet(@Param('idprojet') idprojet: string): Promise<SourceDonnee[]> {
     return this.sourceDonneesService.getSourcesByProjet(idprojet);
   }
+
+
+  @Get('getbdbyprojet/:idprojet')
+async getBdsByProjet(
+  @Param('idprojet') idprojet: string,
+  @Query('bd') bdType: 'normales' | 'jointes' | 'tous'
+): Promise<any[]> {
+  return await this.sourceDonneesService.getBdsByProjetWithFilter(idprojet, bdType || 'tous');
+}
 
 
   @Get('getone/:idsource')
