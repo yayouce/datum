@@ -193,37 +193,56 @@ async getBdsByProjetWithFilter(
 
 //----------------Ajout de nouvelle colonne 
 async addColumn(
-  idsource,
-body:addColumnDto
+  idsource: string,
+  body: addColumnDto
 ): Promise<SourceDonnee> {
-
   const { nomFeuille, nomColonne } = body;
+
   if (!nomColonne) {
-    throw new HttpException(' la source et le nom de la nouvelle colonne sont obligatoires.',701);
+    throw new HttpException('Le nom de la nouvelle colonne est obligatoire.', 701);
   }
+
   // Étape 1 : Récupérer la source de données
   const source = await this.getSourceById(idsource);
   const fichier = source.fichier;
 
-  // Étape 2 : Récupérer la feuille ou les données principales
-  const sheet = getSheetOrDefault(fichier, nomFeuille);
+  // Étape 2 : Gérer le cas où `nomFeuille` est vide ou non spécifié
+  const targetSheetName = nomFeuille && nomFeuille.trim() ? nomFeuille : Object.keys(fichier[0])[0]; // Récupérer le nom de la première feuille
+  const sheet = getSheetOrDefault(fichier, targetSheetName); // Récupérer la feuille correspondante
+
   if (!sheet.donnees || sheet.donnees.length === 0) {
     throw new HttpException(`La feuille spécifiée est vide ou mal initialisée.`, 806);
   }
+
+  // Étape 3 : Vérifier si l'entête existe déjà
   const headers = sheet.donnees[0]; // Première ligne contient les entêtes
   if (Object.values(headers).includes(nomColonne)) {
     throw new HttpException(`L'entête "${nomColonne}" existe déjà.`, 805);
   }
-  const newColumnLetter =generateNextColumnLetter(sheet.colonnes);
+
+  // Étape 4 : Générer la nouvelle lettre de colonne et l'ajouter
+  const newColumnLetter = generateNextColumnLetter(sheet.colonnes);
   headers[`${newColumnLetter}1`] = nomColonne;
   sheet.colonnes.push(newColumnLetter);
 
+  // Étape 5 : Initialiser les valeurs de la nouvelle colonne à `null`
   sheet.donnees.slice(1).forEach((row, index) => {
-    row[`${newColumnLetter}${index + 2}`] = null; // Initialiser à null
+    row[`${newColumnLetter}${index + 2}`] = null;
   });
+
+  // Étape 6 : Sauvegarder la feuille dans le fichier
+  const sheetIndex = fichier.findIndex((sheetObj) => sheetObj[targetSheetName]);
+  if (sheetIndex >= 0) {
+    fichier[sheetIndex][targetSheetName] = sheet; // Mettre à jour la feuille dans le fichier
+  } else {
+    throw new HttpException(`La feuille "${targetSheetName}" est introuvable.`, 803);
+  }
+
+  // Étape 7 : Sauvegarder dans la base de données
   source.fichier = fichier;
   return await this.sourcededonneesrepo.save(source);
 }
+
 
 
 
@@ -231,17 +250,30 @@ body:addColumnDto
 
 async modifyColumn(
   idsourceDonnes: string,
- body:modifyColumnDto // Transformation des valeurs (facultatif)
+  body: modifyColumnDto // Transformation des valeurs (facultatif)
 ): Promise<SourceDonnee> {
-
   const { nomFeuille, nomColonne, newnomColonne, transform } = body;
+
+  // Étape 1 : Récupérer la source de données
   const source = await this.getSourceById(idsourceDonnes);
   const fichier = source.fichier;
-  const sheet = getSheetOrDefault(fichier, nomFeuille);
+
+  // Étape 2 : Gérer le cas où `nomFeuille` est vide ou non spécifié
+  const targetSheetName = nomFeuille && nomFeuille.trim() ? nomFeuille : Object.keys(fichier[0])[0]; // Récupérer le nom de la première feuille
+  const sheetObject = fichier.find((sheetObj) => sheetObj[targetSheetName]);
+
+  if (!sheetObject) {
+    throw new HttpException(`La feuille spécifiée "${targetSheetName}" n'existe pas.`, 803);
+  }
+
+  const sheet = sheetObject[targetSheetName];
+
   if (!sheet.donnees || sheet.donnees.length === 0) {
     throw new HttpException(`La feuille spécifiée est vide ou mal initialisée.`, 806);
   }
-  const headers = sheet.donnees[0]; 
+
+  // Étape 3 : Identifier la lettre de la colonne
+  const headers = sheet.donnees[0]; // Première ligne contient les entêtes
   const columnLetter = Object.keys(headers).find(
     (key) => headers[key] === nomColonne
   );
@@ -250,10 +282,12 @@ async modifyColumn(
     throw new HttpException(`L'entête "${nomColonne}" n'existe pas.`, 404);
   }
 
+  // Étape 4 : Renommer la colonne si nécessaire
   if (newnomColonne) {
     headers[columnLetter] = newnomColonne;
   }
 
+  // Étape 5 : Appliquer une transformation sur les valeurs, si spécifié
   if (transform) {
     sheet.donnees.slice(1).forEach((row, index) => {
       const cellKey = `${columnLetter}${index + 2}`;
@@ -263,9 +297,19 @@ async modifyColumn(
     });
   }
 
+  // Étape 6 : Mettre à jour la feuille dans le fichier
+  const sheetIndex = fichier.findIndex((sheetObj) => sheetObj[targetSheetName]);
+  if (sheetIndex >= 0) {
+    fichier[sheetIndex][targetSheetName] = sheet; // Mettre à jour la feuille
+  } else {
+    throw new HttpException(`La feuille "${targetSheetName}" est introuvable.`, 803);
+  }
+
+  // Étape 7 : Sauvegarder dans la base de données
   source.fichier = fichier;
   return await this.sourcededonneesrepo.save(source);
 }
+
 
 
 

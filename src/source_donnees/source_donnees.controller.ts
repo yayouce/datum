@@ -106,7 +106,7 @@ async getBdsCountByProjet(
 
   //suppression
 
-  @Delete('remove-column/:idsource')
+  @Post('remove-column/:idsource')
   async removeColumn(
     @Body() body: removeColumnDto,
     @Param('idsource') idsource:string
