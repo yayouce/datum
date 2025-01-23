@@ -197,6 +197,7 @@ async addColumn(
   body: addColumnDto
 ): Promise<SourceDonnee> {
   const { nomFeuille, nomColonne } = body;
+
   if (!nomColonne) {
     throw new HttpException(
       'Le nom de la nouvelle colonne est obligatoire.',
@@ -212,8 +213,11 @@ async addColumn(
   const sheet = getSheetOrDefault(fichier, nomFeuille);
 
   // Vérifier si la feuille est valide
-  if (!sheet.donnees || sheet.donnees.length === 0) {
-    throw new HttpException(`La feuille spécifiée est vide ou mal initialisée.`, 806);
+  if (!sheet?.donnees || sheet.donnees.length === 0) {
+    throw new HttpException(
+      `La feuille spécifiée est vide ou mal initialisée.`,
+      806
+    );
   }
 
   // Étape 3 : Vérifier les entêtes existantes et générer un nom unique
@@ -241,12 +245,12 @@ async addColumn(
   });
 
   // Étape 5 : Sauvegarder les modifications
-  const sheetIndex = fichier.findIndex((sheetObj) => sheetObj[nomFeuille]);
-  fichier[sheetIndex][nomFeuille] = sheet;
+  fichier[nomFeuille] = sheet; // Met à jour la feuille dans l'objet `fichier`
   source.fichier = fichier;
 
   return await this.sourcededonneesrepo.save(source);
 }
+
 
 
 
