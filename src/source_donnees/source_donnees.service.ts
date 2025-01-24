@@ -244,6 +244,7 @@ async addColumn(
 
 
 
+
 //----------------- modification de colonne
 
 async modifyColumn(
@@ -257,14 +258,12 @@ async modifyColumn(
   const fichier = source.fichier;
 
   // Étape 2 : Gérer le cas où `nomFeuille` est vide ou non spécifié
-  const targetSheetName = nomFeuille && nomFeuille.trim() ? nomFeuille : Object.keys(fichier[0])[0]; // Récupérer le nom de la première feuille
-  const sheetObject = fichier.find((sheetObj) => sheetObj[targetSheetName]);
+  const targetSheetName = nomFeuille && nomFeuille.trim() ? nomFeuille : Object.keys(fichier)[0]; // Récupérer le nom de la première feuille
+  const sheet = fichier[targetSheetName];
 
-  if (!sheetObject) {
+  if (!sheet) {
     throw new HttpException(`La feuille spécifiée "${targetSheetName}" n'existe pas.`, 803);
   }
-
-  const sheet = sheetObject[targetSheetName];
 
   if (!sheet.donnees || sheet.donnees.length === 0) {
     throw new HttpException(`La feuille spécifiée est vide ou mal initialisée.`, 806);
@@ -295,18 +294,14 @@ async modifyColumn(
     });
   }
 
-  // Étape 6 : Mettre à jour la feuille dans le fichier
-  const sheetIndex = fichier.findIndex((sheetObj) => sheetObj[targetSheetName]);
-  if (sheetIndex >= 0) {
-    fichier[sheetIndex][targetSheetName] = sheet; // Mettre à jour la feuille
-  } else {
-    throw new HttpException(`La feuille "${targetSheetName}" est introuvable.`, 803);
-  }
+  // Étape 6 : Mettre à jour la feuille dans l'objet `fichier`
+  fichier[targetSheetName] = sheet;
 
   // Étape 7 : Sauvegarder dans la base de données
   source.fichier = fichier;
   return await this.sourcededonneesrepo.save(source);
 }
+
 
 
 
@@ -324,14 +319,12 @@ async removeColumn(
   const fichier = source.fichier;
 
   // Étape 2 : Récupérer la feuille ou la première feuille par défaut
-  const targetSheetName = nomFeuille && nomFeuille.trim() ? nomFeuille : Object.keys(fichier[0])[0];
-  const sheetObject = fichier.find((sheetObj) => sheetObj[targetSheetName]);
+  const targetSheetName = nomFeuille && nomFeuille.trim() ? nomFeuille : Object.keys(fichier)[0]; // Récupérer le nom de la première feuille
+  const sheet = fichier[targetSheetName];
 
-  if (!sheetObject) {
+  if (!sheet) {
     throw new HttpException(`La feuille spécifiée "${targetSheetName}" n'existe pas.`, 803);
   }
-
-  const sheet = sheetObject[targetSheetName];
 
   // Vérifier si la feuille est valide
   if (!sheet.donnees || sheet.donnees.length === 0) {
@@ -359,17 +352,14 @@ async removeColumn(
   // Étape 5 : Mettre à jour la liste des colonnes
   sheet.colonnes = sheet.colonnes.filter((col) => col !== columnLetter);
 
-  // Étape 6 : Mettre à jour la feuille dans le fichier
-  const sheetIndex = fichier.findIndex((sheetObj) => sheetObj[targetSheetName]);
-  if (sheetIndex >= 0) {
-    fichier[sheetIndex][targetSheetName] = sheet; // Mettre à jour la feuille
-  } else {
-    throw new HttpException(`La feuille "${targetSheetName}" est introuvable.`, 803);
-  }
+  // Étape 6 : Mettre à jour la feuille dans l'objet `fichier`
+  fichier[targetSheetName] = sheet; // Mettre à jour directement dans l'objet
+
   // Étape 7 : Sauvegarder les modifications
   source.fichier = fichier;
   return await this.sourcededonneesrepo.save(source);
 }
+
 
 
 
@@ -385,15 +375,13 @@ async applyFunctionAndSave(
   const source = await this.getSourceById(idsourceDonnes);
   const fichier = source.fichier;
 
-  // Étape 2 : Récupérer la feuille ou la première feuille si `nomFeuille` est vide
-  const targetSheetName = nomFeuille && nomFeuille.trim() ? nomFeuille : Object.keys(fichier[0])[0];
-  const sheetObject = fichier.find((sheetObj) => sheetObj[targetSheetName]);
+  // Étape 2 : Récupérer la feuille ou la première feuille par défaut
+  const targetSheetName = nomFeuille && nomFeuille.trim() ? nomFeuille : Object.keys(fichier)[0];
+  const sheet = fichier[targetSheetName];
 
-  if (!sheetObject) {
+  if (!sheet) {
     throw new HttpException(`La feuille spécifiée "${targetSheetName}" n'existe pas.`, 803);
   }
-
-  const sheet = sheetObject[targetSheetName];
 
   // Vérifier si la feuille est valide
   if (!sheet.donnees || sheet.donnees.length <= 1) {
@@ -430,31 +418,32 @@ async applyFunctionAndSave(
   try {
     switch (operation.toLowerCase()) {
       case 'sum': {
-        columnResult = columnValues[0].map(() =>
-          columnValues[0].reduce((acc, val) => acc + (parseFloat(val) || 0), 0)
+        columnResult = columnValues[0].map((_, index) =>
+          columnValues.reduce((acc, col) => acc + (parseFloat(col[index]) || 0), 0)
         );
         break;
       }
       case 'average': {
-        const avg =
-          columnValues[0].reduce((acc, val) => acc + (parseFloat(val) || 0), 0) /
-          columnValues[0].length;
-        columnResult = columnValues[0].map(() => avg);
+        columnResult = columnValues[0].map((_, index) => {
+          const sum = columnValues.reduce((acc, col) => acc + (parseFloat(col[index]) || 0), 0);
+          return sum / columnValues.length;
+        });
         break;
       }
       case 'max': {
-        const max = Math.max(...columnValues[0].map((val) => parseFloat(val) || 0));
-        columnResult = columnValues[0].map(() => max);
+        columnResult = columnValues[0].map((_, index) =>
+          Math.max(...columnValues.map((col) => parseFloat(col[index]) || 0))
+        );
         break;
       }
       case 'min': {
-        const min = Math.min(...columnValues[0].map((val) => parseFloat(val) || 0));
-        columnResult = columnValues[0].map(() => min);
+        columnResult = columnValues[0].map((_, index) =>
+          Math.min(...columnValues.map((col) => parseFloat(col[index]) || 0))
+        );
         break;
       }
       case 'count': {
-        const count = columnValues[0].length;
-        columnResult = columnValues[0].map(() => count);
+        columnResult = columnValues[0].map(() => columnValues[0].length);
         break;
       }
       case 'concat': {
@@ -485,13 +474,18 @@ async applyFunctionAndSave(
     row[`${newColumnLetter}${index + 2}`] = columnResult[index]; // Enregistrer le résultat pour chaque ligne
   });
 
-  // Étape 7 : Sauvegarder dans la base de données
-  const updatedSheetIndex = fichier.findIndex((sheetObj) => sheetObj[targetSheetName]);
-  fichier[updatedSheetIndex][targetSheetName] = sheet;
+  // Étape 7 : Sauvegarder les modifications
+  fichier[targetSheetName] = sheet; // Mettre à jour directement dans l'objet
   source.fichier = fichier;
 
   return await this.sourcededonneesrepo.save(source);
 }
+
+
+
+
+
+// autre operation
 
 
 
