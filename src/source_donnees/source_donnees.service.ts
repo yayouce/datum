@@ -233,7 +233,18 @@ async addColumn(
   });
 
   // Étape 5 : Sauvegarder les modifications
-  fichier[nomFeuille] = sheet; // Met à jour la feuille dans l'objet `fichier`
+  if (Array.isArray(fichier)) {
+    const sheetIndex = fichier.findIndex(
+      (sheetObj) => sheetObj[nomFeuille || Object.keys(sheetObj)[0]]
+    );
+    if (sheetIndex >= 0) {
+      fichier[sheetIndex][nomFeuille || Object.keys(fichier[sheetIndex])[0]] =
+        sheet;
+    }
+  } else {
+    fichier[nomFeuille || Object.keys(fichier)[0]] = sheet;
+  }
+
   source.fichier = fichier;
 
   return await this.sourcededonneesrepo.save(source);
@@ -324,21 +335,17 @@ async removeColumn(
   const fichier = source.fichier;
 
   // Étape 2 : Récupérer la feuille ou la première feuille par défaut
-  const targetSheetName = nomFeuille && nomFeuille.trim() ? nomFeuille : Object.keys(fichier[0])[0];
-  const sheetObject = fichier.find((sheetObj) => sheetObj[targetSheetName]);
-
-  if (!sheetObject) {
-    throw new HttpException(`La feuille spécifiée "${targetSheetName}" n'existe pas.`, 803);
-  }
-
-  const sheet = sheetObject[targetSheetName];
+  const sheet = getSheetOrDefault(fichier, nomFeuille);
 
   // Vérifier si la feuille est valide
-  if (!sheet.donnees || sheet.donnees.length === 0) {
-    throw new HttpException(`La feuille spécifiée est vide ou mal initialisée.`, 806);
+  if (!sheet?.donnees || sheet.donnees.length === 0) {
+    throw new HttpException(
+      `La feuille spécifiée est vide ou mal initialisée.`,
+      806
+    );
   }
 
-  // Étape 3 : Identifier la lettre de la colonne à partir de la référence (ex. "D1")
+  // Étape 3 : Identifier la lettre de la colonne
   const columnLetter = nomColonne.replace(/\d/g, ''); // Extraire la lettre de colonne
   if (!sheet.colonnes.includes(columnLetter)) {
     throw new HttpException(`La colonne référencée "${nomColonne}" n'existe pas.`, 803);
@@ -346,9 +353,14 @@ async removeColumn(
 
   // Étape 4 : Supprimer l'entête et les données associées
   const headers = sheet.donnees[0]; // Première ligne contient les entêtes
-  const headerKey = Object.keys(headers).find((key) => key.startsWith(columnLetter));
+  const headerKey = Object.keys(headers).find((key) =>
+    key.startsWith(columnLetter)
+  );
   if (!headerKey) {
-    throw new HttpException(`Impossible de trouver l'entête correspondant à "${nomColonne}".`, 803);
+    throw new HttpException(
+      `Impossible de trouver l'entête correspondant à "${nomColonne}".`,
+      803
+    );
   }
 
   delete headers[headerKey]; // Supprimer l'entête
@@ -356,18 +368,24 @@ async removeColumn(
     delete row[`${columnLetter}${index + 2}`]; // Supprimer les données ligne par ligne
   });
 
-  // Étape 5 : Mettre à jour la liste des colonnes
+  // Mettre à jour la liste des colonnes
   sheet.colonnes = sheet.colonnes.filter((col) => col !== columnLetter);
 
-  // Étape 6 : Mettre à jour la feuille dans le fichier
-  const sheetIndex = fichier.findIndex((sheetObj) => sheetObj[targetSheetName]);
-  if (sheetIndex >= 0) {
-    fichier[sheetIndex][targetSheetName] = sheet; // Mettre à jour la feuille
+  // Étape 5 : Sauvegarder les modifications
+  if (Array.isArray(fichier)) {
+    const sheetIndex = fichier.findIndex(
+      (sheetObj) => sheetObj[nomFeuille || Object.keys(sheetObj)[0]]
+    );
+    if (sheetIndex >= 0) {
+      fichier[sheetIndex][nomFeuille || Object.keys(fichier[sheetIndex])[0]] =
+        sheet;
+    }
   } else {
-    throw new HttpException(`La feuille "${targetSheetName}" est introuvable.`, 803);
+    fichier[nomFeuille || Object.keys(fichier)[0]] = sheet;
   }
-  // Étape 7 : Sauvegarder les modifications
+
   source.fichier = fichier;
+
   return await this.sourcededonneesrepo.save(source);
 }
 
