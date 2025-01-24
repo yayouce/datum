@@ -79,21 +79,9 @@ export class SourceDonneesService {
           `Source de données avec l'ID ${idsourceDonnes} non trouvée.`,
           803
         );
-      }
+      }  
     
-      // Transformer `fichier` pour le format attendu
-      const transformedFichier = Object.entries(source.fichier).reduce(
-        (acc, [sheetName, sheetData]) => {
-          acc.push({ [sheetName]: sheetData });
-          return acc;
-        },
-        []
-      );
-    
-      return {
-        ...source,
-        fichier: transformedFichier,
-      };
+      return source
     }
     
 
@@ -209,21 +197,10 @@ async addColumn(
   const source = await this.getSourceById(idsource);
   const fichier = source.fichier;
 
-  // Étape 2 : Rechercher la feuille dans le tableau `fichier`
-  const sheetIndex = fichier.findIndex((sheetObj) =>
-    Object.keys(sheetObj).includes(nomFeuille)
-  );
+  // Étape 2 : Récupérer la feuille ou la première feuille par défaut
+  const sheet = getSheetOrDefault(fichier, nomFeuille);
 
-  if (sheetIndex === -1) {
-    throw new HttpException(
-      `La feuille spécifiée "${nomFeuille}" n'existe pas.`,
-      803
-    );
-  }
-
-  const sheet = fichier[sheetIndex][nomFeuille];
-
-  // Étape 3 : Vérifier si la feuille est valide
+  // Vérifier si la feuille est valide
   if (!sheet?.donnees || sheet.donnees.length === 0) {
     throw new HttpException(
       `La feuille spécifiée est vide ou mal initialisée.`,
@@ -231,7 +208,7 @@ async addColumn(
     );
   }
 
-  // Étape 4 : Vérifier les entêtes existantes et générer un nom unique
+  // Étape 3 : Vérifier les entêtes existantes et générer un nom unique
   const headers = sheet.donnees[0]; // Première ligne contient les entêtes
   const existingHeaders = Object.values(headers).map((header) =>
     header?.toString().toLowerCase()
@@ -245,7 +222,7 @@ async addColumn(
     suffix++;
   }
 
-  // Étape 5 : Ajouter une nouvelle colonne
+  // Étape 4 : Ajouter une nouvelle colonne
   const newColumnLetter = generateNextColumnLetter(sheet.colonnes);
   headers[`${newColumnLetter}1`] = uniqueName; // Ajouter l'entête avec un nom unique
   sheet.colonnes.push(newColumnLetter);
@@ -255,13 +232,13 @@ async addColumn(
     row[`${newColumnLetter}${index + 2}`] = null;
   });
 
-  // Étape 6 : Mettre à jour la feuille dans le tableau `fichier`
-  fichier[sheetIndex][nomFeuille] = sheet;
+  // Étape 5 : Sauvegarder les modifications
+  fichier[nomFeuille] = sheet; // Met à jour la feuille dans l'objet `fichier`
   source.fichier = fichier;
 
-  // Étape 7 : Sauvegarder les modifications
   return await this.sourcededonneesrepo.save(source);
 }
+
 
 
 
