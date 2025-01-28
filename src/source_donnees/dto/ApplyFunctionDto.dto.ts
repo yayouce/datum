@@ -7,7 +7,7 @@ export class ApplyFunctionDto {
 
   @IsNotEmpty()
   @IsArray()
-  columnReferences: string[]; // Références des colonnes (e.g., "A1", "B1")
+  columnReferences: string[]; // Références des colonnes où appliquer l'opération (e.g., ["A1", "B1"])
 
   @IsNotEmpty()
   @IsString()
@@ -15,8 +15,9 @@ export class ApplyFunctionDto {
 
   @IsNotEmpty()
   @IsString()
-  newnomcolonne: string; // Nom de la nouvelle colonne pour enregistrer les résultats
+  targetColumn: string;
 
+  @IsOptional()
   @IsString()
-  separator :string=" "
+  separator?: string = " "; // Séparateur pour la concaténation (facultatif)
 }

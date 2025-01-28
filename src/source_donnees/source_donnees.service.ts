@@ -397,11 +397,15 @@ async applyFunctionAndSave(
   idsourceDonnes: string,
   applyFunctionDto: ApplyFunctionDto
 ): Promise<SourceDonnee> {
-  const { nomFeuille, columnReferences, operation, separator, newnomcolonne } = applyFunctionDto;
+  const { nomFeuille, columnReferences, operation, separator, targetColumn } = applyFunctionDto;
 
   // Étape 1 : Récupérer la source de données
   const source = await this.getSourceById(idsourceDonnes);
-  const fichier = source.fichier;
+  let fichier = source.fichier;
+
+  if (!Array.isArray(fichier)) {
+    fichier = [fichier];
+  }
 
   // Étape 2 : Récupérer la feuille ou la première feuille si `nomFeuille` est vide
   const targetSheetName = nomFeuille && nomFeuille.trim() ? nomFeuille : Object.keys(fichier[0])[0];
@@ -413,7 +417,6 @@ async applyFunctionAndSave(
 
   const sheet = sheetObject[targetSheetName];
 
-  // Vérifier si la feuille est valide
   if (!sheet.donnees || sheet.donnees.length <= 1) {
     throw new HttpException(
       `La feuille spécifiée est vide ou ne contient pas de données.`,
@@ -422,9 +425,9 @@ async applyFunctionAndSave(
   }
 
   // Étape 3 : Valider les colonnes sélectionnées
-  const headers = sheet.donnees[0]; // Première ligne contient les entêtes
+  const headers = sheet.donnees[0];
   const columnLetters = columnReferences.map((reference) => {
-    const columnLetter = reference.replace(/\d/g, ''); // Extraire la lettre (e.g., "D" from "D1")
+    const columnLetter = reference.replace(/\d/g, '');
     if (!sheet.colonnes.includes(columnLetter)) {
       throw new HttpException(
         `La colonne référencée "${reference}" n'existe pas.`,
@@ -437,7 +440,7 @@ async applyFunctionAndSave(
   // Étape 4 : Extraire les valeurs des colonnes cibles
   const columnValues = columnLetters.map((letter) =>
     sheet.donnees.slice(1).map((row, index) => {
-      const cellKey = `${letter}${index + 2}`; // Générer la clé (e.g., "D2", "D3", ...)
+      const cellKey = `${letter}${index + 2}`;
       const value = row[cellKey];
       return value !== undefined && value !== null ? value : null;
     })
@@ -476,7 +479,6 @@ async applyFunctionAndSave(
         break;
       }
       case 'concat': {
-        // Concaténation des colonnes
         columnResult = columnValues[0].map((_, index) =>
           columnLetters
             .map((_, colIndex) => columnValues[colIndex][index]?.toString() || '')
@@ -485,22 +487,27 @@ async applyFunctionAndSave(
         break;
       }
       default:
-        throw new HttpException(`L'opération "${operation}" n'est pas supportée.`, 400);
+        throw new HttpException(`L'opération "${operation}" n'est pas supportée.`, 802);
     }
   } catch (err) {
     throw new HttpException(
       `L'opération "${operation}" n'est pas possible pour les colonnes sélectionnées.`,
-      400
+      803
     );
   }
 
-  // Étape 6 : Ajouter une nouvelle colonne avec les résultats
-  const newColumnLetter = generateNextColumnLetter(sheet.colonnes);
-  sheet.colonnes.push(newColumnLetter); // Ajouter la colonne à la liste des colonnes existantes
-  sheet.donnees[0][`${newColumnLetter}1`] = newnomcolonne; // Ajouter l'entête
+  const targetColumnLetter = targetColumn.replace(/\d/g, '')
+  // Étape 6 : Ajouter les résultats dans la colonne cible
+  if (!sheet.colonnes.includes(targetColumnLetter)) {
+    throw new HttpException(
+      `La colonne cible "${targetColumnLetter}" n'existe pas.`,
+      804
+    );
+  }
 
   sheet.donnees.slice(1).forEach((row, index) => {
-    row[`${newColumnLetter}${index + 2}`] = columnResult[index]; // Enregistrer le résultat pour chaque ligne
+    const cellKey = `${targetColumnLetter}${index + 2}`;
+    row[cellKey] = columnResult[index];
   });
 
   // Étape 7 : Sauvegarder dans la base de données
@@ -510,6 +517,10 @@ async applyFunctionAndSave(
 
   return await this.sourcededonneesrepo.save(source);
 }
+
+
+
+
 
 
 
