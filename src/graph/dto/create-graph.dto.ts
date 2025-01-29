@@ -25,6 +25,11 @@ export class CreateGraphDto {
   formulesY: string[];
 
 
+  @IsOptional()
+  @IsArray()
+  nomsFeuilles:string[]
+
+
   
 
 

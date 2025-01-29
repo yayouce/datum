@@ -25,6 +25,11 @@ export class Graph extends TimestampEntites {
     @Column({ type: "json", nullable: true })
     formulesY: string[];
 
+    @Column({ type: "json", nullable: true })
+    nomsFeuilles: string[];
+
+
+
     @Column()
     nomsourceDonnees:string
     @ManyToOne(() => SourceDonnee, (sourcedonnee) => sourcedonnee.graphique)
