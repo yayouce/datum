@@ -19,18 +19,25 @@ export class GraphService {
   {}
 
 
-  async create(createGraphDto: CreateGraphDto,idsource:string): Promise<Graph> {
+  async create(createGraphDto: CreateGraphDto, idsource: string): Promise<Graph> {
     const source = await this.sourceDonneesservice.getSourceById(idsource);
     
-    if (!source) throw new HttpException("Source de données introuvable.",700);
-
-    const newGraph = await this.graphRepository.create({
+    if (!source) throw new HttpException("Source de données introuvable.", 700);
+  
+    const newGraph = this.graphRepository.create({
       ...createGraphDto,
-      nomsourceDonnees:source.nomSource,
+      colonneY: createGraphDto.colonneY.map(item => ({
+        colonne: item.colonne,
+        formule: item.formule || null,
+        nomFeuille: item.nomFeuille || null
+      })),
+      nomsourceDonnees: source.nomSource,
       sources: source,
     });
+  
     return await this.graphRepository.save(newGraph);
   }
+  
 
   
   async findAll(): Promise<Graph[]> {
@@ -91,11 +98,25 @@ export class GraphService {
 
 
 
-  async update(id: string, updateGraphDto: UpdateGraphDto): Promise<Graph> {
-    const graph = await this.findOne(id);
-    Object.assign(graph, updateGraphDto);
-    return await this.graphRepository.save(graph);
+async update(id: string, updateGraphDto: UpdateGraphDto): Promise<Graph> {
+  const graph = await this.findOne(id);
+
+  if (!graph) throw new HttpException(`Graphique avec l'ID ${id} introuvable.`, 705);
+
+  // Si colonneY est fourni, transformer la structure des données
+  if (updateGraphDto.colonneY) {
+    updateGraphDto.colonneY = updateGraphDto.colonneY.map(item => ({
+      colonne: item.colonne,
+      formule: item.formule || null,
+      nomFeuille: item.nomFeuille || null
+    }));
   }
+
+  Object.assign(graph, updateGraphDto);
+
+  return await this.graphRepository.save(graph);
+}
+
 
   
   async softDelete(id: string): Promise<void> {

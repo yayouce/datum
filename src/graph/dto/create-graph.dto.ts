@@ -1,10 +1,24 @@
 import { Type } from "class-transformer";
-import { IsEnum, IsString, IsArray, IsNotEmpty, IsOptional } from "class-validator";
+import { IsEnum, IsString, IsArray, IsNotEmpty, IsOptional, ValidateNested } from "class-validator";
 import { typegraphiqueEnum } from "generique/typegraphique.enum";
 import { SourceDonnee } from "src/source_donnees/entities/source_donnee.entity";
 
+class ColonneY {
+  @IsNotEmpty()
+  @IsString()
+  colonne: string;
+
+  @IsOptional()
+  @IsString()
+  formule: string;
+
+  @IsOptional()
+  @IsString()
+  nomFeuille: string | null;
+}
+
 export class CreateGraphDto {
-    @IsNotEmpty()
+  @IsNotEmpty()
   @IsEnum(typegraphiqueEnum)
   typeGraphique: typegraphiqueEnum;
 
@@ -18,28 +32,10 @@ export class CreateGraphDto {
 
   @IsNotEmpty()
   @IsArray()
-  colonneY: string[];
+  @ValidateNested({ each: true })
+  @Type(() => ColonneY)
+  colonneY: ColonneY[];
 
-  @IsOptional()
-  @IsArray()
-  formulesY: string[];
-
-
-  @IsOptional()
-  @IsArray()
-  nomsFeuilles:string[]
-
-
-  
-
-
-    // @IsOptional()
-    // @IsString()
-    // nomsourceDonnees:string;
-
-  @Type(() =>SourceDonnee)
-  source_donnees:any
-
-
-
+  @Type(() => SourceDonnee)
+  source_donnees: any;
 }
