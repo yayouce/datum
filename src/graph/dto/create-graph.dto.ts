@@ -17,6 +17,18 @@ class ColonneY {
   nomFeuille: string | null;
 }
 
+
+
+class ColonneX {
+  @IsNotEmpty()
+  @IsString()
+  colonne: string;
+
+  @IsOptional()
+  @IsString()
+  nomFeuille: string | null;
+}
+
 export class CreateGraphDto {
   @IsNotEmpty()
   @IsEnum(typegraphiqueEnum)
@@ -27,8 +39,10 @@ export class CreateGraphDto {
   titreGraphique: string;
 
   @IsNotEmpty()
-  @IsString()
-  colonneX: string;
+  @IsArray()
+  @ValidateNested({each:true})
+  @Type(()=>ColonneX)
+  colonneX: ColonneX[];
 
   @IsNotEmpty()
   @IsArray()

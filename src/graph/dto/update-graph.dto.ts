@@ -20,6 +20,18 @@ class ColonneY {
   nomFeuille: string | null;
 }
 
+class ColonneX {
+  @IsNotEmpty()
+  @IsString()
+  colonne: string;
+
+  @IsOptional()
+  @IsString()
+  nomFeuille: string | null;
+}
+
+
+
 export class UpdateGraphDto extends PartialType(CreateGraphDto) {
   @IsOptional()
   @IsEnum(typegraphiqueEnum)
@@ -30,8 +42,10 @@ export class UpdateGraphDto extends PartialType(CreateGraphDto) {
   titreGraphique?: string;
 
   @IsOptional()
-  @IsString()
-  colonneX?: string;
+  @IsArray()
+  @ValidateNested({each:true})
+  @Type(()=>ColonneX)
+  colonneX?: ColonneX[];
 
   @IsOptional()
   @IsArray()

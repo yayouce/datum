@@ -14,8 +14,8 @@ export class Graph extends TimestampEntites {
   @Column()
   titreGraphique: string;
 
-  @Column()
-  colonneX: string;
+  @Column({type:"json"})
+  colonneX: { colonne: string; nomFeuille?: string | null }[];
 
   @Column({ type: "json" })
   colonneY: { colonne: string; formule?: string; nomFeuille?: string | null }[];
