@@ -33,6 +33,22 @@ export class GraphController {
 
   @Delete("delete/:id")
   remove(@Param("id") id: string) {
-    return this.graphService.remove(id);
+    return this.graphService.softDelete(id);
   }
+
+  @Get('graphbysource/:idsource')
+async getBySource(@Param('idsource') idsource: string) {
+  return this.graphService.findBySource(idsource);
+}
+
+@Get('graphByproject/:idprojet')
+async getGraphTitlesByProject(@Param('idprojet') idprojet: string) {
+  return this.graphService.getGraphTitlesByProject(idprojet);
+}
+
+@Get('graphbyNameAndProject/:name/:projectId')
+    async getGraphByNameAndProject(@Param('name') name: string, @Param('projectId') projectId: string) {
+        return this.graphService.findByNameAndProject(name, projectId);
+    }
+
 }

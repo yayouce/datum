@@ -29,9 +29,7 @@ export class UpdateGraphDto extends PartialType(CreateGraphDto) {
   @IsArray()
   formules_Y: string[];
 
-  @IsOptional()
-  @IsString()
-  nomsourceDonnees: string;
+ 
 
 
    @Type(() =>SourceDonnee)

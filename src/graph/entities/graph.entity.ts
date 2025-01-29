@@ -23,8 +23,10 @@ export class Graph extends TimestampEntites {
     colonneY: string[];
 
     @Column({ type: "json", nullable: true })
-    formule: string[];
+    formulesY: string[];
 
+    @Column()
+    nomsourceDonnees:string
     @ManyToOne(() => SourceDonnee, (sourcedonnee) => sourcedonnee.graphique)
     @JoinColumn({ name: "sourcesIdsourceDonnes" }) // Explicitly define the foreign key column
     sources: SourceDonnee;

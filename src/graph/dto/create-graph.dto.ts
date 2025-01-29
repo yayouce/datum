@@ -26,8 +26,11 @@ export class CreateGraphDto {
 
 
   
-    @IsString()
-    nomsourceDonnees :string
+
+
+    // @IsOptional()
+    // @IsString()
+    // nomsourceDonnees:string;
 
   @Type(() =>SourceDonnee)
   source_donnees:any
