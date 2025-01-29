@@ -1,3 +1,22 @@
 Login: ADM0007
 mot de passe:vRuLE
 
+
+
+-----------------graphique-----------------
+titre_graphique
+type_graphique
+source_donnees : une source de données existante
+colonne_X
+colonne_y : tableau de colonne
+formule:tableau de formule
+created_At
+
+updated_At
+deleted_At
+
+
+Api:
+nombre de graphique d'un projet
+
+

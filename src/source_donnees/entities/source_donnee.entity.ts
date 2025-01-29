@@ -2,12 +2,14 @@ import { DataType } from "src/data_type/entities/data_type.entity";
 import { Enquete } from "src/enquete/entities/enquete.entity";
 import { Formatfichier } from "src/formatfichier/entities/formatfichier.entity";
 import { unitefrequence } from "src/frequence/entities/unitefrequence.entity";
+import { Graph } from "src/graph/entities/graph.entity";
 import { Column, Entity, ManyToOne, OneToMany, PrimaryGeneratedColumn } from "typeorm";
 
 
 @Entity("sourcedonnees")
 export class SourceDonnee {
 
+    
     @PrimaryGeneratedColumn("uuid")
     idsourceDonnes:string
 
@@ -59,5 +61,8 @@ export class SourceDonnee {
      @Column({ type: 'json', nullable: true })
      bd_jointes: any;
 
+
+     @OneToMany(()=>Graph,(graph)=>graph.sources)
+     graphique:Graph[]
 
 }

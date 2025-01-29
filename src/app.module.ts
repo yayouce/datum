@@ -15,6 +15,7 @@ import { DataTypeModule } from './data_type/data_type.module';
 
 import { SourceDonneesModule } from './source_donnees/source_donnees.module';
 import { UnitefrequenceModule } from './frequence/unitefrequence.module';
+import { GraphModule } from './graph/graph.module';
 
 @Module({
   imports: [
@@ -41,7 +42,8 @@ import { UnitefrequenceModule } from './frequence/unitefrequence.module';
     FormatfichierModule,
     DataTypeModule,
     UnitefrequenceModule,
-    SourceDonneesModule],
+    SourceDonneesModule,
+    GraphModule],
   controllers: [AppController],
   providers: [AppService],
 })
