@@ -146,28 +146,35 @@ async findByName(name: string): Promise<any[]> {
 
 
   // ✅ Fonction pour extraire les valeurs des colonnes (sans formule)
-  private extractColumnValues(colonnes: any[], fichier: any): any[] {
-    return colonnes.map(item => {
-        const feuille = fichier.find(sheet => sheet[item.nomFeuille]);
+  // ✅ Fonction pour extraire les valeurs des colonnes (sans formule)
+private extractColumnValues(colonnes: any[], fichier: any): any[] {
+  // Vérifier si fichier est un objet et le transformer en tableau
+  if (!Array.isArray(fichier)) {
+      fichier = [fichier];
+  }
 
-        if (!feuille) {
-            return { ...item, tabColonne: [] }; // Retourne un tableau vide si la feuille n'existe pas
-        }
+  return colonnes.map(item => {
+      const feuille = fichier.find(sheet => sheet[item.nomFeuille]);
 
-        const donnees = feuille[item.nomFeuille]?.donnees || [];
+      if (!feuille) {
+          return { ...item, tabColonne: [] }; // Retourne un tableau vide si la feuille n'existe pas
+      }
 
-        // Récupérer la lettre de la colonne sans le numéro (ex: "A1" → "A")
-        const colKey = item.colonne.replace(/\d+/g, '');
+      const donnees = feuille[item.nomFeuille]?.donnees || [];
 
-        // Extraire les valeurs à partir de la deuxième ligne (A2, A3, A4...)
-        const values = donnees
-            .slice(1) // Ignore A1, B1, C1...
-            .map((row, index) => row[`${colKey}${index + 2}`]) // A2, A3, A4...
-            .filter(val => val !== undefined && val !== null);
+      // Récupérer la lettre de la colonne sans le numéro (ex: "A1" → "A")
+      const colKey = item.colonne.replace(/\d+/g, '');
 
-        return { ...item, tabColonne: values };
-    });
+      // Extraire les valeurs à partir de la deuxième ligne (A2, A3, A4...)
+      const values = donnees
+          .slice(1) // Ignore A1, B1, C1...
+          .map((row, index) => row[`${colKey}${index + 2}`]) // A2, A3, A4...
+          .filter(val => val !== undefined && val !== null);
+
+      return { ...item, tabColonne: values };
+  });
 }
+
 
 
 
@@ -179,37 +186,44 @@ async findByName(name: string): Promise<any[]> {
 
 
   // ✅ Fonction pour extraire les valeurs des colonnes et appliquer des formules
-  private extractColumnValuesWithFormula(colonnes: any[], fichier: any): any[] {
-    return colonnes.map(item => {
-        const feuille = fichier.find(sheet => sheet[item.nomFeuille]);
+  // ✅ Fonction pour extraire les valeurs des colonnes et appliquer des formules
+private extractColumnValuesWithFormula(colonnes: any[], fichier: any): any[] {
+  // Vérifier si fichier est un objet et le transformer en tableau
+  if (!Array.isArray(fichier)) {
+      fichier = [fichier];
+  }
 
-        if (!feuille) {
-            return { ...item, tabColonne: [] }; // Retourne un tableau vide si la feuille n'existe pas
-        }
+  return colonnes.map(item => {
+      const feuille = fichier.find(sheet => sheet[item.nomFeuille]);
 
-        const donnees = feuille[item.nomFeuille]?.donnees || [];
+      if (!feuille) {
+          return { ...item, tabColonne: [] }; // Retourne un tableau vide si la feuille n'existe pas
+      }
 
-        // Récupérer la colonne sans le chiffre (ex: "B1" → "B")
-        const colKey = item.colonne.replace(/\d+/g, '');
-        
-        // Extraire les valeurs de la colonne en ignorant la première ligne
-        const values = donnees
-            .slice(1) // Ignore A1, B1, C1...
-            .map((row, index) => row[`${colKey}${index + 2}`]) // B2, B3, B4...
-            .filter(val => val !== undefined && val !== null);
+      const donnees = feuille[item.nomFeuille]?.donnees || [];
 
-        let computedValue = values;
+      // Récupérer la colonne sans le chiffre (ex: "B1" → "B")
+      const colKey = item.colonne.replace(/\d+/g, '');
+      
+      // Extraire les valeurs de la colonne en ignorant la première ligne
+      const values = donnees
+          .slice(1) // Ignore A1, B1, C1...
+          .map((row, index) => row[`${colKey}${index + 2}`]) // B2, B3, B4...
+          .filter(val => val !== undefined && val !== null);
 
-        // Appliquer la formule
-        if (item.formule === "somme") {
-            computedValue = [values.reduce((acc, val) => acc + (parseFloat(val) || 0), 0)];
-        } else if (item.formule === "moyenne") {
-            computedValue = [values.length ? values.reduce((acc, val) => acc + (parseFloat(val) || 0), 0) / values.length : 0];
-        }
+      let computedValue = values;
 
-        return { ...item, tabColonne: computedValue };
-    });
+      // Appliquer la formule
+      if (item.formule === "somme") {
+          computedValue = [values.reduce((acc, val) => acc + (parseFloat(val) || 0), 0)];
+      } else if (item.formule === "moyenne") {
+          computedValue = [values.length ? values.reduce((acc, val) => acc + (parseFloat(val) || 0), 0) / values.length : 0];
+      }
+
+      return { ...item, tabColonne: computedValue };
+  });
 }
+
 
 
 
