@@ -47,8 +47,8 @@ async getGraphTitlesByProject(@Param('idprojet') idprojet: string) {
 }
 
 @Get('graphbyNameAndProject/:name/:projectId')
-    async getGraphByNameAndProject(@Param('name') name: string, @Param('projectId') projectId: string) {
-        return this.graphService.findByNameAndProject(name, projectId);
-    }
+async getGraphByNameAndProject(@Param('name') name: string, @Param('projectId') projectId: string) {
+    return this.graphService.findByNameAndProject(name, projectId);
+}
 
 }
