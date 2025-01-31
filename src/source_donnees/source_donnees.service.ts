@@ -401,23 +401,13 @@ async applyFunctionAndSave(
 
   // Étape 1 : Récupérer la source de données
   const source = await this.getSourceById(idsourceDonnes);
-  let fichier = source.fichier;
-
-  if (!Array.isArray(fichier)) {
-    fichier = [fichier];
-  }
+  let fichier = source.fichier; //  Conserver fichier comme objet JSON
 
   // Étape 2 : Récupérer la feuille ou la première feuille si `nomFeuille` est vide
-  const targetSheetName = nomFeuille && nomFeuille.trim() ? nomFeuille : Object.keys(fichier[0])[0];
-  const sheetObject = fichier.find((sheetObj) => sheetObj[targetSheetName]);
+  const targetSheetName = nomFeuille && nomFeuille.trim() ? nomFeuille : Object.keys(fichier)[0];
+  const sheet = fichier[targetSheetName];
 
-  if (!sheetObject) {
-    throw new HttpException(`La feuille spécifiée "${targetSheetName}" n'existe pas.`, 803);
-  }
-
-  const sheet = sheetObject[targetSheetName];
-
-  if (!sheet.donnees || sheet.donnees.length <= 1) {
+  if (!sheet || !sheet.donnees || sheet.donnees.length <= 1) {
     throw new HttpException(
       `La feuille spécifiée est vide ou ne contient pas de données.`,
       806
@@ -496,7 +486,7 @@ async applyFunctionAndSave(
     );
   }
 
-  const targetColumnLetter = targetColumn.replace(/\d/g, '')
+  const targetColumnLetter = targetColumn.replace(/\d/g, '');
   // Étape 6 : Ajouter les résultats dans la colonne cible
   if (!sheet.colonnes.includes(targetColumnLetter)) {
     throw new HttpException(
@@ -510,10 +500,8 @@ async applyFunctionAndSave(
     row[cellKey] = columnResult[index];
   });
 
-  // Étape 7 : Sauvegarder dans la base de données
-  const updatedSheetIndex = fichier.findIndex((sheetObj) => sheetObj[targetSheetName]);
-  fichier[updatedSheetIndex][targetSheetName] = sheet;
-  source.fichier = fichier;
+  fichier[targetSheetName] = sheet; 
+  source.fichier = { ...fichier }; 
 
   return await this.sourcededonneesrepo.save(source);
 }
