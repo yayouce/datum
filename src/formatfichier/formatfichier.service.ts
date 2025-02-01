@@ -1,6 +1,5 @@
 import { HttpException, Injectable } from '@nestjs/common';
 import { CreateFormatfichierDto } from './dto/create-formatfichier.dto';
-import { UpdateFormatfichierDto } from './dto/update-formatfichier.dto';
 import { Repository } from 'typeorm';
 import { Formatfichier } from './entities/formatfichier.entity';
 import { InjectRepository } from '@nestjs/typeorm';

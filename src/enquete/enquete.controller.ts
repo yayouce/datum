@@ -1,7 +1,6 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param,  UseGuards } from '@nestjs/common';
 import { EnqueteService } from './enquete.service';
 import { CreateEnqueteDto } from './dto/create-enquete.dto';
-import { UpdateEnqueteDto } from './dto/update-enquete.dto';
 import { JwtAuthGuard } from 'src/Auth/jwt-auth.guard';
 import { User } from 'src/decorator/user.decorator';
 

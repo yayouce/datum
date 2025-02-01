@@ -1,5 +1,5 @@
 import { Type } from "class-transformer";
-import { IsNotEmpty, IsOptional, IsString } from "class-validator";
+import { IsNotEmpty, IsString } from "class-validator";
 import { Structure } from "src/structure/entities/structure.entity";
 import { MembreStruct } from "../entities/membre-struct.entity";
 

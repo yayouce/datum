@@ -1,6 +1,5 @@
 import { HttpException, Injectable } from '@nestjs/common';
 import { CreateDataTypeDto } from './dto/create-data_type.dto';
-import { UpdateDataTypeDto } from './dto/update-data_type.dto';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataType } from './entities/data_type.entity';
 import { Repository } from 'typeorm';

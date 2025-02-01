@@ -1,16 +1,15 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete } from '@nestjs/common';
+import { Controller, Post, Body, } from '@nestjs/common';
 import { MembreStructService } from './membre-struct.service';
 import { CreateMembreStructDto } from './dto/create-membre-struct.dto';
-import { UpdateMembreStructDto } from './dto/update-membre-struct.dto';
 import { rejoindrestructureDto } from './dto/rejoindreStructure.dto';
 import { ForgotmembrePassword } from './dto/forgotpassword.dto';
-import { MailService } from 'src/utils/mail.service';
+// import { MailService } from 'src/utils/mail.service';
 
 @Controller('membrestruct')
 export class MembreStructController {
   constructor(
     private readonly membreStructService: MembreStructService,
-    private readonly mailService: MailService
+    // private readonly mailService: MailService
   ) {}
 
   @Post("register")

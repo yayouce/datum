@@ -1,6 +1,5 @@
 import { HttpException, Injectable } from '@nestjs/common';
 import {  UnitefrequenceDto } from './dto/create-data_type.dto';
-import { UpdateunitefrequenceDto } from './dto/update-data_type.dto';
 import { InjectRepository } from '@nestjs/typeorm';
 import {  unitefrequence } from './entities/unitefrequence.entity';
 import { Repository } from 'typeorm';

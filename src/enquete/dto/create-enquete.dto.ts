@@ -1,7 +1,7 @@
 import { Transform, Type } from "class-transformer"
-import { IsArray, IsDate, IsNotEmpty, IsString } from "class-validator"
+import {  IsDate, IsNotEmpty, IsString } from "class-validator"
 import { MembreStruct } from "src/membre-struct/entities/membre-struct.entity"
-import { Projet } from "src/projet/entities/projet.entity"
+
 
 export class CreateEnqueteDto {
  @IsNotEmpty()

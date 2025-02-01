@@ -1,7 +1,6 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, } from '@nestjs/common';
 import { UnitefrequenceService } from './unitefrequence.service';
 import { UnitefrequenceDto } from './dto/create-data_type.dto';
-import { UpdateunitefrequenceDto } from './dto/update-data_type.dto';
 
 @Controller('unitefrequence')
 export class UnitefrequenceController {
