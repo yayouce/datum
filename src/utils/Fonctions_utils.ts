@@ -30,7 +30,7 @@ export function extractColumnValues(colonnes: any[], fichier: any): any[] {
 export function extractColumnValuesWithFormula(colonnes: any[], fichier: any): any[] {
     // Vérifier que fichier est bien un objet JSON
     if (!fichier || typeof fichier !== "object") {
-        console.error("⚠ ERREUR: `fichier` est invalide", fichier);
+        console.error("ERREUR: `fichier` est invalide", fichier);
         return [];
     }
 
