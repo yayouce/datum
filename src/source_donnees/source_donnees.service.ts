@@ -1,4 +1,4 @@
-import { HttpException, Injectable, BadRequestException } from '@nestjs/common';
+import { HttpException, Injectable } from '@nestjs/common';
 import { CreateSourceDonneeDto } from './dto/create-source_donnee.dto';
 import { InjectRepository } from '@nestjs/typeorm';
 import { SourceDonnee } from './entities/source_donnee.entity';
@@ -7,7 +7,7 @@ import { DataTypeService } from 'src/data_type/data_type.service';
 import { FormatfichierService } from 'src/formatfichier/formatfichier.service';
 import { UnitefrequenceService } from 'src/frequence/unitefrequence.service';
 import { EnqueteService } from 'src/enquete/enquete.service';
-import { isURL } from 'class-validator';
+
 import { FileHandlerService } from 'src/utils/file-handler.service';
 import { getSheetOrDefault } from './getSheetOrdefault';
 import { generateNextColumnLetter } from './generateNextColumnLetter';

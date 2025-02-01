@@ -1,10 +1,10 @@
-import { ConflictException, HttpException, Injectable } from '@nestjs/common';
+import { HttpException, Injectable } from '@nestjs/common';
 import { CreateStructureDto } from './dto/create-structure.dto';
-import { UpdateStructureDto } from './dto/update-structure.dto';
+
 import { InjectRepository } from '@nestjs/typeorm';
 import { Structure } from './entities/structure.entity';
 import { Repository } from 'typeorm';
-import { MembreStruct } from 'src/membre-struct/entities/membre-struct.entity';
+
 
 @Injectable()
 export class StructureService {

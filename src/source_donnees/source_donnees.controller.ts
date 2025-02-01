@@ -1,7 +1,6 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, UploadedFile, ParseIntPipe, HttpException, Query } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Query } from '@nestjs/common';
 import { SourceDonneesService } from './source_donnees.service';
 import { CreateSourceDonneeDto } from './dto/create-source_donnee.dto';
-import { UpdateSourceDonneeDto } from './dto/update-source_donnee.dto';
 import { SourceDonnee } from './entities/source_donnee.entity';
 import { addColumnDto } from './dto/addcolumn.dto';
 import { modifyColumnDto } from './dto/modify.dto';
