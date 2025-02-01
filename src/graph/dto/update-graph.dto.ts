@@ -2,7 +2,7 @@ import { PartialType } from '@nestjs/swagger';
 import { CreateGraphDto } from './create-graph.dto';
 
 import { IsEnum, IsString, IsArray, IsOptional, ValidateNested, IsNotEmpty } from "class-validator";
-import { typegraphiqueEnum } from "generique/typegraphique.enum";
+import { typegraphiqueEnum } from "src/generique/typegraphique.enum";
 import { Type } from 'class-transformer';
 import { SourceDonnee } from 'src/source_donnees/entities/source_donnee.entity';
 

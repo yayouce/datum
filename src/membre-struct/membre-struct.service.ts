@@ -7,7 +7,7 @@ import { StructureService } from 'src/structure/structure.service';
 import { CreateMembreStructDto } from './dto/create-membre-struct.dto';
 import * as bcrypt from "bcrypt"
 import { rejoindrestructureDto } from './dto/rejoindreStructure.dto';
-import { roleMembreEnum } from 'generique/rolemembre.enum';
+import { roleMembreEnum } from 'src/generique/rolemembre.enum';
 import { randomInt } from 'crypto';
 import { ForgotmembrePassword } from './dto/forgotpassword.dto';
 import { MailService } from 'src/utils/mail.service';

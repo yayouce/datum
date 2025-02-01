@@ -4,7 +4,7 @@ import { UpdateProjetDto } from './dto/update-projet.dto';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Projet } from './entities/projet.entity';
 import { Repository } from 'typeorm';
-import { roleMembreEnum } from 'generique/rolemembre.enum';
+import { roleMembreEnum } from 'src/generique/rolemembre.enum';
 
 @Injectable()
 export class ProjetService {

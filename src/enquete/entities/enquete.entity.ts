@@ -1,4 +1,4 @@
-import { etatprojetEnum } from "generique/etatprojetEnum.enum"
+import { etatprojetEnum } from "src/generique/etatprojetEnum.enum"
 import { MembreStruct } from "src/membre-struct/entities/membre-struct.entity"
 import { Projet } from "src/projet/entities/projet.entity"
 import { SourceDonnee } from "src/source_donnees/entities/source_donnee.entity"

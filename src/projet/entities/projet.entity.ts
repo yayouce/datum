@@ -1,5 +1,5 @@
-import { etatprojetEnum } from "generique/etatprojetEnum.enum";
-import { TimestampEntites } from "generique/timestamp";
+import { etatprojetEnum } from "src/generique/etatprojetEnum.enum";
+import { TimestampEntites } from "src/generique/timestamp";
 import { Enquete } from "src/enquete/entities/enquete.entity";
 import { MembreStruct } from "src/membre-struct/entities/membre-struct.entity";
 import { Column, Entity, ManyToOne, OneToMany, PrimaryGeneratedColumn } from "typeorm";

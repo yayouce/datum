@@ -1,4 +1,4 @@
-import { TimestampEntites } from "generique/timestamp";
+import { TimestampEntites } from "src/generique/timestamp";
 import { MembreStruct } from "src/membre-struct/entities/membre-struct.entity";
 import { Column, Entity, OneToMany, PrimaryGeneratedColumn } from "typeorm"
 

@@ -1,4 +1,4 @@
-import { roleMembreEnum } from "generique/rolemembre.enum";
+import { roleMembreEnum } from "src/generique/rolemembre.enum";
 import { Enquete } from "src/enquete/entities/enquete.entity";
 import { Projet } from "src/projet/entities/projet.entity";
 import { Structure } from "src/structure/entities/structure.entity";

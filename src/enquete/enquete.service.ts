@@ -1,7 +1,7 @@
 import { HttpException, Injectable } from '@nestjs/common';
 import { CreateEnqueteDto } from './dto/create-enquete.dto';
 import { UpdateEnqueteDto } from './dto/update-enquete.dto';
-import { roleMembreEnum } from 'generique/rolemembre.enum';
+import { roleMembreEnum } from 'src/generique/rolemembre.enum';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Enquete } from './entities/enquete.entity';
 import { Repository } from 'typeorm';

@@ -1,5 +1,5 @@
 
-import { TimestampEntites } from "generique/timestamp";
+import { TimestampEntites } from "src/generique/timestamp";
 import { Column, Entity, PrimaryGeneratedColumn } from "typeorm";
 
 @Entity('user')
