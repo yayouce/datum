@@ -9,7 +9,11 @@
     "target": "ES2021",
     "sourceMap": true,
     "outDir": "./dist",
+    "rootDir": "./src",  // Ajout important
     "baseUrl": "./",
+    "paths": {
+      "@/*": ["src/*"]   // Option pour gérer les imports absolus
+    },
     "incremental": true,
     "skipLibCheck": true,
     "strictNullChecks": false,
@@ -17,5 +21,7 @@
     "strictBindCallApply": false,
     "forceConsistentCasingInFileNames": false,
     "noFallthroughCasesInSwitch": false
-  }
+  },
+  "include": ["src/**/*"], // Assure l'inclusion de tout le dossier src
+  "exclude": ["node_modules", "dist"] // Exclut les dossiers inutiles
 }
