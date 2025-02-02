@@ -54,7 +54,7 @@ async function bootstrap() {
 //   jsonDocumentUrl:'swager/json'  //c disponible ici
 //   });  //ajouter une option pour pouvoir avoir le swager en format json
 
-  await app.listen(configService.get('HTTP_PORT') ||3000);
+  await app.listen(configService.get('HTTP_PORT') ||3000,'0.0.0.0');
 
 
   
