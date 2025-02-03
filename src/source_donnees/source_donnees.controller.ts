@@ -6,6 +6,7 @@ import { addColumnDto } from './dto/addcolumn.dto';
 import { modifyColumnDto } from './dto/modify.dto';
 import { removeColumnDto } from './dto/removeclumn.dto';
 import { ApplyFunctionDto } from './dto/ApplyFunctionDto.dto';
+import { modifyCellDto } from './dto/modifyCell.dto';
 
 
 @Controller('source-donnees')
@@ -101,6 +102,17 @@ async getBdsCountByProjet(
       body
     );
   }
+
+
+
+  @Patch('modifycell/:idsourceDonnes')
+async modifyCell(
+  @Param('idsourceDonnes') idsourceDonnes: string,
+  @Body() modifyCellDto: modifyCellDto
+) {
+  return this.sourceDonneesService.modifyCell(idsourceDonnes, modifyCellDto);
+}
+
 
 
   //suppression

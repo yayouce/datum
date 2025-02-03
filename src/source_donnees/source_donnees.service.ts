@@ -15,6 +15,8 @@ import { addColumnDto } from './dto/addcolumn.dto';
 import { modifyColumnDto } from './dto/modify.dto';
 import { removeColumnDto } from './dto/removeclumn.dto';
 import { ApplyFunctionDto } from './dto/ApplyFunctionDto.dto';
+import { UpdateSourceDonneeDto } from './dto/update-source_donnee.dto';
+import { modifyCellDto } from './dto/modifyCell.dto';
 
 
 @Injectable()
@@ -56,6 +58,55 @@ export class SourceDonneesService {
     } catch (err) {
       throw new HttpException(err.message, 801);
     }
+
+
+
+    async updateSourceDonnee(
+      idsourceDonnes: string,
+      data: UpdateSourceDonneeDto
+    ): Promise<SourceDonnee> {
+      const { libelleformat, libelletypedonnees, libelleunite, fichier, source, ...reste } = data;
+    
+      // 1️⃣ Récupérer la source existante
+      const sourceDonnee = await this.getSourceById(idsourceDonnes);
+      if (!sourceDonnee) {
+        throw new HttpException(`Source de données introuvable`, 404);
+      }
+    
+      // 2️⃣ Mise à jour des métadonnées
+      if (libelletypedonnees) {
+        const typedonnees = await this.datatypeservice.getoneByLibelle(libelletypedonnees);
+        sourceDonnee.typedonnes = typedonnees;
+        sourceDonnee.libelletypedonnees = typedonnees.libelledatatype;
+      }
+    
+      if (libelleformat) {
+        const format = await this.formatservice.getoneByLibelle(libelleformat);
+        sourceDonnee.format = format;
+        sourceDonnee.libelleformat = format.libelleFormat;
+      }
+    
+      if (libelleunite) {
+        const unitefrequence = await this.unitefrequence.getoneBylibelle(libelleunite);
+        sourceDonnee.unitefrequence = unitefrequence;
+        sourceDonnee.libelleunite = unitefrequence.libelleunitefrequence;
+      }
+    
+      // 3️⃣ Mise à jour des autres informations
+      Object.assign(sourceDonnee, reste);
+    
+      // 4️⃣ Mise à jour des fichiers (fichier JSON ou source URL)
+      if (fichier) {
+        sourceDonnee.fichier = fichier;
+      }
+      if (source) {
+        sourceDonnee.source = source;
+      }
+    
+  
+      return await this.sourcededonneesrepo.save(sourceDonnee);
+    }
+    
 
 
     async getAllsource(){
@@ -263,25 +314,25 @@ async modifyColumn(
 ): Promise<SourceDonnee> {
   const { nomFeuille, nomColonne, newnomColonne, transform } = body;
 
-  // Étape 1 : Récupérer la source de données
   const source = await this.getSourceById(idsourceDonnes);
   const fichier = source.fichier;
 
-  // Étape 2 : Gérer le cas où `nomFeuille` est vide ou non spécifié
-  const targetSheetName = nomFeuille && nomFeuille.trim() ? nomFeuille : Object.keys(fichier[0])[0]; // Récupérer le nom de la première feuille
-  const sheetObject = fichier.find((sheetObj) => sheetObj[targetSheetName]);
-
-  if (!sheetObject) {
-    throw new HttpException(`La feuille spécifiée "${targetSheetName}" n'existe pas.`, 803);
+  if (!fichier || typeof fichier !== "object") {
+    throw new HttpException("Les données de fichier sont invalides.", 500);
   }
 
-  const sheet = sheetObject[targetSheetName];
+
+  const targetSheetName = nomFeuille && nomFeuille.trim() ? nomFeuille : Object.keys(fichier)[0]; 
+  const sheet = fichier[targetSheetName];
+
+  if (!sheet) {
+    throw new HttpException(`La feuille "${targetSheetName}" n'existe pas.`, 803);
+  }
 
   if (!sheet.donnees || sheet.donnees.length === 0) {
-    throw new HttpException(`La feuille spécifiée est vide ou mal initialisée.`, 806);
+    throw new HttpException(`La feuille est vide ou mal initialisée.`, 806);
   }
 
-  // Étape 3 : Identifier la lettre de la colonne
   const headers = sheet.donnees[0]; // Première ligne contient les entêtes
   const columnLetter = Object.keys(headers).find(
     (key) => headers[key] === nomColonne
@@ -291,12 +342,10 @@ async modifyColumn(
     throw new HttpException(`L'entête "${nomColonne}" n'existe pas.`, 404);
   }
 
-  // Étape 4 : Renommer la colonne si nécessaire
   if (newnomColonne) {
     headers[columnLetter] = newnomColonne;
   }
 
-  // Étape 5 : Appliquer une transformation sur les valeurs, si spécifié
   if (transform) {
     sheet.donnees.slice(1).forEach((row, index) => {
       const cellKey = `${columnLetter}${index + 2}`;
@@ -306,18 +355,63 @@ async modifyColumn(
     });
   }
 
-  // Étape 6 : Mettre à jour la feuille dans le fichier
-  const sheetIndex = fichier.findIndex((sheetObj) => sheetObj[targetSheetName]);
-  if (sheetIndex >= 0) {
-    fichier[sheetIndex][targetSheetName] = sheet; // Mettre à jour la feuille
-  } else {
-    throw new HttpException(`La feuille "${targetSheetName}" est introuvable.`, 803);
-  }
+  fichier[targetSheetName] = sheet;
 
-  // Étape 7 : Sauvegarder dans la base de données
   source.fichier = fichier;
   return await this.sourcededonneesrepo.save(source);
 }
+
+
+
+
+async modifyCell(
+  idsourceDonnes: string,
+  body: modifyCellDto
+): Promise<SourceDonnee> {
+  const { nomFeuille, cellule, nouvelleValeur } = body;
+
+  // 1️⃣ Récupérer la source de données
+  const source = await this.getSourceById(idsourceDonnes);
+  const fichier = source.fichier;
+
+  if (!fichier || typeof fichier !== "object") {
+    throw new HttpException("Les données de fichier sont invalides.", 500);
+  }
+
+  // 2️⃣ Récupérer la feuille directement
+  const targetSheetName = nomFeuille && nomFeuille.trim() ? nomFeuille : Object.keys(fichier)[0];
+  const sheet = fichier[targetSheetName];
+
+  if (!sheet) {
+    throw new HttpException(`La feuille "${targetSheetName}" n'existe pas.`, 803);
+  }
+
+  if (!sheet.donnees || sheet.donnees.length === 0) {
+    throw new HttpException(`La feuille est vide ou mal initialisée.`, 806);
+  }
+
+  // 3️⃣ Vérifier si la cellule existe
+  const rowIndex = parseInt(cellule.replace(/\D/g, ""), 10); // Extraire le numéro de ligne (ex: A2 → 2)
+  const colKey = cellule.replace(/\d/g, ""); // Extraire la lettre de colonne (ex: A2 → A)
+
+  if (!rowIndex || !colKey) {
+    throw new HttpException(`Format de cellule invalide "${cellule}".`, 400);
+  }
+
+  if (!sheet.donnees[rowIndex - 1]) {
+    throw new HttpException(`La ligne ${rowIndex} n'existe pas.`, 404);
+  }
+
+  // 4️⃣ Modifier la valeur de la cellule
+  sheet.donnees[rowIndex - 1][cellule] = nouvelleValeur;
+
+  // 5️⃣ Sauvegarder la mise à jour
+  fichier[targetSheetName] = sheet;
+  source.fichier = fichier;
+
+  return await this.sourcededonneesrepo.save(source);
+}
+
 
 
 
