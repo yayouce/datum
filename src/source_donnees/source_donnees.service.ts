@@ -390,7 +390,7 @@ async modifyCell(
     throw new HttpException(`La feuille est vide ou mal initialisée.`, 806);
   }
 
-  // 3️⃣ Vérifier si la cellule existe
+
   const rowIndex = parseInt(cellule.replace(/\D/g, ""), 10); // Extraire le numéro de ligne (ex: A2 → 2)
   const colKey = cellule.replace(/\d/g, ""); // Extraire la lettre de colonne (ex: A2 → A)
 
@@ -402,10 +402,9 @@ async modifyCell(
     throw new HttpException(`La ligne ${rowIndex} n'existe pas.`, 404);
   }
 
-  // 4️⃣ Modifier la valeur de la cellule
+
   sheet.donnees[rowIndex - 1][cellule] = nouvelleValeur;
 
-  // 5️⃣ Sauvegarder la mise à jour
   fichier[targetSheetName] = sheet;
   source.fichier = fichier;
 
