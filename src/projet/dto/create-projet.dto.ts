@@ -1,3 +1,4 @@
+import { Structure } from "@/structure/entities/structure.entity";
 import { Transform, Type } from "class-transformer";
 import { IsDate, IsNotEmpty, IsString } from "class-validator";
 import { MembreStruct } from "src/membre-struct/entities/membre-struct.entity";
@@ -20,6 +21,19 @@ export class CreateProjetDto {
         @IsNotEmpty()
         @IsString()
         etatprojet:string
+        @IsNotEmpty()
+        @IsString()
+        nomstructure:string
+
+
+
+
+
+
         @Type(() => MembreStruct)
         membreStruct:MembreStruct
+
+
+        @Type(()=>Structure)
+        structure:Structure
 }

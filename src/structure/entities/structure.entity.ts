@@ -1,3 +1,4 @@
+import { Projet } from "@/projet/entities/projet.entity";
 import { TimestampEntites } from "src/generique/timestamp";
 import { MembreStruct } from "src/membre-struct/entities/membre-struct.entity";
 import { Column, Entity, OneToMany, PrimaryGeneratedColumn } from "typeorm"
@@ -21,4 +22,8 @@ export class Structure extends TimestampEntites {
   
     @OneToMany(()=>MembreStruct,(membre)=>membre.structure)
     membres:MembreStruct[]
+
+
+    @OneToMany(()=>Projet,(projet)=>projet.structure)
+    projet:Projet[]
 }

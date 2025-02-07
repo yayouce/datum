@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, UseGuards, Delete } from '@nestjs/common';
 import { ProjetService } from './projet.service';
 import { CreateProjetDto } from './dto/create-projet.dto';
 import { UpdateProjetDto } from './dto/update-projet.dto';
@@ -9,17 +9,26 @@ import { User } from 'src/decorator/user.decorator';
 export class ProjetController {
   constructor(private readonly projetService: ProjetService) {}
 
-  @UseGuards(JwtAuthGuard)
+  // @UseGuards(JwtAuthGuard)
+  // @Get('getMyAllProjects')
+  // async getAllFor(
+  //   @User() user,
+  // ){
+
+  //   return this.projetService.getMyAll(user)
+  // }
+
+
   @Get('getAll')
-  async getAllFor(
+  async getAll(
     @User() user,
   ){
 
-    return this.projetService.getAll(user)
+    return this.projetService.getAll()
   }
 
 
-  @UseGuards(JwtAuthGuard)
+  // @UseGuards(JwtAuthGuard)
   @Post('add')
   async creationProjet(
     @Body() data : CreateProjetDto,
@@ -32,7 +41,7 @@ export class ProjetController {
 
 
 
-  @UseGuards(JwtAuthGuard)
+  // @UseGuards(JwtAuthGuard)
   @Patch('update/:id')
   async updateMateriel(
     @User() user,
@@ -49,5 +58,20 @@ export class ProjetController {
     @Param('id') idprojet:string
   ){
     return this.projetService.getById(idprojet)
+  }
+
+
+  @Get('total-par-etat')
+  async getTotalProjetsParEtat() {
+    return await this.projetService.getTotalProjetsParEtat();
+  }
+
+  @Delete("deleteprojet/:idprojet")
+  async deleteProjet(
+    @Param('id') idprojet:string,
+    // @User() user
+  ){
+    return this.projetService.softDeleteProjet(idprojet)
+    
   }
 }

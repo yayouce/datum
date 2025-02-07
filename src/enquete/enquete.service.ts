@@ -14,10 +14,27 @@ export class EnqueteService {
     ) {}
 
 
-    async getAll(user:any) {
+    // async getAll(user:any) {
+    //   try {
+    //     const enquete = await this.enqueteRepo.find({
+    //       where: { membreStruct: { iduser: user.idStruct } },
+    //     });
+    //     return enquete;
+    //   } catch (err) {
+    //     throw err
+    //   }
+    // }
+
+
+
+    async getAllByProject(idprojet:any) {
       try {
+        const projet = await this.projetservice.getById(idprojet)
+        if(!projet){
+          throw new HttpException("projet n'existe pas",804)
+        }
         const enquete = await this.enqueteRepo.find({
-          where: { membreStruct: { iduser: user.idStruct } },
+          where: { projet: { idprojet } },
         });
         return enquete;
       } catch (err) {
@@ -35,7 +52,7 @@ export class EnqueteService {
       }
     }
 
-  async createEnquete(createenquete: CreateEnqueteDto, user,idProjet) {
+  async createEnquete(createenquete: CreateEnqueteDto,idProjet) {
       const { membreStruct, ...creation } = createenquete;
       try {
         // if (user?.roleMembre !== roleMembreEnum.TOPMANAGER) {
@@ -46,8 +63,8 @@ export class EnqueteService {
      
          const newenquete = this.enqueteRepo.create({
           ...creation,
-          membreStruct: user,
-          nomStructure:user.nomStruct,
+          // membreStruct: user,
+          nomStructure:theprojet.nomStructure,
           projet:theprojet
         });
         return await this.enqueteRepo.save(newenquete)

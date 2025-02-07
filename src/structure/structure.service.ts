@@ -27,9 +27,11 @@ export class StructureService {
  
    }
 
-   async getStructureByname(nomStruct){
+   async getStructureByname(nomStruct:string){
     try{
-      return await this.structureRepo.findOneBy({nomStruct})
+      return await this.structureRepo.findOne({
+        where:{nomStruct}
+      })
     }
     catch(err){
       throw err
@@ -44,6 +46,30 @@ export class StructureService {
     }
     catch(err){
       throw err
+    }
+   }
+
+
+   async getTotalStructures() {
+    try {
+        const total = await this.structureRepo.count();
+        return { total };
+    } catch (err) {
+        throw err;
+    }
+}
+
+
+   async findAllstructurename(){
+    try{
+      const resultat= await this.structureRepo.createQueryBuilder('structure')
+      .select("structure.nomStruct","nomstructure")
+      .getRawMany();
+
+      return  resultat.map(row => row.nomstructure);
+    }
+    catch(err){
+
     }
    }
 

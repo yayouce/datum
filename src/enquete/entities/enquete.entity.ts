@@ -27,8 +27,8 @@ export class Enquete {
         @Column()
         nomStructure:string
     
-        @ManyToOne(()=>MembreStruct,(membreStruct)=>membreStruct.enquete)
-        membreStruct:MembreStruct
+        // @ManyToOne(()=>MembreStruct,(membreStruct)=>membreStruct.enquete)
+        // membreStruct:MembreStruct
 
         @ManyToOne(()=>Projet,(membreStruct)=>membreStruct.enquete)
         projet:Projet

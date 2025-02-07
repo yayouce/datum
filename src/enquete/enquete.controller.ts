@@ -9,15 +9,15 @@ export class EnqueteController {
   constructor(private readonly enqueteService: EnqueteService) {}
 
 
-  @UseGuards(JwtAuthGuard)
+  // @UseGuards(JwtAuthGuard)
   @Post('add/:idProjet')
   async creationProjet(
     @Body() data : CreateEnqueteDto,
-    @User() user,
+    //@User() user,
     @Param('idProjet') idProjet:string,
   ){
 
-    return await this.enqueteService.createEnquete(data,user,idProjet)
+    return await this.enqueteService.createEnquete(data,idProjet)
 
   }
 
@@ -30,15 +30,23 @@ export class EnqueteController {
   }
 
 
-  @UseGuards(JwtAuthGuard)
-  @Get('getAll')
-  async getAllFor(
-    @User() user,
+  // @UseGuards(JwtAuthGuard)
+  // @Get('getAll')
+  // async getAllFor(
+  //   @User() user,
+  // ){
+
+  //   return this.enqueteService.getAll(user)
+  // }
+
+
+  @Get('enqueteByproject/:idproject')
+  async getAllByProject(
+    @Param("idproject") idproject
   ){
 
-    return this.enqueteService.getAll(user)
+    return await this.enqueteService.getAllByProject(idproject)
   }
-
 
 
 

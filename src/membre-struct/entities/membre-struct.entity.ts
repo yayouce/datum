@@ -32,9 +32,9 @@ MembreStruct extends UserEntity {
     @OneToMany(() => MembreStruct, (MembreStruct) => MembreStruct.superieur)
     subordonne: MembreStruct[];
 
-    @OneToMany(()=>Projet,(materiel)=>materiel.membreStruct,{eager:true})
-    projet:Projet[]
+    // @OneToMany(()=>Projet,(materiel)=>materiel.membreStruct,{eager:true})
+    // projet:Projet[]
 
-    @OneToMany(()=>Projet,(materiel)=>materiel.membreStruct )
+    @OneToMany(()=>Projet,(materiel)=>materiel.structure )
     enquete:Enquete[]
 }

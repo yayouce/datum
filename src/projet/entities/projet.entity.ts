@@ -3,6 +3,7 @@ import { TimestampEntites } from "src/generique/timestamp";
 import { Enquete } from "src/enquete/entities/enquete.entity";
 import { MembreStruct } from "src/membre-struct/entities/membre-struct.entity";
 import { Column, Entity, ManyToOne, OneToMany, PrimaryGeneratedColumn } from "typeorm";
+import { Structure } from "@/structure/entities/structure.entity";
 
 
 @Entity('projet')
@@ -28,8 +29,11 @@ export class Projet extends TimestampEntites {
     @Column()
     nomStructure:string
 
-    @ManyToOne(()=>MembreStruct,(membreStruct)=>membreStruct.projet)
-    membreStruct:MembreStruct
+    // @ManyToOne(()=>MembreStruct,(membreStruct)=>membreStruct.projet)
+    // membreStruct:MembreStruct
+
+    @ManyToOne(()=>Structure,(structure)=>structure.projet)
+    structure:MembreStruct
 
     @OneToMany(()=>Enquete,(membreStruct)=>membreStruct.projet)
     enquete:Enquete[]
