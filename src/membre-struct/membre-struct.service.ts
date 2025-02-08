@@ -10,7 +10,7 @@ import { rejoindrestructureDto } from './dto/rejoindreStructure.dto';
 import { roleMembreEnum } from 'src/generique/rolemembre.enum';
 import { randomInt } from 'crypto';
 import { ForgotmembrePassword } from './dto/forgotpassword.dto';
-import { MailService } from 'src/utils/mail.service';
+
 const saltOrRounds = 10
 @Injectable()
 export class MembreStructService {
@@ -74,7 +74,7 @@ async rejoindreStructure(rejoindrestructures:rejoindrestructureDto){
     structure:sup.structure,
     superieur:sup
   })
-
+  sup.roleMembre=roleMembreEnum.MANAGER
   return this.membreRepository.save(rejoindrestructure) 
   }
 
