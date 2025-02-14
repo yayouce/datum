@@ -29,7 +29,7 @@ import { GraphModule } from './graph/graph.module';
       password:process.env.DB_PASSWORD,
       database: process.env.DB_NAME,
       entities: ["dist/**/*.entity{.ts,.js}"],
-      synchronize: false,
+      synchronize: true,
     }),
     
     MembreStructModule,

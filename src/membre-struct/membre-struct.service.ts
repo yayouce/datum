@@ -52,41 +52,52 @@ async createMembreStruct(createmembre:CreateMembreStructDto){
 }
 
 
-async rejoindreStructure(rejoindrestructures:rejoindrestructureDto){
-  
-  try{
-  const {emailSuperieur,superieur,structure,password,...data} = rejoindrestructures
+async rejoindreStructure(rejoindrestructures: rejoindrestructureDto) {
+  try {
+    const { emailSuperieur, password, ...data } = rejoindrestructures;
 
-  const sup = await this.findOnemembreByemail(emailSuperieur)
+    // Recherche du supérieur par email
+    const sup = await this.findOnemembreByemail(emailSuperieur);
 
-  if(!sup){
-    throw new HttpException("superieur non trouvé",805)
-  }
+    if (!sup) {
+      throw new HttpException('Supérieur non trouvé', 805);
+    }
 
+    // Hachage du mot de passe
+    const hashedPassword = await bcrypt.hash(password, saltOrRounds);
 
+    // Création du nouveau membre
+    const nouveauMembre = this.membreRepository.create({
+      ...data,
+      roleMembre: roleMembreEnum.COORDINATEUR,
+      password: hashedPassword,
+      structure: sup.structure,
+      superieur: sup,
+    });
 
+    // Sauvegarde du nouveau membre
+    await this.membreRepository.save(nouveauMembre);
 
-  const hashedpassword =await  bcrypt.hash(rejoindrestructures.password,saltOrRounds)
-  const rejoindrestructure = await this.membreRepository.create({
-    ...data,
-    roleMembre:roleMembreEnum.COORDINATEUR,
-    password:hashedpassword,
-    structure:sup.structure,
-    superieur:sup
-  })
-  sup.roleMembre=roleMembreEnum.MANAGER
-  return this.membreRepository.save(rejoindrestructure) 
-  }
+    // Mise à jour du rôle du supérieur si nécessaire
+    if (sup.roleMembre === roleMembreEnum.COORDINATEUR) {
+      sup.roleMembre = roleMembreEnum.MANAGER;
+      await this.membreRepository.save(sup); // Sauvegarde des modifications du supérieur
+    }
 
-  catch(err){
-    throw new HttpException(err.message,900)
+    return nouveauMembre;
+  } catch (err) {
+    throw new HttpException(err.message, 900);
   }
 }
+
 async findOnemembreByemail(email){
   return await this.membreRepository.findOne({
    where: { email },
  })
  }
+
+
+
 
  async forgotpassword(email: ForgotmembrePassword){
   try{
@@ -115,6 +126,11 @@ async findOnemembreByemail(email){
   catch(err){
     throw new HttpException(err.message,804)
   }
+
+
+
+
+
 }
 
 

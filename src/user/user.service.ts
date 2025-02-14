@@ -1,9 +1,11 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { HttpException, Injectable, NotFoundException } from '@nestjs/common';
 import { CreateUserDto } from './dto/create-user.dto';
 import { Repository } from 'typeorm';
 import { UserEntity } from './entities/user.entity';
 import { InjectRepository } from '@nestjs/typeorm';
 import { MembreStructService } from 'src/membre-struct/membre-struct.service';
+import * as bcrypt from "bcrypt"
+import { UserRole } from '@/generique/userroleEnum';
 
 @Injectable()
 export class UserService {
@@ -65,6 +67,40 @@ export class UserService {
   return users
   
   }
-  
+
+
+
+  async createUser(userData: CreateUserDto): Promise<UserEntity> {
+    // Vérifier si l'utilisateur existe déjà
+    const existingUser = await this.userrepo.findOne({
+      where: [{ email: userData.email }, { contact: userData.contact }],
+    });
+
+    if (userData.role === UserRole.Client) {
+      throw new HttpException("impossible",704)}
+    if (existingUser) {
+      throw new HttpException('Utilisateur déjà existant', 701);
+    }
+
+    // Hacher le mot de passe
+    const saltRounds = 10;
+    const hashedPassword = await bcrypt.hash(userData.password, saltRounds);
+
+    // Créer et sauvegarder le nouvel utilisateur
+    const newUser = this.userrepo.create({
+      ...userData,
+      password: hashedPassword,
+    });
+
+    return this.userrepo.save(newUser);
   }
+
+
+
+
+  
+
+
+  
+}
   

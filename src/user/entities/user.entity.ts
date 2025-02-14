@@ -1,4 +1,5 @@
 
+import { UserRole } from "@/generique/userroleEnum";
 import { TimestampEntites } from "src/generique/timestamp";
 import { Column, Entity, PrimaryGeneratedColumn } from "typeorm";
 
@@ -17,4 +18,13 @@ firstname:string;
 @Column({unique:true})
 email:string;
 @Column({unique:true})
-contact:string;}
+contact:string;
+@Column({
+    type: 'enum',
+    enum: UserRole,
+    default: UserRole.Client,
+  })
+  role: UserRole;
+
+
+}
