@@ -97,6 +97,10 @@ async findOnemembreByemail(email){
  }
 
 
+ async getAllMembres() {
+  return await this.membreRepository.find();
+}
+
 
 
  async forgotpassword(email: ForgotmembrePassword){
@@ -127,11 +131,17 @@ async findOnemembreByemail(email){
     throw new HttpException(err.message,804)
   }
 
-
-
-
-
 }
+
+
+// async countAllMembres() {
+//   return await this.membreRepository.count();
+// }
+
+async countByRole(roleMembre: string) {
+  return await this.membreRepository.count({ where: { roleMembre } });
+}
+
 
 
 

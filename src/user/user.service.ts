@@ -97,6 +97,44 @@ export class UserService {
 
 
 
+  async findAllUsersAndMembers() {
+    // Récupérer tous les utilisateurs
+    const users = await this.userrepo.find();
+  
+    // Récupérer tous les membres
+    const members = await this.membreStructService.getAllMembres();
+  
+    // Fusionner les listes
+    const allUsers = [...users, ...members];
+  
+    return allUsers;
+  }
+
+
+
+  async getUserRoleCounts() {
+    // Compter les admins et superadmins dans la table user
+    const totalAdmin = await this.userrepo.count({ where: { role: UserRole.Admin } });
+    const totalSuperAdmin = await this.userrepo.count({ where: { role: UserRole.SuperAdmin } });
+  
+    // Compter les rôles spécifiques aux membres dans la table membre_struct
+    const totalTopManager = await this.membreStructService.countByRole('Top manager');
+    const totalManager = await this.membreStructService.countByRole('Manager');
+    const totalCoordinateur = await this.membreStructService.countByRole('Coordinateur');
+  
+    // Retourner l'objet avec le détail des rôles
+    return {
+      totalAdmin,
+      totalSuperAdmin,
+      totalTopManager,
+      totalManager,
+      totalCoordinateur
+    };
+  }
+  
+  
+  
+
 
   
 

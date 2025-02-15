@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
+import { HttpException, Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 
 
@@ -6,6 +6,7 @@ import * as bcrypt from "bcrypt"
 import { UserService } from 'src/user/user.service';
 import { MembreStruct } from 'src/membre-struct/entities/membre-struct.entity';
 import { userSignInDto } from 'src/user/dto/userSignIn.dto';
+import { log } from 'console';
 
 
 const saltOrRounds = 10;
@@ -28,8 +29,9 @@ export class AuthService {
     
     
     if (!user || !await bcrypt.compare(signIndata.password, user?.password) ) {
+      console.log(user)
       
-        throw new NotFoundException("email ou mot de passe incorecte");
+        throw new HttpException("email ou mot de passe incorecte",700);
       }
 
   
