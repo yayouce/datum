@@ -6,6 +6,7 @@ import { Projet } from './entities/projet.entity';
 import { Repository } from 'typeorm';
 import { roleMembreEnum } from 'src/generique/rolemembre.enum';
 import { StructureService } from '@/structure/structure.service';
+import { etatprojetEnum } from '@/generique/etatprojetEnum.enum';
 
 @Injectable()
 export class ProjetService {
@@ -92,6 +93,7 @@ export class ProjetService {
         ...creation,
         // membreStruct: user,
         structure:structure,
+        etatprojet:etatprojetEnum.En_cours,
         nomStructure:structure.nomStruct
       });
       return await this.projetRepo.save(newProjet)

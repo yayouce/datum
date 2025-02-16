@@ -26,6 +26,7 @@ export class AuthService {
 
    async signIn(signIndata:userSignInDto){
     const user = await this.userService.findPersByPhone(signIndata.email)
+    console.log(user);
     
     
     if (!user || !await bcrypt.compare(signIndata.password, user?.password) ) {

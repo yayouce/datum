@@ -15,6 +15,9 @@ class ColonneY {
   @IsOptional()
   @IsString()
   nomFeuille: string | null;
+
+  @IsOptional()
+  valeurs?: number[];  // ✅ Ajout de `valeurs`
 }
 
 
