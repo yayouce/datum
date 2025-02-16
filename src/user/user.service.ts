@@ -40,22 +40,17 @@ export class UserService {
     }
   
   
-    async findPersByPhone(email:string){
-      const user =this.userrepo.findOne({where:{email}});
-      if(!user){
-        throw new NotFoundException('utilisateur n`\'existe pas!')
+    async findPersByPhone(email: string) {
+      const user = await this.userrepo.findOne({ where: { email } });
+    
+      if (!user) {
+        return this.membreStructService.findOnemembreByemail(email);
       }
-
-      if(user!==null){
-        return user
-      }
-  else{
-
-    return this.membreStructService.findOnemembreByemail(email);
-  }
-  
-      
+    
+      return user;
     }
+    
+
   
   
     async createPers(userData:CreateUserDto):Promise<UserEntity>{
