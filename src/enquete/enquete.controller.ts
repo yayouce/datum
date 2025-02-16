@@ -29,7 +29,7 @@ export class EnqueteController {
     return await this.enqueteService.getenqueteByID(idenquete)
   }
 
-  @Get('totalenqueteByProject/:idproject')
+  @Get('totalenqueteByProject/:idprojet')
   async getTotalenqueteparprojet(
     @Param("idproject") idproject
   ){
