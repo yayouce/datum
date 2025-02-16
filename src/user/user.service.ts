@@ -46,7 +46,7 @@ export class UserService {
         throw new NotFoundException('utilisateur n`\'existe pas!')
       }
 
-      if(user==null){
+      if(user!==null){
         return user
       }
   else{
