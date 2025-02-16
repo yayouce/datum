@@ -176,12 +176,27 @@ async findByNameAndProject(name: string, projectId: string): Promise<any[]> {
       .leftJoin("graph.sources", "source")
       .leftJoin("source.enquete", "enquete")
       .leftJoin("enquete.projet", "projet")
-      .where("projet.idprojet = :idprojet", { idprojet })
-      .select("graph.titreGraphique", "titreGraphique") // Assurez-vous que l'alias est correct
+      .where("projet.idprojet = :idprojet", { idprojet })// Assurez-vous que l'alias est correct
       .getRawMany();
   
-    return results.map(row => row.titreGraphique); // Extraire la bonne clé
+    return results; // Extraire la bonne clé
   }
+
+
+
+  async getTotalGraphsByProject(idprojet: string): Promise<number> {
+    const count = await this.graphRepository
+      .createQueryBuilder("graph")
+      .leftJoin("graph.sources", "source")
+      .leftJoin("source.enquete", "enquete")
+      .leftJoin("enquete.projet", "projet")
+      .where("projet.idprojet = :idprojet", { idprojet })
+      .getCount(); 
+  
+    return count;
+}
+
+
 
 
 

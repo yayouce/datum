@@ -29,6 +29,13 @@ export class EnqueteController {
     return await this.enqueteService.getenqueteByID(idenquete)
   }
 
+  @Get('totalenqueteByProject/:idproject')
+  async getTotalenqueteparprojet(
+    @Param("idproject") idproject
+  ){
+    return { totalEnquetes: await this.enqueteService.Totalenqueteparprojet(idproject) };
+  }
+
 
   // @UseGuards(JwtAuthGuard)
   // @Get('getAll')

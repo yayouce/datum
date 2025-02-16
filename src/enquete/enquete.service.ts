@@ -43,6 +43,24 @@ export class EnqueteService {
     }
 
 
+
+
+    async Totalenqueteparprojet(idprojet:any) {
+      try {
+        const projet = await this.projetservice.getById(idprojet)
+        if(!projet){
+          throw new HttpException("projet n'existe pas",804)
+        }
+        const total = await this.enqueteRepo.count({
+          where: { projet: { idprojet } },
+        });
+        return total;
+      } catch (err) {
+        throw err
+      }
+    }
+
+
     async getenqueteByID(idenquete){
       try {
         const enquete = await this.enqueteRepo.findOneBy({idenquete});

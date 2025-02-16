@@ -51,4 +51,10 @@ async getGraphByNameAndProject(@Param('name') name: string, @Param('projectId') 
     return this.graphService.findByNameAndProject(name, projectId);
 }
 
+
+@Get('/count/:idprojet')
+  async getTotalGraphs(@Param('idprojet') idprojet: string) {
+    return { totalGraphs: await this.graphService.getTotalGraphsByProject(idprojet) };
+  }
+
 }
