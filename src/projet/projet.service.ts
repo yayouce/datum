@@ -87,7 +87,7 @@ export class ProjetService {
       const structure = await this.structureservice.getStructureByname(nomstructure)
       if(!structure){throw new HttpException('structure non trouvé!',700)}
       // if (user?.roleMembre !== roleMembreEnum.TOPMANAGER) {
-      //   throw new HttpException("pas autorisé à ajouter projet",702);
+      //   throw new HttpExceptionseserddrdrdrdrdrdrd("pas autorisé à ajouter projet",702);
       // }
       const newProjet = this.projetRepo.create({
         ...creation,
