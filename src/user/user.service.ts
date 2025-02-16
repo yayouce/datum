@@ -45,8 +45,14 @@ export class UserService {
       if(!user){
         throw new NotFoundException('utilisateur n`\'existe pas!')
       }
-  
-      return user;
+
+      if(user==null){
+        return user
+      }
+  else{
+
+    return this.membreStructService.findOnemembreByemail(email);
+  }
   
       
     }
