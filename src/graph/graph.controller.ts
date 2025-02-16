@@ -16,30 +16,30 @@ export class GraphController {
     return this.graphService.create(createGraphDto,idsource);
   }
 
-  @Get("all")
-  findAll() {
-    return this.graphService.findAll();
-  }
+  // @Get("all")
+  // findAll() {
+  //   return this.graphService.findAll();
+  // }
 
-  @Get("getone/:id")
-  findOne(@Param("id") id: string) {
-    return this.graphService.findOne(id);
-  }
+  // @Get("getone/:id")
+  // findOne(@Param("id") id: string) {
+  //   return this.graphService.findOne(id);
+  // }
 
-  @Patch("update/:id")
-  update(@Param("id") id: string, @Body() updateGraphDto: UpdateGraphDto) {
-    return this.graphService.update(id, updateGraphDto);
-  }
+  // @Patch("update/:id")
+  // update(@Param("id") id: string, @Body() updateGraphDto: UpdateGraphDto) {
+  //   return this.graphService.update(id, updateGraphDto);
+  // }
 
-  @Delete("delete/:id")
-  remove(@Param("id") id: string) {
-    return this.graphService.softDelete(id);
-  }
+  // @Delete("delete/:id")
+  // remove(@Param("id") id: string) {
+  //   return this.graphService.softDelete(id);
+  // }
 
-  @Get('graphbysource/:idsource')
-async getBySource(@Param('idsource') idsource: string) {
-  return this.graphService.findBySource(idsource);
-}
+//   @Get('graphbysource/:idsource')
+// // async getBySource(@Param('idsource') idsource: string) {
+// //   return this.graphService.findBySource(idsource);
+// // }
 
 @Get('graphByproject/:idprojet')
 async getGraphTitlesByProject(@Param('idprojet') idprojet: string) {

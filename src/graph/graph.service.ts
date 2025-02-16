@@ -5,7 +5,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Graph } from './entities/graph.entity';
 import { Repository } from 'typeorm';
 import { SourceDonneesService } from 'src/source_donnees/source_donnees.service';
-import { extractColumnValues, extractColumnValuesWithFormula, formatGraphResponse } from 'src/utils/Fonctions_utils';
+import { extractColumnValues, extractColumnValuesWithFormula,  processGraphData } from 'src/utils/Fonctions_utils';
 
 @Injectable()
 export class GraphService {
@@ -23,59 +23,60 @@ export class GraphService {
     const source = await this.sourceDonneesservice.getSourceById(idsource);
     if (!source) throw new HttpException("Source de données introuvable.", 700);
 
-    // Extraction des valeurs de colonne depuis le fichier JSON
+    // Extraction et traitement des données depuis le fichier JSON
     const fichier = source.fichier;
-    const colonneX =extractColumnValues(createGraphDto.colonneX, fichier);
-    const colonneY = extractColumnValuesWithFormula(createGraphDto.colonneY, fichier);
+    const formattedGraph = processGraphData(createGraphDto.colonneX, createGraphDto.colonneY, fichier);
 
+    // Création du graphique en base de données
     const newGraph = this.graphRepository.create({
-      ...createGraphDto,
-      colonneX,
-      colonneY,
-      nomsourceDonnees: source.nomSource,
-      sources: source,
+        ...createGraphDto,
+        colonneX: formattedGraph.colonneX,
+        colonneY: formattedGraph.colonneY,
+        nomsourceDonnees: source.nomSource,
+        sources: source,
     });
 
     return await this.graphRepository.save(newGraph);
-  }
-
-  async findAll(): Promise<any[]> {
-    const graphs = await this.graphRepository.find({ relations: ["sources"] });
-    return formatGraphResponse(graphs);
 }
 
-async findOne(id: string): Promise<any> {
-  const graph = await this.graphRepository.findOne({
-      where: { idgraph: id },
-      relations: ["sources"],
-  });
 
-  if (!graph) throw new HttpException(`Graphique avec l'ID ${id} introuvable.`, 705);
+//   async findAll(): Promise<any[]> {
+//     const graphs = await this.graphRepository.find({ relations: ["sources"] });
+//     return formatGraphResponse(graphs);
+// }
 
-  return formatGraphResponse([graph])[0];
-}
+// async findOne(id: string): Promise<any> {
+//   const graph = await this.graphRepository.findOne({
+//       where: { idgraph: id },
+//       relations: ["sources"],
+//   });
 
-async findBySource(idsource: string): Promise<any[]> {
-  const graphs = await this.graphRepository.find({
-      where: { sourcesIdsourceDonnes: idsource },
-      relations: ["sources"],
-  });
+//   if (!graph) throw new HttpException(`Graphique avec l'ID ${id} introuvable.`, 705);
 
-  return formatGraphResponse(graphs);
-}
+//   return formatGraphResponse([graph])[0];
+// }
 
-async findByName(name: string): Promise<any[]> {
-  const graphs = await this.graphRepository.find({
-      where: { titreGraphique: name },
-      relations: ["sources"],
-  });
+// async findBySource(idsource: string): Promise<any[]> {
+//   const graphs = await this.graphRepository.find({
+//       where: { sourcesIdsourceDonnes: idsource },
+//       relations: ["sources"],
+//   });
 
-  if (!graphs.length) {
-      throw new HttpException(`Aucun graphique trouvé avec le nom '${name}'.`, 706);
-  }
+//   return formatGraphResponse(graphs);
+// }
 
-  return formatGraphResponse(graphs);
-}
+// async findByName(name: string): Promise<any[]> {
+//   const graphs = await this.graphRepository.find({
+//       where: { titreGraphique: name },
+//       relations: ["sources"],
+//   });
+
+//   if (!graphs.length) {
+//       throw new HttpException(`Aucun graphique trouvé avec le nom '${name}'.`, 706);
+//   }
+
+//   return formatGraphResponse(graphs);
+// }
 
   async findByNameAndProject(name: string, projectId: string): Promise<Graph[]> {
     const graphs = await this.graphRepository
@@ -94,29 +95,29 @@ async findByName(name: string): Promise<any[]> {
     return graphs;
   }
 
-  async update(id: string, updateGraphDto: UpdateGraphDto): Promise<Graph> {
-    const graph = await this.findOne(id);
-    if (!graph) throw new HttpException(`Graphique avec l'ID ${id} introuvable.`, 705);
+  // async update(id: string, updateGraphDto: UpdateGraphDto): Promise<Graph> {
+  //   const graph = await this.findOne(id);
+  //   if (!graph) throw new HttpException(`Graphique avec l'ID ${id} introuvable.`, 705);
 
-    const source = await this.sourceDonneesservice.getSourceById(graph.sourcesIdsourceDonnes);
-    if (!source) throw new HttpException("Source de données introuvable.", 700);
+  //   const source = await this.sourceDonneesservice.getSourceById(graph.sourcesIdsourceDonnes);
+  //   if (!source) throw new HttpException("Source de données introuvable.", 700);
 
-    // Mettre à jour les valeurs extraites des colonnes
-    if (updateGraphDto.colonneX) {
-      updateGraphDto.colonneX = extractColumnValues(updateGraphDto.colonneX, source.fichier);
-    }
-    if (updateGraphDto.colonneY) {
-      updateGraphDto.colonneY = extractColumnValuesWithFormula(updateGraphDto.colonneY, source.fichier);
-    }
+  //   // Mettre à jour les valeurs extraites des colonnes
+  //   if (updateGraphDto.colonneX) {
+  //     updateGraphDto.colonneX = extractColumnValues(updateGraphDto.colonneX, source.fichier);
+  //   }
+  //   if (updateGraphDto.colonneY) {
+  //     updateGraphDto.colonneY = extractColumnValuesWithFormula(updateGraphDto.colonneY, source.fichier);
+  //   }
 
-    Object.assign(graph, updateGraphDto);
-    return await this.graphRepository.save(graph);
-  }
+  //   Object.assign(graph, updateGraphDto);
+  //   return await this.graphRepository.save(graph);
+  // }
 
-  async softDelete(id: string): Promise<void> {
-    const graph = await this.findOne(id);
-    await this.graphRepository.softRemove(graph);
-  }
+  // async softDelete(id: string): Promise<void> {
+  //   const graph = await this.findOne(id);
+  //   await this.graphRepository.softRemove(graph);
+  // }
 
 
 
