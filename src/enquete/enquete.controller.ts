@@ -1,8 +1,9 @@
-import { Controller, Get, Post, Body, Param,  UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param,  UseGuards, Patch } from '@nestjs/common';
 import { EnqueteService } from './enquete.service';
 import { CreateEnqueteDto } from './dto/create-enquete.dto';
 import { JwtAuthGuard } from 'src/Auth/jwt-auth.guard';
 import { User } from 'src/decorator/user.decorator';
+import { UpdateEnqueteDto } from './dto/update-enquete.dto';
 
 @Controller('enquete')
 export class EnqueteController {
@@ -58,6 +59,14 @@ export class EnqueteController {
   @Post('/delete')
   async softDeleteEnquetes(@Body() body: { idsEnquetes: string[] }) {
     return await this.enqueteService.softDeleteEnquetes(body.idsEnquetes);
+  }
+
+  @Patch('/update/:idEnquete')
+  async updateEnquete(
+    @Param('idEnquete') idEnquete: string,
+    @Body() updateData: UpdateEnqueteDto
+  ) {
+    return await this.enqueteService.updateEnquete(idEnquete, updateData);
   }
 
 

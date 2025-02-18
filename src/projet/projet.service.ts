@@ -135,21 +135,31 @@ export class ProjetService {
 
   async softDeleteProjet(idprojet: string) {
     try {
+      if (!idprojet) {
+        throw new HttpException('ID du projet requis', 400);
+      }
   
+      // Vérifier si le projet existe
       const projet = await this.projetRepo.findOne({ where: { idprojet } });
+  
       if (!projet) {
         throw new HttpException('Projet non trouvé', 705);
       }
-      // Vérifier si l'utilisateur appartient à la même structure que le projet
-      // if (user.structure.nomStruct !== projet.nomStructure) {
-      //   throw new HttpException("Ce projet ne vous appartient pas", 803);
-      // }
   
-      // Effectuer la suppression logique
-      return await this.projetRepo.delete(projet);
+      // Effectuer le soft delete
+      await this.projetRepo.softDelete(idprojet);
+  
+      return {
+        message: 'Projet supprimé avec succès (soft delete).',
+        idprojet: idprojet
+      };
     } catch (err) {
       throw new HttpException(err.message, 803);
     }
   }
+  
+
+
+  
   //liste des sources de données par projet 
 }

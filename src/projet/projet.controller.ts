@@ -68,7 +68,7 @@ export class ProjetController {
 
   @Delete("deleteprojet/:idprojet")
   async deleteProjet(
-    @Param('id') idprojet:string,
+    @Param('idprojet') idprojet:string,
     // @User() user
   ){
     return this.projetService.softDeleteProjet(idprojet)

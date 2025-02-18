@@ -4,6 +4,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Enquete } from './entities/enquete.entity';
 import { Repository } from 'typeorm';
 import { ProjetService } from 'src/projet/projet.service';
+import { UpdateEnqueteDto } from './dto/update-enquete.dto';
 
 @Injectable()
 export class EnqueteService {
@@ -93,6 +94,29 @@ export class EnqueteService {
     }
 
 
+
+    async updateEnquete(idEnquete: string, updateData: UpdateEnqueteDto) {
+      try {
+        // Vérifier si l'enquête existe
+        const enquete = await this.enqueteRepo.findOneBy({ idenquete: idEnquete });
+  
+        if (!enquete) {
+          throw new HttpException("L'enquête spécifiée n'existe pas.", 704);
+        }
+  
+        // Mise à jour des champs avec les nouvelles valeurs
+        const updatedEnquete = this.enqueteRepo.merge(enquete, updateData);
+  
+        // Sauvegarder les modifications
+        return await this.enqueteRepo.save(updatedEnquete);
+      } catch (err) {
+        throw new HttpException(err.message, 500);
+      }
+    }
+
+
+
+
     async softDeleteEnquetes(idsEnquetes: string[]) {
       try {
         if (!idsEnquetes || idsEnquetes.length === 0) {
@@ -113,7 +137,7 @@ export class EnqueteService {
 
 
 
-      
+
     }
     
     
