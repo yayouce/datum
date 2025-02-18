@@ -1,3 +1,4 @@
+import { TimestampEntites } from "@/generique/timestamp"
 import { etatprojetEnum } from "src/generique/etatprojetEnum.enum"
 import { MembreStruct } from "src/membre-struct/entities/membre-struct.entity"
 import { Projet } from "src/projet/entities/projet.entity"
@@ -6,7 +7,7 @@ import { Column, Entity, ManyToOne, OneToMany, PrimaryGeneratedColumn } from "ty
 
 
 @Entity('enquete')
-export class Enquete {
+export class Enquete extends TimestampEntites {
     
         @PrimaryGeneratedColumn('uuid')
         idenquete : string

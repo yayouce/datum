@@ -82,6 +82,7 @@ export class EnqueteService {
          const newenquete = this.enqueteRepo.create({
           ...creation,
           // membreStruct: user,
+          etatEnquete:"En_cours",
           nomStructure:theprojet.nomStructure,
           projet:theprojet
         });
@@ -90,4 +91,30 @@ export class EnqueteService {
         throw new HttpException(err.message,803)
       }
     }
+
+
+    async softDeleteEnquetes(idsEnquetes: string[]) {
+      try {
+        if (!idsEnquetes || idsEnquetes.length === 0) {
+          throw new HttpException("Aucun ID fourni pour la suppression.", 700);
+        }
+    
+        // Appliquer le soft delete avec TypeORM
+        await this.enqueteRepo.softDelete(idsEnquetes);
+    
+        return {
+          message: "Enquêtes supprimées avec succès.",
+          deletedCount: idsEnquetes.length,
+        };
+      } catch (err) {
+        throw new HttpException(err.message, 701);
+      }
+
+
+
+
+      
+    }
+    
+    
 }

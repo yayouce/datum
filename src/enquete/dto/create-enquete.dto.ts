@@ -1,5 +1,5 @@
 import { Transform, Type } from "class-transformer"
-import {  IsDate, IsNotEmpty, IsString } from "class-validator"
+import {  IsDate, IsNotEmpty, IsOptional, IsString } from "class-validator"
 import { MembreStruct } from "src/membre-struct/entities/membre-struct.entity"
 
 
@@ -18,7 +18,7 @@ export class CreateEnqueteDto {
         @Transform(({ value }) => new Date(value))
         @IsDate()
         dateFin: Date
-        @IsNotEmpty()
+        @IsOptional()
         @IsString()
         etatEnquete:string
         @Type(() => MembreStruct)

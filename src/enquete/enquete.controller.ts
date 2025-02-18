@@ -55,6 +55,11 @@ export class EnqueteController {
     return await this.enqueteService.getAllByProject(idproject)
   }
 
+  @Post('/delete')
+  async softDeleteEnquetes(@Body() body: { idsEnquetes: string[] }) {
+    return await this.enqueteService.softDeleteEnquetes(body.idsEnquetes);
+  }
+
 
 
 
