@@ -61,7 +61,7 @@ export class EnqueteController {
     return await this.enqueteService.softDeleteEnquetes(body.idsEnquetes);
   }
 
-  @Patch('/update/:idEnquete')
+  @Post('/update/:idEnquete')
   async updateEnquete(
     @Param('idEnquete') idEnquete: string,
     @Body() updateData: UpdateEnqueteDto
