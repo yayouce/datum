@@ -134,7 +134,8 @@ export function formatGraphResponse(graph: Graph): any {
         colonneY: graph.colonneY.map(col => ({
             colonne: entetes[col.colonne] || col.colonne, // Convertir "B1" en "Mathématiques"
             formule: col.formule,
-            valeurs: (col as any).valeurs || []
+            valeurs: (col as any).valeurs || [],
+            legende:col.formule+" "+col.colonne
         })),
     };
 }

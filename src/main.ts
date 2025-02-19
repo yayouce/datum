@@ -56,9 +56,6 @@ async function bootstrap() {
 
   await app.listen(configService.get('HTTP_PORT') ||3000,'0.0.0.0');
 
-
-  
-  
 }
 
 
