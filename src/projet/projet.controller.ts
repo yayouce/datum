@@ -42,8 +42,8 @@ export class ProjetController {
 
 
   // @UseGuards(JwtAuthGuard)
-  @Patch('update/:id')
-  async updateMateriel(
+  @Post('update/:id')
+  async updateProjet(
     @User() user,
     @Param('id') id:string,
     @Body() projet:UpdateProjetDto
