@@ -81,10 +81,10 @@ export class ProjetService {
   
     
   async createProjet(CreateProjetdto: CreateProjetDto, user) {
-    const { nomstructure, ...creation } = CreateProjetdto;
+    const { nomStructure, ...creation } = CreateProjetdto;
     try {
 
-      const structure = await this.structureservice.getStructureByname(nomstructure)
+      const structure = await this.structureservice.getStructureByname(nomStructure)
       if(!structure){throw new HttpException('structure non trouvé!',700)}
       // if (user?.roleMembre !== roleMembreEnum.TOPMANAGER) {
       //   throw new HttpExceptionseserddrdrdrdrdrdrd("pas autorisé à ajouter projet",702);

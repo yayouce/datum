@@ -27,7 +27,7 @@ export class UpdateProjetDto extends PartialType(CreateProjetDto) {
                     etatprojet:string
                     
                     @IsOptional()
-                    nomstructure:string
+                    nomStructure:string
             
             
             

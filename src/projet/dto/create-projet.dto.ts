@@ -23,7 +23,7 @@ export class CreateProjetDto {
         etatprojet:string
         @IsNotEmpty()
         @IsString()
-        nomstructure:string
+        nomStructure:string
 
 
 
