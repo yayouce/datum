@@ -6,24 +6,26 @@ import { MembreStruct } from '@/membre-struct/entities/membre-struct.entity';
 import { Structure } from '@/structure/entities/structure.entity';
 
 export class UpdateProjetDto extends PartialType(CreateProjetDto) {
-            @IsNotEmpty()
+            
                     @IsOptional()
                     libelleprojet:string
-                    @IsNotEmpty()
+                    
                     @IsOptional()
                     descprojet:string
-                    @IsNotEmpty()
+                    
+                    @IsOptional()
                     @Transform(({ value }) => new Date(value))
                     @IsDate()
                     dateDebut: Date
-                    @IsNotEmpty()
+                    
+                    @IsOptional()
                     @Transform(({ value }) => new Date(value))
                     @IsDate()
                     dateFin: Date
-                    @IsNotEmpty()
+                    
                     @IsOptional()
                     etatprojet:string
-                    @IsNotEmpty()
+                    
                     @IsOptional()
                     nomstructure:string
             
