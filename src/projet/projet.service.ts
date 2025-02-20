@@ -103,9 +103,12 @@ export class ProjetService {
   }
 
   async updateProjet(idprojet: string, updateProjet: UpdateProjetDto, user) {
-    const { membreStruct, ...updatedData } = updateProjet;
+    const { membreStruct,nomStructure, ...updatedData } = updateProjet;
   
     try {
+
+      const structure = await this.structureservice.getStructureByname(nomStructure)
+      if(!structure){throw new HttpException('structure non trouvé!',700)}
 
       const projet = await this.projetRepo.findOne({ where: { idprojet } });
       if (!projet) {
@@ -119,6 +122,7 @@ export class ProjetService {
   
       // Mettre à jour le projet
       await this.projetRepo.update(idprojet, {
+        structure:structure,
         ...updatedData,
         // membreStruct: user,
       });
