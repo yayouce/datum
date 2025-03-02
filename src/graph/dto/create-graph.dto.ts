@@ -17,7 +17,7 @@ class ColonneY {
   nomFeuille: string | null;
 
   @IsOptional()
-  valeurs?: number[];  // ✅ Ajout de `valeurs`
+  valeurs?: number[];  
 }
 
 

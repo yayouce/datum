@@ -9,12 +9,6 @@ import { UserRole } from '@/generique/userroleEnum';
 
 @Injectable()
 export class UserService {
- 
-
-
-  
-  
-    
     constructor(
       @InjectRepository(UserEntity)
       private userrepo: Repository<UserEntity>,

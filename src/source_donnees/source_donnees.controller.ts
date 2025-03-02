@@ -46,12 +46,12 @@ export class SourceDonneesController {
 
 
   @Get('getbdbyprojet/:idprojet')
-async getBdsByProjet(
-  @Param('idprojet') idprojet: string,
-  @Query('bd') bdType: 'normales' | 'jointes' | 'tous'
-): Promise<any[]> {
-  return await this.sourceDonneesService.getBdsByProjetWithFilter(idprojet, bdType || 'tous');
-}
+    async getBdsByProjet(
+      @Param('idprojet') idprojet: string,
+      @Query('bd') bdType: 'normales' | 'jointes' | 'tous'
+    ): Promise<any[]> {
+      return await this.sourceDonneesService.getBdsByProjetWithFilter(idprojet, bdType || 'tous');
+    }
 
 
 

@@ -33,12 +33,8 @@ export class GraphService {
         throw new HttpException("La colonne X est invalide ou introuvable.", 701);
     }
 
-    // console.log(`🟢 Élèves extraits pour la colonne X:`, colonneX);
 
-    // Extraction de colonneY avec calculs par élève
     const colonneY = extractColumnValuesWithFormula(createGraphDto.colonneY, fichier, colonneX);
-
-    // console.log(`🟢 Résultats des calculs de colonne Y:`, colonneY);
 
     if (colonneY.some(col => col.valeurs.length === 0 || col.valeurs.every(val => val === 0))) {
         throw new HttpException("Les colonnes Y n'ont pas été bien calculées.", 702);
