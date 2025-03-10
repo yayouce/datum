@@ -48,7 +48,7 @@ export class StructureController {
 
 
   // Valider une adhésion
-  @Patch('adhesion/valider/:id')
+  @Post('adhesion/valider/:id')
   async validationAdhesion(@Param('id') idStruct: string) {
     return await this.structureService.validationadhesion(idStruct);
   }
@@ -80,7 +80,7 @@ export class StructureController {
 
 
 
-  @Patch('adhesion/restore/:id')
+  @Post('adhesion/restore/:id')
   async RestoreAdhesion(@Param('id') idStruct: string) {
     return await this.structureService.RestoreAdhesion(idStruct);
   }
