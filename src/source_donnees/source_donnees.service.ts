@@ -61,51 +61,55 @@ export class SourceDonneesService {
 
 
 
-    async updateSourceDonnee(
+  async updateSourceDonnees(
       idsourceDonnes: string,
       data: UpdateSourceDonneeDto
-    ): Promise<SourceDonnee> {
-      const { libelleformat, libelletypedonnees, libelleunite, fichier, source, ...reste } = data;
-    
-      // 1️⃣ Récupérer la source existante
-      const sourceDonnee = await this.getSourceById(idsourceDonnes);
-      if (!sourceDonnee) {
-        throw new HttpException(`Source de données introuvable`, 404);
-      }
-    
-      // 2️⃣ Mise à jour des métadonnées
-      if (libelletypedonnees) {
-        const typedonnees = await this.datatypeservice.getoneByLibelle(libelletypedonnees);
-        sourceDonnee.typedonnes = typedonnees;
-        sourceDonnee.libelletypedonnees = typedonnees.libelledatatype;
-      }
-    
-      if (libelleformat) {
-        const format = await this.formatservice.getoneByLibelle(libelleformat);
-        sourceDonnee.format = format;
-        sourceDonnee.libelleformat = format.libelleFormat;
-      }
-    
-      if (libelleunite) {
-        const unitefrequence = await this.unitefrequence.getoneBylibelle(libelleunite);
-        sourceDonnee.unitefrequence = unitefrequence;
-        sourceDonnee.libelleunite = unitefrequence.libelleunitefrequence;
-      }
-    
-      // 3️⃣ Mise à jour des autres informations
-      Object.assign(sourceDonnee, reste);
-    
-      // 4️⃣ Mise à jour des fichiers (fichier JSON ou source URL)
-      if (fichier) {
-        sourceDonnee.fichier = fichier;
-      }
-      if (source) {
-        sourceDonnee.source = source;
-      }
-    
+    ) {
+      try {
+          // 1. Vérifier si la source de données existe
+          const sourceExistante = await this.sourcededonneesrepo.findOne({
+              where: { idsourceDonnes },
+              relations: ["format", "typedonnes", "unitefrequence", "enquete"],
+          });
   
-      return await this.sourcededonneesrepo.save(sourceDonnee);
-    }
+          if (!sourceExistante) {
+              throw new HttpException("Source de données non trouvée", 701);
+          }
+  
+          // 2. Récupérer les nouvelles valeurs des entités associées si elles sont fournies
+          const { libelleformat, libelletypedonnees, libelleunite, ...reste } = data;
+  
+          if (libelletypedonnees) {
+              const typedonnees = await this.datatypeservice.getoneByLibelle(libelletypedonnees);
+              if (!typedonnees) throw new HttpException("Type de données introuvable", 703);
+              sourceExistante.typedonnes = typedonnees;
+              sourceExistante.libelletypedonnees = typedonnees.libelledatatype;
+          }
+  
+          if (libelleformat) {
+              const format = await this.formatservice.getoneByLibelle(libelleformat);
+              if (!format) throw new HttpException("Format introuvable", 704);
+              sourceExistante.format = format;
+              sourceExistante.libelleformat = format.libelleFormat;
+          }
+  
+          if (libelleunite) {
+              const unitefrequence = await this.unitefrequence.getoneBylibelle(libelleunite);
+              if (!unitefrequence) throw new HttpException("Unité de fréquence introuvable", 702);
+              sourceExistante.unitefrequence = unitefrequence;
+              sourceExistante.libelleunite = unitefrequence.libelleunitefrequence;
+          }
+  
+          // 3. Mettre à jour les autres champs
+          Object.assign(sourceExistante, reste);
+  
+          // 4. Sauvegarder la mise à jour
+          return await this.sourcededonneesrepo.save(sourceExistante);
+      } catch (err) {
+          throw new HttpException(err.message, 705);
+      }
+  }
+  
     
 
 

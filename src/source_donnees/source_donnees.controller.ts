@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, Query } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Query, HttpException } from '@nestjs/common';
 import { SourceDonneesService } from './source_donnees.service';
 import { CreateSourceDonneeDto } from './dto/create-source_donnee.dto';
 import { SourceDonnee } from './entities/source_donnee.entity';
@@ -7,6 +7,7 @@ import { modifyColumnDto } from './dto/modify.dto';
 import { removeColumnDto } from './dto/removeclumn.dto';
 import { ApplyFunctionDto } from './dto/ApplyFunctionDto.dto';
 import { modifyCellDto } from './dto/modifyCell.dto';
+import { UpdateSourceDonneeDto } from './dto/update-source_donnee.dto';
 
 
 @Controller('source-donnees')
@@ -24,6 +25,28 @@ export class SourceDonneesController {
   ){
     return await this.sourceDonneesService.CreationSourcededonnees(data,idenquete)
   }
+
+
+
+  @Patch("update/:idSource")
+  async updateSourceDonnees(
+    @Param('id') idsourceDonnes: string,
+    @Body() updateSourceDonneeDto: UpdateSourceDonneeDto
+) {
+    try {
+        const updatedSource = await this.sourceDonneesService.updateSourceDonnees(
+            idsourceDonnes,
+            updateSourceDonneeDto
+        );
+        return {
+            message: "Source de données mise à jour avec succès",
+            data: updatedSource,
+        };
+    } catch (error) {
+        throw new HttpException(error.message, 800);
+    }
+  }
+
 
 
   @Get("getAll")
