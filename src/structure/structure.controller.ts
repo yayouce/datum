@@ -72,4 +72,10 @@ export class StructureController {
   }
   
 
+  //liste des structures refusées
+  @Get('adhesion/refuse')
+  async getStructuctreRefuse() {
+    return await this.structureService.getStructuctreRefuse();
+  }
+
 }

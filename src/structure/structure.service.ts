@@ -19,14 +19,12 @@ export class StructureService {
 
     try{
       return await this.structureRepo.save(createStructure)
-     
      }
     catch(err){
      throw new HttpException(err.message,804)
     }
- 
-   }
 
+   }
    async getStructureByname(nomStruct:string){
     try{
       return await this.structureRepo.findOne({
@@ -48,7 +46,6 @@ export class StructureService {
       throw err
     }
    }
-
 
    async getTotalStructures() {
     try {
@@ -158,6 +155,23 @@ export class StructureService {
         .where("structure.adhesion=:adhesion",{adhesion:false})
         .getMany()
   
+        return structure
+      }
+      catch(err){
+        return new HttpException(err.message,805)
+      }
+      
+    }
+
+
+    async getStructuctreRefuse(){
+      try{
+
+        const structure = await this.structureRepo.createQueryBuilder("structure")
+        .select()
+        .withDeleted()
+        .where("structure.deletedAt IS NOT NULL")
+        .getRawMany()
         return structure
       }
       catch(err){
