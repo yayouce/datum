@@ -128,6 +128,18 @@ export class StructureService {
         }
       }
 
+          //restore une structure
+          async RestoreAdhesion(idStruct: string) {
+            try {
+              await this.structureRepo.restore({ idStruct });
+              return { message: 'structure restauré' };
+            } catch (err) {
+              throw new HttpException(err.message, 804);
+            }
+          }
+
+
+
      //liste des approuvées
      async getStructuctreadh(){
       
@@ -179,6 +191,9 @@ export class StructureService {
       }
       
     }
+
+
+  
 
 
 

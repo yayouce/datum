@@ -78,4 +78,12 @@ export class StructureController {
     return await this.structureService.getStructuctreRefuse();
   }
 
+
+
+  @Patch('adhesion/restore/:id')
+  async RestoreAdhesion(@Param('id') idStruct: string) {
+    return await this.structureService.RestoreAdhesion(idStruct);
+  }
+
+
 }
