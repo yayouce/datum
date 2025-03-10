@@ -18,6 +18,10 @@ export class Structure extends TimestampEntites {
     emailStruct : string;
     @Column()
     localisationStruc:string
+    @Column({
+        default:false
+    })
+    adhesion:boolean
   
   
     @OneToMany(()=>MembreStruct,(membre)=>membre.structure)

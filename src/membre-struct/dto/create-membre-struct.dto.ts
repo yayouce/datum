@@ -1,5 +1,5 @@
 import { Type } from "class-transformer";
-import { IsNotEmpty, IsString } from "class-validator";
+import { IsBoolean, IsNotEmpty, IsOptional, IsString } from "class-validator";
 import { Structure } from "src/structure/entities/structure.entity";
 
 export class CreateMembreStructDto {
@@ -23,6 +23,7 @@ contact:string;
 
 
 
+
 @IsNotEmpty()
 @IsString()
 nomStruct : string;
@@ -38,6 +39,9 @@ emailStruct : string;
 @IsNotEmpty()
 @IsString()
 localisationStruc:string
+@IsOptional()
+@IsBoolean()
+adhesion:boolean
 
 
 @Type(() =>Structure)

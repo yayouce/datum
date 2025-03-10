@@ -1,6 +1,6 @@
 
 import { Type } from "class-transformer";
-import { IsArray, IsNotEmpty, IsString, ValidateNested } from "class-validator";
+import { IsArray, IsBoolean, IsNotEmpty, IsOptional, IsString, ValidateNested } from "class-validator";
 import { MembreStruct } from "src/membre-struct/entities/membre-struct.entity";
 
 export class CreateStructureDto {   
@@ -23,5 +23,9 @@ export class CreateStructureDto {
     emailStruct : string;
     @IsNotEmpty()
     @IsString()
-    localisationStruc:string
+    localisationStruc:string;
+
+    @IsOptional()
+    @IsBoolean()
+    adhesion:boolean
 }   

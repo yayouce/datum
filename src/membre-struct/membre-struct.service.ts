@@ -23,7 +23,7 @@ export class MembreStructService {
 )
 {}
 async createMembreStruct(createmembre:CreateMembreStructDto){
-  const {nomStruct,descStruct,contactStruct,emailStruct,localisationStruc,password,email,structure,...membredata}=createmembre
+  const {nomStruct,descStruct,contactStruct,emailStruct,adhesion,localisationStruc,password,email,structure,...membredata}=createmembre
 
   
   
@@ -32,7 +32,7 @@ async createMembreStruct(createmembre:CreateMembreStructDto){
     throw new HttpException('utilisateur existe deja',705)
   }
   const membres = []
-  const structureData = {nomStruct,descStruct,contactStruct,emailStruct,localisationStruc,membres}
+  const structureData = {nomStruct,descStruct,contactStruct,adhesion,emailStruct,localisationStruc,membres,}
  const creatredStructure= await this.structureservice.createStructure(structureData)
   
   const hashedpassword =await  bcrypt.hash(createmembre.password,saltOrRounds)
@@ -55,10 +55,7 @@ async createMembreStruct(createmembre:CreateMembreStructDto){
 async rejoindreStructure(rejoindrestructures: rejoindrestructureDto) {
   try {
     const { emailSuperieur, password, ...data } = rejoindrestructures;
-
-    // Recherche du supérieur par email
     const sup = await this.findOnemembreByemail(emailSuperieur);
-
     if (!sup) {
       throw new HttpException('Supérieur non trouvé', 805);
     }

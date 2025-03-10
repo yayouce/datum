@@ -19,6 +19,8 @@ MembreStruct extends UserEntity {
     @Column()
     nomStruct:string
 
+    
+
    
 
     @ManyToOne(()=>Structure,(structure)=>structure.membres,{eager:true})
@@ -37,4 +39,6 @@ MembreStruct extends UserEntity {
 
     @OneToMany(()=>Projet,(materiel)=>materiel.structure )
     enquete:Enquete[]
+
+
 }

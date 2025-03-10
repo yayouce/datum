@@ -1,4 +1,4 @@
-import { Controller, Get, Param} from '@nestjs/common';
+import { Controller, Get, Param, Patch, Post} from '@nestjs/common';
 import { StructureService } from './structure.service';
 
 
@@ -44,8 +44,32 @@ export class StructureController {
   ){
     return await this.structureService.getStructureByname(nomstruct)
   }
+
+
+
+  // Valider une adhésion
+  @Patch('adhesion/valider/:id')
+  async validationAdhesion(@Param('id') idStruct: string) {
+    return await this.structureService.validationadhesion(idStruct);
+  }
+
+  // Refuser une adhésion
+  @Post('adhesion/refuser/:id')
+  async refuserAdhesion(@Param('id') idStruct: string) {
+    return await this.structureService.refuserAdhesion(idStruct);
+  }
+
+  // Liste des structures approuvées
+  @Get('adhesion/approuvees')
+  async getStructuctreadh() {
+    return await this.structureService.getStructuctreadh();
+  }
+
+  // Liste des structures non approuvées
+  @Get('adhesion/non-approuvees')
+  async getStructuctreNadh() {
+    return await this.structureService.getStructuctreNadh();
+  }
   
-
-
 
 }
