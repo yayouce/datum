@@ -50,6 +50,12 @@ export class SourceDonnee {
     })
     source:string
 
+
+    @Column({
+        default:false
+    })
+    inStudio:boolean
+
     @ManyToOne(()=>Enquete,(enquete)=>enquete.source)
     enquete:Enquete
 

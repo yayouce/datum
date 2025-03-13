@@ -67,6 +67,14 @@ export class SourceDonneesController {
     return this.sourceDonneesService.getSourcesByProjet(idprojet);
   }
 
+  //est dans studio ou pas true or false
+  @Post("InOutStudio/:idSource")
+  async InOutstudio(@Param("idSource") idSource:string){
+    return this.sourceDonneesService.InOutstudio(idSource)
+  }
+
+  
+
 
   @Get('getbdbyprojet/:idprojet')
     async getBdsByProjet(
@@ -76,6 +84,13 @@ export class SourceDonneesController {
       return await this.sourceDonneesService.getBdsByProjetWithFilter(idprojet, bdType || 'tous');
     }
 
+    @Get('getbdbyprojetInstudio/:idprojet')
+  async getBdsByProjetWithFilterInStudio(
+    @Param('idprojet') idprojet: string
+  )
+  {
+    return await this.sourceDonneesService.getBdsByProjetWithFilterInStudio(idprojet)
+  }
 
 
 @Get('TotalBdsByprojet/:idprojet')

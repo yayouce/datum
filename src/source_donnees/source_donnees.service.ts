@@ -227,6 +227,28 @@ async getBdsByProjetWithFilter(
 
 
 
+//get bdByproject where InStudio est true
+
+async getBdsByProjetWithFilterInStudio(idprojet: string){
+
+  try{
+    const sources = await this.sourcededonneesrepo.find({
+    where: { enquete: { projet: { idprojet } },inStudio:true },
+    relations: ['enquete', 'enquete.projet'],
+  });
+  return sources
+
+}
+catch(err){
+  throw new HttpException(err.message,705)
+}
+}
+
+
+
+
+
+
 
 
 
@@ -235,6 +257,75 @@ async getBdsByProjetWithFilter(
 
 
 //----------------Ajout de nouvelle colonne 
+// async addColumn(
+//   idsource: string,
+//   body: addColumnDto
+// ): Promise<SourceDonnee> {
+//   const { nomFeuille, nomColonne } = body;
+
+//   if (!nomColonne) {
+//     throw new HttpException(
+//       'Le nom de la nouvelle colonne est obligatoire.',
+//       701
+//     );
+//   }
+
+//   // Étape 1 : Récupérer la source de données
+//   const source = await this.getSourceById(idsource);
+//   const fichier = source.fichier;
+
+//   // Étape 2 : Récupérer la feuille ou la première feuille par défaut
+//   const sheet = getSheetOrDefault(fichier, nomFeuille);
+
+//   // Vérifier si la feuille est valide
+//   if (!sheet?.donnees || sheet.donnees.length === 0) {
+//     throw new HttpException(
+//       `La feuille spécifiée est vide ou mal initialisée.`,
+//       806
+//     );
+//   }
+
+//   // Étape 3 : Vérifier les entêtes existantes et générer un nom unique
+//   const headers = sheet.donnees[0]; // Première ligne contient les entêtes
+//   const existingHeaders = Object.values(headers).map((header) =>
+//     header?.toString().toLowerCase()
+//   ); // Convertir tous les noms existants en minuscule
+
+//   let uniqueName = nomColonne;
+//   let suffix = 1;
+
+//   while (existingHeaders.includes(uniqueName.toLowerCase())) {
+//     uniqueName = `${nomColonne}${suffix}`;
+//     suffix++;
+//   }
+
+//   // Étape 4 : Ajouter une nouvelle colonne
+//   const newColumnLetter = generateNextColumnLetter(sheet.colonnes);
+//   headers[`${newColumnLetter}1`] = uniqueName; // Ajouter l'entête avec un nom unique
+//   sheet.colonnes.push(newColumnLetter);
+
+//   // Initialiser les valeurs de la colonne à null
+//   sheet.donnees.slice(1).forEach((row, index) => {
+//     row[`${newColumnLetter}${index + 2}`] = null;
+//   });
+
+//   // Étape 5 : Sauvegarder les modifications
+//   if (Array.isArray(fichier)) {
+//     const sheetIndex = fichier.findIndex(
+//       (sheetObj) => sheetObj[nomFeuille || Object.keys(sheetObj)[0]]
+//     );
+//     if (sheetIndex >= 0) {
+//       fichier[sheetIndex][nomFeuille || Object.keys(fichier[sheetIndex])[0]] =
+//         sheet;
+//     }
+//   } else {
+//     fichier[nomFeuille || Object.keys(fichier)[0]] = sheet;
+//   }
+
+//   source.fichier = fichier;
+
+//   return await this.sourcededonneesrepo.save(source);
+// }
 async addColumn(
   idsource: string,
   body: addColumnDto
@@ -282,9 +373,11 @@ async addColumn(
   headers[`${newColumnLetter}1`] = uniqueName; // Ajouter l'entête avec un nom unique
   sheet.colonnes.push(newColumnLetter);
 
-  // Initialiser les valeurs de la colonne à null
-  sheet.donnees.slice(1).forEach((row, index) => {
-    row[`${newColumnLetter}${index + 2}`] = null;
+  // Initialiser toutes les cellules de la nouvelle colonne à `null`
+  sheet.donnees.forEach((row, index) => {
+    if (index > 0) { // Ne pas toucher à la première ligne (headers)
+      row[`${newColumnLetter}${index + 1}`] = null;
+    }
   });
 
   // Étape 5 : Sauvegarder les modifications
@@ -304,7 +397,6 @@ async addColumn(
 
   return await this.sourcededonneesrepo.save(source);
 }
-
 
 
 
@@ -417,6 +509,25 @@ async modifyCell(
 
 
 
+// Instudio à true ou false (pour indiquer)
+
+      //ajouter et enlever du studio
+
+      async InOutstudio(idsource:string){
+        try{
+          const source = await this.getSourceById(idsource)
+          if(!source){
+            throw new HttpException("source non trouvée",705)
+          }
+        source.inStudio=!source.inStudio
+        await this.sourcededonneesrepo.save(source)
+        }
+        catch(err){
+          throw new HttpException(err.message,705)
+        }
+      }
+
+     
 
 
 // suppression
@@ -538,31 +649,38 @@ async applyFunctionAndSave(
   try {
     switch (operation.toLowerCase()) {
       case 'sum': {
-        columnResult = columnValues[0].map(() =>
-          columnValues[0].reduce((acc, val) => acc + (parseFloat(val) || 0), 0)
+        columnResult = columnValues[0].map((_, index) =>
+          columnValues.reduce(
+            (acc, col) => acc + (parseFloat(col[index]) || 0),
+            0
+          )
         );
         break;
       }
       case 'average': {
-        const avg =
-          columnValues[0].reduce((acc, val) => acc + (parseFloat(val) || 0), 0) /
-          columnValues[0].length;
-        columnResult = columnValues[0].map(() => avg);
+        columnResult = columnValues[0].map((_, index) => {
+          const validValues = columnValues.map((col) => parseFloat(col[index]) || 0);
+          const sum = validValues.reduce((acc, val) => acc + val, 0);
+          return sum / validValues.length;
+        });
         break;
       }
       case 'max': {
-        const max = Math.max(...columnValues[0].map((val) => parseFloat(val) || 0));
-        columnResult = columnValues[0].map(() => max);
+        columnResult = columnValues[0].map((_, index) =>
+          Math.max(...columnValues.map((col) => parseFloat(col[index]) || 0))
+        );
         break;
       }
       case 'min': {
-        const min = Math.min(...columnValues[0].map((val) => parseFloat(val) || 0));
-        columnResult = columnValues[0].map(() => min);
+        columnResult = columnValues[0].map((_, index) =>
+          Math.min(...columnValues.map((col) => parseFloat(col[index]) || 0))
+        );
         break;
       }
       case 'count': {
-        const count = columnValues[0].length;
-        columnResult = columnValues[0].map(() => count);
+        columnResult = columnValues[0].map((_, index) =>
+          columnValues.map((col) => col[index]).filter((val) => val !== null && val !== undefined).length
+        );
         break;
       }
       case 'concat': {
