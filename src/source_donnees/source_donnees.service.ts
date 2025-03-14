@@ -32,7 +32,7 @@ export class SourceDonneesService {
   ) {}
 
   async CreationSourcededonnees(data: CreateSourceDonneeDto, idenquete: string) {
-    const { libelleformat, libelletypedonnees, libelleunite,typedonnes, ...reste } = data;
+    const { libelleformat, libelletypedonnees, libelleunite, ...reste } = data;
 
       // 2. Récupération des entités associées
       const typedonnees = await this.datatypeservice.getoneByLibelle(libelletypedonnees);
@@ -49,7 +49,6 @@ export class SourceDonneesService {
         libelleunite: unitefrequence.libelleunitefrequence,
         typedonnes: typedonnees,
         format: format,
-        typeDonnees:typedonnees.libelledatatype,
         bd_normales: data.fichier,
   
       });
