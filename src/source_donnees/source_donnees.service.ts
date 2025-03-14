@@ -32,7 +32,7 @@ export class SourceDonneesService {
   ) {}
 
   async CreationSourcededonnees(data: CreateSourceDonneeDto, idenquete: string) {
-    const { libelleformat, libelletypedonnees, libelleunite, ...reste } = data;
+    const { libelleformat, libelletypedonnees, libelleunite,typedonnes, ...reste } = data;
 
       // 2. Récupération des entités associées
       const typedonnees = await this.datatypeservice.getoneByLibelle(libelletypedonnees);
@@ -467,7 +467,7 @@ async modifyCell(
 ): Promise<SourceDonnee> {
   const { nomFeuille, cellule, nouvelleValeur } = body;
 
-  // 1️⃣ Récupérer la source de données
+// 1️⃣ Récupérer la source de données
   const source = await this.getSourceById(idsourceDonnes);
   const fichier = source.fichier;
 
@@ -475,7 +475,7 @@ async modifyCell(
     throw new HttpException("Les données de fichier sont invalides.", 500);
   }
 
-  // 2️⃣ Récupérer la feuille directement
+// 2️⃣ Récupérer la feuille directement
   const targetSheetName = nomFeuille && nomFeuille.trim() ? nomFeuille : Object.keys(fichier)[0];
   const sheet = fichier[targetSheetName];
 
@@ -602,17 +602,14 @@ async removeColumn(
 
 
 
-async applyFunctionAndSave(
-  idsourceDonnes: string,
-  applyFunctionDto: ApplyFunctionDto
-): Promise<SourceDonnee> {
+async applyFunctionAndSave(idsourceDonnes: string,applyFunctionDto: ApplyFunctionDto): Promise<SourceDonnee> {
   const { nomFeuille, columnReferences, operation, separator, targetColumn } = applyFunctionDto;
 
   // Étape 1 : Récupérer la source de données
   const source = await this.getSourceById(idsourceDonnes);
-  let fichier = source.fichier; //  Conserver fichier comme objet JSON
+  let fichier = source.fichier;
 
-  // Étape 2 : Récupérer la feuille ou la première feuille si `nomFeuille` est vide
+  // Étape 2 : Récupérer la feuille
   const targetSheetName = nomFeuille && nomFeuille.trim() ? nomFeuille : Object.keys(fichier)[0];
   const sheet = fichier[targetSheetName];
 
@@ -641,26 +638,23 @@ async applyFunctionAndSave(
     sheet.donnees.slice(1).map((row, index) => {
       const cellKey = `${letter}${index + 2}`;
       const value = row[cellKey];
-      return value !== undefined && value !== null ? value : null;
+      return value !== undefined && value !== null ? parseFloat(value) : null;
     })
   );
 
-  // Étape 5 : Appliquer la fonction avec vérification
+  // Étape 5 : Appliquer la fonction
   let columnResult: any[] = [];
   try {
     switch (operation.toLowerCase()) {
       case 'sum': {
         columnResult = columnValues[0].map((_, index) =>
-          columnValues.reduce(
-            (acc, col) => acc + (parseFloat(col[index]) || 0),
-            0
-          )
+          columnValues.reduce((acc, col) => acc + (col[index] || 0), 0)
         );
         break;
       }
       case 'average': {
         columnResult = columnValues[0].map((_, index) => {
-          const validValues = columnValues.map((col) => parseFloat(col[index]) || 0);
+          const validValues = columnValues.map((col) => col[index] || 0);
           const sum = validValues.reduce((acc, val) => acc + val, 0);
           return sum / validValues.length;
         });
@@ -668,13 +662,13 @@ async applyFunctionAndSave(
       }
       case 'max': {
         columnResult = columnValues[0].map((_, index) =>
-          Math.max(...columnValues.map((col) => parseFloat(col[index]) || 0))
+          Math.max(...columnValues.map((col) => col[index] || 0))
         );
         break;
       }
       case 'min': {
         columnResult = columnValues[0].map((_, index) =>
-          Math.min(...columnValues.map((col) => parseFloat(col[index]) || 0))
+          Math.min(...columnValues.map((col) => col[index] || 0))
         );
         break;
       }
@@ -692,6 +686,32 @@ async applyFunctionAndSave(
         );
         break;
       }
+      case 'multiply': {
+        columnResult = columnValues[0].map((_, index) =>
+          columnValues.reduce((acc, col) => acc * (col[index] || 1), 1)
+        );
+        break;
+      }
+      case 'divide': {
+        columnResult = columnValues[0].map((_, index) => {
+          const validValues = columnValues.map((col) => col[index]).filter((val) => val !== null && val !== 0);
+          return validValues.reduce((acc, val) => acc / val, validValues[0] || 1);
+        });
+        break;
+      }
+      case 'subtract': {
+        columnResult = columnValues[0].map((_, index) =>
+          columnValues.reduce((acc, col) => acc - (col[index] || 0))
+        );
+        break;
+      }
+      case 'modulo': {
+        columnResult = columnValues[0].map((_, index) => {
+          const validValues = columnValues.map((col) => col[index]).filter((val) => val !== null && val !== 0);
+          return validValues.reduce((acc, val) => acc % val, validValues[0] || 1);
+        });
+        break;
+      }
       default:
         throw new HttpException(`L'opération "${operation}" n'est pas supportée.`, 802);
     }
@@ -702,8 +722,8 @@ async applyFunctionAndSave(
     );
   }
 
+// Vérifier si la colonne cible existe
   const targetColumnLetter = targetColumn.replace(/\d/g, '');
-  // Étape 6 : Ajouter les résultats dans la colonne cible
   if (!sheet.colonnes.includes(targetColumnLetter)) {
     throw new HttpException(
       `La colonne cible "${targetColumnLetter}" n'existe pas.`,
@@ -711,16 +731,18 @@ async applyFunctionAndSave(
     );
   }
 
+  // Étape 6 : Ajouter les résultats dans la colonne cible
   sheet.donnees.slice(1).forEach((row, index) => {
     const cellKey = `${targetColumnLetter}${index + 2}`;
     row[cellKey] = columnResult[index];
   });
 
-  fichier[targetSheetName] = sheet; 
-  source.fichier = { ...fichier }; 
+  fichier[targetSheetName] = sheet;
+  source.fichier = { ...fichier };
 
   return await this.sourcededonneesrepo.save(source);
 }
+
 
 
 
