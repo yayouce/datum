@@ -49,7 +49,8 @@ export class SourceDonneesService {
         libelleunite: unitefrequence.libelleunitefrequence,
         typedonnes: typedonnees,
         format: format,
-        bd_normales: data.fichier||data.source,
+        typeDonnees:typedonnees.libelledatatype,
+        bd_normales: data.fichier,
   
       });
 
