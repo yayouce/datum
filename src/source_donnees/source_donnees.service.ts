@@ -22,6 +22,7 @@ import { modifyCellDto } from './dto/modifyCell.dto';
 import * as xlsx from 'xlsx';
 import * as fs from 'fs';
 import * as path from 'path';
+import csvParser from 'csv-parser';
 
 @Injectable()
 export class SourceDonneesService {
@@ -113,36 +114,155 @@ export class SourceDonneesService {
   //   }
   // }
 
+  // async CreationSourcededonnees(data: CreateSourceDonneeDto, idenquete: string) {
+  //   try {
+  //     const { libelleformat, libelletypedonnees, libelleunite, source, ...reste } = data;
+
+  //     // 1. Récupération des entités associées
+  //     const typedonnees = await this.datatypeservice.getoneByLibelle(libelletypedonnees);
+  //     const format = await this.formatservice.getoneByLibelle(libelleformat);
+  //     const unitefrequence = libelleunite ? await this.unitefrequence.getoneBylibelle(libelleunite) : null;
+  //     const enquetedata = await this.enqueteservice.getenqueteByID(idenquete);
+
+  //     let fichier = data.fichier; // 📌 Si fichier est fourni, on le garde
+
+  //     // 2. Si `source` est fourni, essayer de télécharger et formater les données
+  //     if (source) {
+  //       try {
+  //         const response = await firstValueFrom(this.httpService.get(source, { responseType: 'arraybuffer' }));
+          
+  //         if (!response.data) {
+  //           throw new HttpException(`L'API ${source} ne retourne pas de fichier valide`, 803);
+  //         }
+
+  //         // 🔥 Convertir le buffer en fichier Excel temporaire
+  //         const filePath = path.join(__dirname, 'temp.xlsx');
+  //         fs.writeFileSync(filePath, response.data);
+
+  //         // 🔥 Lire et formater le fichier Excel
+  //         const formattedData = this.processExcelFile(filePath);
+
+  //         // ✅ Mettre les données formatées dans `fichier`
+  //         fichier = formattedData;
+
+  //         // 🧹 Supprimer le fichier temporaire après traitement
+  //         fs.unlinkSync(filePath);
+  //       } catch (error) {
+  //         throw new HttpException(`Impossible de récupérer ou traiter les données depuis ${source}: ${error.message}`, 802);
+  //       }
+  //     }
+
+  //     // 3. Création de l'entité SourceDonnee avec les données formatées
+  //     const newsourcedonnes = this.sourcededonneesrepo.create({
+  //       ...reste,
+  //       enquete: enquetedata,
+  //       libelleformat: format.libelleFormat,
+  //       libelletypedonnees: typedonnees.libelledatatype,
+  //       libelleunite: unitefrequence ? unitefrequence.libelleunitefrequence : null,
+  //       typedonnes: typedonnees,
+  //       unitefrequence: unitefrequence,
+  //       format: format,
+  //       fichier:fichier,// ✅ Données JSON formatées
+         
+  //     });
+
+  //     // 4. Sauvegarde dans la base de données
+  //     return await this.sourcededonneesrepo.save(newsourcedonnes);
+  //   } catch (err) {
+  //     throw new HttpException(err.message, 801);
+  //   }
+  // }
+
+  // /**
+  //  * Convertit un fichier Excel en JSON formaté avec plusieurs `sheets`
+  //  */
+  // private processExcelFile(filePath: string): any {
+  //   const workbook = xlsx.readFile(filePath);
+  //   const result = {};
+
+  //   // 🔄 Parcourir chaque feuille du fichier Excel
+  //   for (const sheetName of workbook.SheetNames) {
+  //     const worksheet = workbook.Sheets[sheetName];
+  //     const rows: string[][] = xlsx.utils.sheet_to_json(worksheet, { header: 1 }); // 🔍 Extraction brute des données
+
+  //     const sheetData = { donnees: [], colonnes: [] };
+
+  //     if (rows.length > 0) {
+  //       const headers = rows[0] as string[]; // ✅ Récupère la première ligne (en-têtes)
+  //       const columnCount = headers.length;
+
+  //       // 🔄 Générer la liste des colonnes utilisées (A, B, C, etc.)
+  //       sheetData.colonnes = Array.from({ length: columnCount }, (_, j) => String.fromCharCode(65 + j));
+
+  //       // 🔄 Insérer les en-têtes dans le format demandé (A1, B1, C1...)
+  //       const headerRow = {};
+  //       for (let j = 0; j < columnCount; j++) {
+  //         const colKey = `${String.fromCharCode(65 + j)}1`; // Génère A1, B1, C1...
+  //         headerRow[colKey] = headers[j] || null;
+  //       }
+  //       sheetData.donnees.push(headerRow); // 🔥 Ajoute les en-têtes à la première ligne
+
+  //       // 🔄 Transformer chaque ligne en objet avec noms de colonnes
+  //       for (let i = 1; i < rows.length; i++) {
+  //         const row = rows[i];
+  //         const rowData = {};
+
+  //         for (let j = 0; j < columnCount; j++) {
+  //           const colKey = `${String.fromCharCode(65 + j)}${i + 1}`; // Générer A2, B2, C2...
+  //           rowData[colKey] = row[j] || null; // Assigner la valeur
+  //         }
+
+  //         sheetData.donnees.push(rowData);
+  //       }
+  //     }
+
+  //     result[sheetName] = sheetData;
+  //   }
+
+  //   return result;
+  // }
+
+
+
   async CreationSourcededonnees(data: CreateSourceDonneeDto, idenquete: string) {
     try {
       const { libelleformat, libelletypedonnees, libelleunite, source, ...reste } = data;
 
       // 1. Récupération des entités associées
       const typedonnees = await this.datatypeservice.getoneByLibelle(libelletypedonnees);
-      const format = await this.formatservice.getoneByLibelle(libelleformat);
+      
       const unitefrequence = libelleunite ? await this.unitefrequence.getoneBylibelle(libelleunite) : null;
       const enquetedata = await this.enqueteservice.getenqueteByID(idenquete);
 
       let fichier = data.fichier; // 📌 Si fichier est fourni, on le garde
+      let formatFichier = null; // Variable pour stocker le format du fichier
 
       // 2. Si `source` est fourni, essayer de télécharger et formater les données
       if (source) {
         try {
           const response = await firstValueFrom(this.httpService.get(source, { responseType: 'arraybuffer' }));
-          
+        
           if (!response.data) {
             throw new HttpException(`L'API ${source} ne retourne pas de fichier valide`, 803);
           }
 
-          // 🔥 Convertir le buffer en fichier Excel temporaire
-          const filePath = path.join(__dirname, 'temp.xlsx');
+          // 🔥 Détecter le format du fichier via son extension
+          formatFichier = this.detectFileFormat(source);
+
+          // 🔥 Convertir le buffer en fichier temporaire
+          const filePath = path.join(__dirname, `temp.${formatFichier}`);
           fs.writeFileSync(filePath, response.data);
 
-          // 🔥 Lire et formater le fichier Excel
-          const formattedData = this.processExcelFile(filePath);
-
-          // ✅ Mettre les données formatées dans `fichier`
-          fichier = formattedData;
+          // 🔥 Lire et formater le fichier selon son type
+          if (formatFichier === 'xlsx') {
+            fichier = this.processExcelFile(filePath);
+          } else if (formatFichier === 'csv') {
+            fichier = await this.processCsvFile(filePath);
+          } else if (formatFichier === 'json') {
+            fichier = this.processJsonFile(filePath);
+          } else {
+            throw new HttpException(`Format de fichier non supporté: ${formatFichier}`, 804);
+          }
 
           // 🧹 Supprimer le fichier temporaire après traitement
           fs.unlinkSync(filePath);
@@ -150,6 +270,7 @@ export class SourceDonneesService {
           throw new HttpException(`Impossible de récupérer ou traiter les données depuis ${source}: ${error.message}`, 802);
         }
       }
+      const format = await this.formatservice.getoneByLibelle(formatFichier);
 
       // 3. Création de l'entité SourceDonnee avec les données formatées
       const newsourcedonnes = this.sourcededonneesrepo.create({
@@ -161,8 +282,7 @@ export class SourceDonneesService {
         typedonnes: typedonnees,
         unitefrequence: unitefrequence,
         format: format,
-        fichier:fichier,// ✅ Données JSON formatées
-         
+        bd_normales: fichier, // ✅ Données JSON formatées
       });
 
       // 4. Sauvegarde dans la base de données
@@ -173,52 +293,90 @@ export class SourceDonneesService {
   }
 
   /**
-   * Convertit un fichier Excel en JSON formaté avec plusieurs `sheets`
+   * 🔍 Détecter le format du fichier à partir de l'URL
+   */
+  private detectFileFormat(url: string): string {
+    const extension = path.extname(url).toLowerCase().replace('.', '');
+    return extension;
+  }
+
+  /**
+   * 🔥 Convertit un fichier Excel en JSON formaté
    */
   private processExcelFile(filePath: string): any {
     const workbook = xlsx.readFile(filePath);
     const result = {};
 
-    // 🔄 Parcourir chaque feuille du fichier Excel
     for (const sheetName of workbook.SheetNames) {
       const worksheet = workbook.Sheets[sheetName];
-      const rows: string[][] = xlsx.utils.sheet_to_json(worksheet, { header: 1 }); // 🔍 Extraction brute des données
+      const rows: string[][] = xlsx.utils.sheet_to_json(worksheet, { header: 1 });
 
       const sheetData = { donnees: [], colonnes: [] };
-
       if (rows.length > 0) {
-        const headers = rows[0] as string[]; // ✅ Récupère la première ligne (en-têtes)
+        const headers = rows[0] as string[];
         const columnCount = headers.length;
 
-        // 🔄 Générer la liste des colonnes utilisées (A, B, C, etc.)
         sheetData.colonnes = Array.from({ length: columnCount }, (_, j) => String.fromCharCode(65 + j));
 
-        // 🔄 Insérer les en-têtes dans le format demandé (A1, B1, C1...)
         const headerRow = {};
         for (let j = 0; j < columnCount; j++) {
-          const colKey = `${String.fromCharCode(65 + j)}1`; // Génère A1, B1, C1...
+          const colKey = `${String.fromCharCode(65 + j)}1`;
           headerRow[colKey] = headers[j] || null;
         }
-        sheetData.donnees.push(headerRow); // 🔥 Ajoute les en-têtes à la première ligne
+        sheetData.donnees.push(headerRow);
 
-        // 🔄 Transformer chaque ligne en objet avec noms de colonnes
         for (let i = 1; i < rows.length; i++) {
           const row = rows[i];
           const rowData = {};
 
           for (let j = 0; j < columnCount; j++) {
-            const colKey = `${String.fromCharCode(65 + j)}${i + 1}`; // Générer A2, B2, C2...
-            rowData[colKey] = row[j] || null; // Assigner la valeur
+            const colKey = `${String.fromCharCode(65 + j)}${i + 1}`;
+            rowData[colKey] = row[j] || null;
           }
 
           sheetData.donnees.push(rowData);
         }
       }
-
       result[sheetName] = sheetData;
     }
-
     return result;
+  }
+
+  /**
+   * 🔥 Convertit un fichier CSV en JSON formaté
+   */
+  private async processCsvFile(filePath: string): Promise<any> {
+    return new Promise((resolve, reject) => {
+      const sheetData = { donnees: [], colonnes: [] };
+      const stream = fs.createReadStream(filePath).pipe(csvParser());
+
+      stream.on('headers', (headers) => {
+        sheetData.colonnes = headers.map((_, j) => String.fromCharCode(65 + j));
+        const headerRow = {};
+        headers.forEach((header, j) => {
+          headerRow[`${String.fromCharCode(65 + j)}1`] = header;
+        });
+        sheetData.donnees.push(headerRow);
+      });
+
+      stream.on('data', (row, index) => {
+        const rowData = {};
+        Object.values(row).forEach((value, j) => {
+          rowData[`${String.fromCharCode(65 + j)}${index + 2}`] = value;
+        });
+        sheetData.donnees.push(rowData);
+      });
+
+      stream.on('end', () => resolve({ CSV: sheetData }));
+      stream.on('error', (error) => reject(error));
+    });
+  }
+
+  /**
+   * 🔥 Charge un fichier JSON tel quel
+   */
+  private processJsonFile(filePath: string): any {
+    return JSON.parse(fs.readFileSync(filePath, 'utf-8'));
   }
 
 

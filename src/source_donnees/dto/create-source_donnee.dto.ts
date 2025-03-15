@@ -22,7 +22,7 @@ export class CreateSourceDonneeDto {
         commentaire:string
     
         
-        @IsNotEmpty()
+        @IsOptional()
         @IsString()
         libelleformat:string
         
