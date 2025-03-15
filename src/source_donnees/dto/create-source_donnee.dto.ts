@@ -26,7 +26,8 @@ export class CreateSourceDonneeDto {
         @IsString()
         libelleformat:string
         
-        @IsOptional()
+        @ValidateIf((o) => !!o.source) // Si "source" est renseigné, la fréquence devient obligatoire
+        @IsNotEmpty({ message: "L'unité(libelleunite:) est obligatoire si une source est fournie." })//cas API seulement
         @IsString()
         libelleunite:string;
         
@@ -47,8 +48,7 @@ export class CreateSourceDonneeDto {
         @IsOptional()
         source:string
         
-        @ValidateIf((o) => !!o.source) // Si "source" est renseigné, la fréquence devient obligatoire
-        @IsNotEmpty({ message: "L'unité(libelleunite:) est obligatoire si une source est fournie." })//cas API seulement
+       @IsOptional()
         @Type(() => unitefrequence)
         unitefrequence:unitefrequence
         

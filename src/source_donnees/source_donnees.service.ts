@@ -8,6 +8,8 @@ import { FormatfichierService } from 'src/formatfichier/formatfichier.service';
 import { UnitefrequenceService } from 'src/frequence/unitefrequence.service';
 import { EnqueteService } from 'src/enquete/enquete.service';
 
+import { firstValueFrom } from 'rxjs';
+import { HttpService } from '@nestjs/axios';
 import { FileHandlerService } from 'src/utils/file-handler.service';
 import { getSheetOrDefault } from './getSheetOrdefault';
 import { generateNextColumnLetter } from './generateNextColumnLetter';
@@ -17,7 +19,9 @@ import { removeColumnDto } from './dto/removeclumn.dto';
 import { ApplyFunctionDto } from './dto/ApplyFunctionDto.dto';
 import { UpdateSourceDonneeDto } from './dto/update-source_donnee.dto';
 import { modifyCellDto } from './dto/modifyCell.dto';
-
+import * as xlsx from 'xlsx';
+import * as fs from 'fs';
+import * as path from 'path';
 
 @Injectable()
 export class SourceDonneesService {
@@ -28,29 +32,137 @@ export class SourceDonneesService {
     private formatservice: FormatfichierService,
     private unitefrequence: UnitefrequenceService,
     private enqueteservice: EnqueteService,
-    private fileHandlerService: FileHandlerService
+    private fileHandlerService: FileHandlerService,
+    private readonly httpService: HttpService,
   ) {}
 
-  async CreationSourcededonnees(data: CreateSourceDonneeDto, idenquete: string) {
-    const { libelleformat, libelletypedonnees, libelleunite, ...reste } = data;
+  // async CreationSourcededonnees(data: CreateSourceDonneeDto, idenquete: string) {
+  //   const { libelleformat, libelletypedonnees, libelleunite, ...reste } = data;
 
-      // 2. Récupération des entités associées
+  //     // 2. Récupération des entités associées
+  //     const typedonnees = await this.datatypeservice.getoneByLibelle(libelletypedonnees);
+  //     const format = await this.formatservice.getoneByLibelle(libelleformat);
+  //     const unitefrequence = await this.unitefrequence.getoneBylibelle(libelleunite);
+  //     const enquetedata = await this.enqueteservice.getenqueteByID(idenquete);
+
+  //     // 3. Création de l'entité SourceDonnee
+  //     const newsourcedonnes = this.sourcededonneesrepo.create({
+  //       ...reste,
+  //       enquete: enquetedata,
+  //       libelleformat: format.libelleFormat,
+  //       libelletypedonnees: typedonnees.libelledatatype,
+  //       libelleunite: unitefrequence.libelleunitefrequence,
+  //       typedonnes: typedonnees,
+  //       format:format,
+  //       bd_normales: data.fichier,
+  
+  //     });
+
+  //     // 4. Sauvegarde dans la base de données
+  //     return await this.sourcededonneesrepo.save(newsourcedonnes);
+  //   } catch (err) {
+  //     throw new HttpException(err.message, 801);
+  //   }
+
+
+
+  // async CreationSourcededonnees(data: CreateSourceDonneeDto, idenquete: string) {
+  //   try {
+  //     const { libelleformat, libelletypedonnees, libelleunite, source, ...reste } = data;
+
+  //     // 1. Récupération des entités associées
+  //     const typedonnees = await this.datatypeservice.getoneByLibelle(libelletypedonnees);
+  //     const format = await this.formatservice.getoneByLibelle(libelleformat);
+  //     const unitefrequence = libelleunite ? await this.unitefrequence.getoneBylibelle(libelleunite) : null;
+  //     const enquetedata = await this.enqueteservice.getenqueteByID(idenquete);
+
+  //     let fichier = data.fichier; // 📌 Si fichier est fourni, on le garde
+
+  //     // 2. Si `source` est fourni, essayer de télécharger les données
+  //     if (source) {
+  //       try {
+  //         const response = await firstValueFrom(this.httpService.get(source)); // 🔥 Télécharge les données
+          
+  //         if (!response.data) {
+  //           throw new HttpException(`L'API ${source} ne retourne pas de données valides`, 803);
+  //         }
+
+  //         fichier = response.data; // ✅ Stocker les données JSON dans `fichier`
+  //       } catch (error) {
+  //         throw new HttpException(`Impossible de récupérer les données depuis ${source}: ${error.message}`, 802);
+  //       }
+  //     }
+
+  //     // 3. Création de l'entité SourceDonnee avec les données téléchargées
+  //     const newsourcedonnes = this.sourcededonneesrepo.create({
+  //       ...reste,
+  //       enquete: enquetedata,
+  //       libelleformat: format.libelleFormat,
+  //       libelletypedonnees: typedonnees.libelledatatype,
+  //       libelleunite: unitefrequence ? unitefrequence.libelleunitefrequence : null,
+  //       typedonnes: typedonnees,
+  //       unitefrequence:unitefrequence,
+  //       format: format,
+  //       bd_normales: fichier, // ✅ Données JSON ou fichier existant
+  //     });
+
+  //     // 4. Sauvegarde dans la base de données
+  //     return await this.sourcededonneesrepo.save(newsourcedonnes);
+  //   } catch (err) {
+  //     throw new HttpException(err.message, 801);
+  //   }
+  // }
+
+  async CreationSourcededonnees(data: CreateSourceDonneeDto, idenquete: string) {
+    try {
+      const { libelleformat, libelletypedonnees, libelleunite, source, ...reste } = data;
+
+      // 1. Récupération des entités associées
       const typedonnees = await this.datatypeservice.getoneByLibelle(libelletypedonnees);
       const format = await this.formatservice.getoneByLibelle(libelleformat);
-      const unitefrequence = await this.unitefrequence.getoneBylibelle(libelleunite);
+      const unitefrequence = libelleunite ? await this.unitefrequence.getoneBylibelle(libelleunite) : null;
       const enquetedata = await this.enqueteservice.getenqueteByID(idenquete);
 
-      // 3. Création de l'entité SourceDonnee
+      let fichier = data.fichier; // 📌 Si fichier est fourni, on le garde
+
+      // 2. Si `source` est fourni, essayer de télécharger et formater les données
+      if (source) {
+        try {
+          const response = await firstValueFrom(this.httpService.get(source, { responseType: 'arraybuffer' }));
+          
+          if (!response.data) {
+            throw new HttpException(`L'API ${source} ne retourne pas de fichier valide`, 803);
+          }
+
+          // 🔥 Convertir le buffer en fichier Excel temporaire
+          const filePath = path.join(__dirname, 'temp.xlsx');
+          fs.writeFileSync(filePath, response.data);
+
+          // 🔥 Lire et formater le fichier Excel
+          const formattedData = this.processExcelFile(filePath);
+
+          // ✅ Mettre les données formatées dans `fichier`
+          fichier = formattedData;
+
+          // 🧹 Supprimer le fichier temporaire après traitement
+          fs.unlinkSync(filePath);
+        } catch (error) {
+          throw new HttpException(`Impossible de récupérer ou traiter les données depuis ${source}: ${error.message}`, 802);
+        }
+      }
+
+      // 3. Création de l'entité SourceDonnee avec les données formatées
       const newsourcedonnes = this.sourcededonneesrepo.create({
         ...reste,
         enquete: enquetedata,
         libelleformat: format.libelleFormat,
         libelletypedonnees: typedonnees.libelledatatype,
-        libelleunite: unitefrequence.libelleunitefrequence,
+        libelleunite: unitefrequence ? unitefrequence.libelleunitefrequence : null,
         typedonnes: typedonnees,
+        unitefrequence: unitefrequence,
         format: format,
-        bd_normales: data.fichier,
-  
+        fichier:fichier,// ✅ Données JSON formatées
+         
       });
 
       // 4. Sauvegarde dans la base de données
@@ -58,6 +170,59 @@ export class SourceDonneesService {
     } catch (err) {
       throw new HttpException(err.message, 801);
     }
+  }
+
+  /**
+   * Convertit un fichier Excel en JSON formaté avec plusieurs `sheets`
+   */
+  private processExcelFile(filePath: string): any {
+    const workbook = xlsx.readFile(filePath);
+    const result = {};
+
+    // 🔄 Parcourir chaque feuille du fichier Excel
+    for (const sheetName of workbook.SheetNames) {
+      const worksheet = workbook.Sheets[sheetName];
+      const rows: string[][] = xlsx.utils.sheet_to_json(worksheet, { header: 1 }); // 🔍 Extraction brute des données
+
+      const sheetData = { donnees: [], colonnes: [] };
+
+      if (rows.length > 0) {
+        const headers = rows[0] as string[]; // ✅ Récupère la première ligne (en-têtes)
+        const columnCount = headers.length;
+
+        // 🔄 Générer la liste des colonnes utilisées (A, B, C, etc.)
+        sheetData.colonnes = Array.from({ length: columnCount }, (_, j) => String.fromCharCode(65 + j));
+
+        // 🔄 Insérer les en-têtes dans le format demandé (A1, B1, C1...)
+        const headerRow = {};
+        for (let j = 0; j < columnCount; j++) {
+          const colKey = `${String.fromCharCode(65 + j)}1`; // Génère A1, B1, C1...
+          headerRow[colKey] = headers[j] || null;
+        }
+        sheetData.donnees.push(headerRow); // 🔥 Ajoute les en-têtes à la première ligne
+
+        // 🔄 Transformer chaque ligne en objet avec noms de colonnes
+        for (let i = 1; i < rows.length; i++) {
+          const row = rows[i];
+          const rowData = {};
+
+          for (let j = 0; j < columnCount; j++) {
+            const colKey = `${String.fromCharCode(65 + j)}${i + 1}`; // Générer A2, B2, C2...
+            rowData[colKey] = row[j] || null; // Assigner la valeur
+          }
+
+          sheetData.donnees.push(rowData);
+        }
+      }
+
+      result[sheetName] = sheetData;
+    }
+
+    return result;
+  }
+
+
+  
 
 
 
@@ -103,7 +268,7 @@ export class SourceDonneesService {
           // 3. Mettre à jour les autres champs
           Object.assign(sourceExistante, reste);
   
-          // 4. Sauvegarder la mise à jour
+          // 4. Sauvegarder la mise à jour  
           return await this.sourcededonneesrepo.save(sourceExistante);
       } catch (err) {
           throw new HttpException(err.message, 705);

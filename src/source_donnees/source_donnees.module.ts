@@ -8,11 +8,12 @@ import { DataTypeModule } from 'src/data_type/data_type.module';
 import { FormatfichierModule } from 'src/formatfichier/formatfichier.module';
 import { EnqueteModule } from 'src/enquete/enquete.module';
 import { FileHandlerService } from 'src/utils/file-handler.service';
+import { HttpModule } from '@nestjs/axios';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([SourceDonnee]),UnitefrequenceModule,DataTypeModule,FormatfichierModule,EnqueteModule],
+  imports: [TypeOrmModule.forFeature([SourceDonnee]),UnitefrequenceModule,DataTypeModule,FormatfichierModule,HttpModule,EnqueteModule],
   controllers: [SourceDonneesController],
-  providers: [SourceDonneesService,FileHandlerService],
+  providers: [SourceDonneesService,FileHandlerService,],
   exports:[SourceDonneesService]
 })
 export class SourceDonneesModule {}
