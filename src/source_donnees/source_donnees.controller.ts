@@ -8,6 +8,8 @@ import { removeColumnDto } from './dto/removeclumn.dto';
 import { ApplyFunctionDto } from './dto/ApplyFunctionDto.dto';
 import { modifyCellDto } from './dto/modifyCell.dto';
 import { UpdateSourceDonneeDto } from './dto/update-source_donnee.dto';
+import { JoinSourcesDto } from './dto/jointure.dto';
+import { ApplyfunctionDto2 } from './dto/Applyfunction.dto';
 
 
 @Controller('source-donnees')
@@ -48,6 +50,15 @@ export class SourceDonneesController {
   }
 
 
+  @Post('/join-create/:idprojet')
+  async joinAndCreateSource(
+    @Param('idprojet') idprojet: string, // ✅ Récupération depuis l'URL
+    @Body() joinData: JoinSourcesDto
+  ) {
+    return this.sourceDonneesService.joinSources(idprojet, joinData);
+  }
+
+
 
   @Get("getAll")
   async getAll()
@@ -84,12 +95,15 @@ export class SourceDonneesController {
       return await this.sourceDonneesService.getBdsByProjetWithFilter(idprojet, bdType || 'tous');
     }
 
-    @Get('getbdbyprojetInstudio/:idprojet')
+    
+  
+  @Get('getbdbyprojetInstudio/:idprojet')
   async getBdsByProjetWithFilterInStudio(
     @Param('idprojet') idprojet: string
   )
   {
     return await this.sourceDonneesService.getBdsByProjetWithFilterInStudio(idprojet)
+
   }
 
 
@@ -102,7 +116,7 @@ async getBdsCountByProjet(
 
 
 
-  @Get('getone/:idsource')
+@Get('getone/:idsource')
   async  geto(
     @Param('idsource') idsource:string
   ){
@@ -179,6 +193,15 @@ async modifyCell(
   ) {
     return await this.sourceDonneesService.applyFunctionAndSave(idsource,applyFunctionDto);
   }
+
+  @Post('apply-function2/:idsource')
+  async applyFunction2(
+    @Body() applyFunctionDto: ApplyfunctionDto2,
+    @Param('idsource') idsource:string
+  ) {
+    return await this.sourceDonneesService.applyFunctionAndSave2(idsource,applyFunctionDto);
+  }
+
 
 
 }

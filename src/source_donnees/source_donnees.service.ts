@@ -19,10 +19,19 @@ import { removeColumnDto } from './dto/removeclumn.dto';
 import { ApplyFunctionDto } from './dto/ApplyFunctionDto.dto';
 import { UpdateSourceDonneeDto } from './dto/update-source_donnee.dto';
 import { modifyCellDto } from './dto/modifyCell.dto';
+
 import * as xlsx from 'xlsx';
 import * as fs from 'fs';
 import * as path from 'path';
 import csvParser from 'csv-parser';
+import { ProjetService } from '@/projet/projet.service';
+import { JoinSourcesDto } from './dto/jointure.dto';
+import { evaluate,compare  } from 'mathjs'
+
+
+import { ApplyfunctionDto2 } from './dto/Applyfunction.dto';
+
+
 
 @Injectable()
 export class SourceDonneesService {
@@ -33,6 +42,7 @@ export class SourceDonneesService {
     private formatservice: FormatfichierService,
     private unitefrequence: UnitefrequenceService,
     private enqueteservice: EnqueteService,
+    private projetservice:ProjetService,
     private fileHandlerService: FileHandlerService,
     private readonly httpService: HttpService,
   ) {}
@@ -291,96 +301,176 @@ export class SourceDonneesService {
       throw new HttpException(err.message, 801);
     }
   }
-
-  /**
+/**
    * 🔍 Détecter le format du fichier à partir de l'URL
    */
-  private detectFileFormat(url: string): string {
-    const extension = path.extname(url).toLowerCase().replace('.', '');
-    return extension;
-  }
+private detectFileFormat(url: string): string {
+  const extension = path.extname(url).toLowerCase().replace('.', '');
+  return extension;
+}
 
-  /**
-   * 🔥 Convertit un fichier Excel en JSON formaté
-   */
-  private processExcelFile(filePath: string): any {
-    const workbook = xlsx.readFile(filePath);
-    const result = {};
+/**
+ * 🔥 Convertit un fichier Excel en JSON formaté
+ */
+private processExcelFile(filePath: string): any {
+  const workbook = xlsx.readFile(filePath);
+  const result = {};
 
-    for (const sheetName of workbook.SheetNames) {
-      const worksheet = workbook.Sheets[sheetName];
-      const rows: string[][] = xlsx.utils.sheet_to_json(worksheet, { header: 1 });
+  for (const sheetName of workbook.SheetNames) {
+    const worksheet = workbook.Sheets[sheetName];
+    const rows: string[][] = xlsx.utils.sheet_to_json(worksheet, { header: 1 });
 
-      const sheetData = { donnees: [], colonnes: [] };
-      if (rows.length > 0) {
-        const headers = rows[0] as string[];
-        const columnCount = headers.length;
+    const sheetData = { donnees: [], colonnes: [] };
+    if (rows.length > 0) {
+      const headers = rows[0] as string[];
+      const columnCount = headers.length;
 
-        sheetData.colonnes = Array.from({ length: columnCount }, (_, j) => String.fromCharCode(65 + j));
+      sheetData.colonnes = Array.from({ length: columnCount }, (_, j) => String.fromCharCode(65 + j));
 
-        const headerRow = {};
-        for (let j = 0; j < columnCount; j++) {
-          const colKey = `${String.fromCharCode(65 + j)}1`;
-          headerRow[colKey] = headers[j] || null;
-        }
-        sheetData.donnees.push(headerRow);
-
-        for (let i = 1; i < rows.length; i++) {
-          const row = rows[i];
-          const rowData = {};
-
-          for (let j = 0; j < columnCount; j++) {
-            const colKey = `${String.fromCharCode(65 + j)}${i + 1}`;
-            rowData[colKey] = row[j] || null;
-          }
-
-          sheetData.donnees.push(rowData);
-        }
+      const headerRow = {};
+      for (let j = 0; j < columnCount; j++) {
+        const colKey = `${String.fromCharCode(65 + j)}1`;
+        headerRow[colKey] = headers[j] || null;
       }
-      result[sheetName] = sheetData;
-    }
-    return result;
-  }
+      sheetData.donnees.push(headerRow);
 
-  /**
-   * 🔥 Convertit un fichier CSV en JSON formaté
-   */
-  private async processCsvFile(filePath: string): Promise<any> {
-    return new Promise((resolve, reject) => {
-      const sheetData = { donnees: [], colonnes: [] };
-      const stream = fs.createReadStream(filePath).pipe(csvParser());
-
-      stream.on('headers', (headers) => {
-        sheetData.colonnes = headers.map((_, j) => String.fromCharCode(65 + j));
-        const headerRow = {};
-        headers.forEach((header, j) => {
-          headerRow[`${String.fromCharCode(65 + j)}1`] = header;
-        });
-        sheetData.donnees.push(headerRow);
-      });
-
-      stream.on('data', (row, index) => {
+      for (let i = 1; i < rows.length; i++) {
+        const row = rows[i];
         const rowData = {};
-        Object.values(row).forEach((value, j) => {
-          rowData[`${String.fromCharCode(65 + j)}${index + 2}`] = value;
-        });
+
+        for (let j = 0; j < columnCount; j++) {
+          const colKey = `${String.fromCharCode(65 + j)}${i + 1}`;
+          rowData[colKey] = row[j] || null;
+        }
+
         sheetData.donnees.push(rowData);
+      }
+    }
+    result[sheetName] = sheetData;
+  }
+  return result;
+}
+
+/**
+ * 🔥 Convertit un fichier CSV en JSON formaté
+ */
+private async  processCsvFile(filePath: string): Promise<any> {
+  return new Promise((resolve, reject) => {
+    const sheetData = { donnees: [], colonnes: [] };
+    const stream = fs.createReadStream(filePath).pipe(csvParser());
+
+    stream.on('headers', (headers) => {
+      sheetData.colonnes = headers.map((_, j) => String.fromCharCode(65 + j));
+      const headerRow = {};
+      headers.forEach((header, j) => {
+        headerRow[`${String.fromCharCode(65 + j)}1`] = header;
       });
-
-      stream.on('end', () => resolve({ CSV: sheetData }));
-      stream.on('error', (error) => reject(error));
+      sheetData.donnees.push(headerRow);
     });
+
+    stream.on('data', (row, index) => {
+      const rowData = {};
+      Object.values(row).forEach((value, j) => {
+        rowData[`${String.fromCharCode(65 + j)}${index + 2}`] = value;
+      });
+      sheetData.donnees.push(rowData);
+    });
+
+    stream.on('end', () => resolve({ CSV: sheetData }));
+    stream.on('error', (error) => reject(error));
+  });
+}
+
+/**
+ * 🔥 Charge un fichier JSON tel quel
+ */
+private processJsonFile(filePath: string): any {
+  return JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+}
+
+
+//jointure
+async joinSources(idprojet: string, joinSourcesDto: JoinSourcesDto): Promise<SourceDonnee> {
+  const { source1, source2, sheet1, sheet2, key1, key2 } = joinSourcesDto;
+
+  // 🔍 Étape 1: Récupérer les deux sources dans le projet
+  const sourceData1 = await this.sourcededonneesrepo.findOne({
+    where: { nomSource: source1, enquete: { projet: { idprojet } } },
+    relations: ["enquete", "enquete.projet"],
+  });
+
+  const sourceData2 = await this.sourcededonneesrepo.findOne({
+    where: { nomSource: source2, enquete: { projet: { idprojet } } },
+    relations: ["enquete", "enquete.projet"],
+  });
+
+  if (!sourceData1 || !sourceData2) {
+    throw new HttpException("Une des sources n'a pas été trouvée dans le projet", 404);
   }
 
-  /**
-   * 🔥 Charge un fichier JSON tel quel
-   */
-  private processJsonFile(filePath: string): any {
-    return JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+  // 🔍 Vérification de la présence des feuilles spécifiées
+  if (!sourceData1.fichier[sheet1] || !sourceData2.fichier[sheet2]) {
+    throw new HttpException("L'une des feuilles spécifiées est introuvable", 404);
   }
+
+  const sheetData1 = sourceData1.fichier[sheet1].donnees;
+  const sheetData2 = sourceData2.fichier[sheet2].donnees;
+
+  // 🔍 Étape 2: Extraction des en-têtes et des colonnes de données
+  const headers1 = sheetData1[0];
+  const headers2 = sheetData2[0];
+
+  const keyIndex1 = Object.values(headers1).indexOf(key1);
+  const keyIndex2 = Object.values(headers2).indexOf(key2);
+
+  if (keyIndex1 === -1 || keyIndex2 === -1) {
+    throw new HttpException("Les clés de jointure ne sont pas valides", 400);
+  }
+
+  // 🔍 Étape 3: Création d'une table indexée pour la jointure
+  const mapData2 = new Map<string, any>();
+
+  sheetData2.slice(1).forEach((row) => {
+    const joinKey = row[`${String.fromCharCode(65 + keyIndex2)}${row.index + 2}`];
+    if (joinKey) {
+      mapData2.set(joinKey, row);
+    }
+  });
+
+  // 🔍 Étape 4: Réalisation de la jointure et fusion des données
+  const mergedData = sheetData1.map((row1, index) => {
+    if (index === 0) return { ...row1, ...headers2 }; // Fusionner les en-têtes
+
+    const joinKey = row1[`${String.fromCharCode(65 + keyIndex1)}${index + 2}`];
+    const row2 = mapData2.get(joinKey) || {};
+
+    return { ...row1, ...row2 };
+  });
+
+  // 🔍 Étape 5: Création de la nouvelle source fusionnée
+  const mergedSource: SourceDonnee = this.sourcededonneesrepo.create({
+    nomSource: `jointure_${source1}-${source2}`,
+    commentaire: `jointure_${source1}-${source2}`,
+    fichier: {
+      [`Jointure_${source1}_${source2}`]: {
+        colonnes: Object.values(headers1).concat(Object.values(headers2)),
+        donnees: mergedData,
+      },
+    },
+    source: `${source1}, ${source2}`,
+    format: sourceData1.format,
+    enquete: sourceData1.enquete,
+  });
+
+  return await this.sourcededonneesrepo.save(mergedSource);
+}
 
 
   
+
+
+
+
 
 
 
@@ -568,6 +658,7 @@ catch(err){
 }
 
 
+// jointure eentables
 
 
 
@@ -579,76 +670,17 @@ catch(err){
 
 
 
-//----------------Ajout de nouvelle colonne 
-// async addColumn(
-//   idsource: string,
-//   body: addColumnDto
-// ): Promise<SourceDonnee> {
-//   const { nomFeuille, nomColonne } = body;
 
-//   if (!nomColonne) {
-//     throw new HttpException(
-//       'Le nom de la nouvelle colonne est obligatoire.',
-//       701
-//     );
-//   }
 
-//   // Étape 1 : Récupérer la source de données
-//   const source = await this.getSourceById(idsource);
-//   const fichier = source.fichier;
 
-//   // Étape 2 : Récupérer la feuille ou la première feuille par défaut
-//   const sheet = getSheetOrDefault(fichier, nomFeuille);
 
-//   // Vérifier si la feuille est valide
-//   if (!sheet?.donnees || sheet.donnees.length === 0) {
-//     throw new HttpException(
-//       `La feuille spécifiée est vide ou mal initialisée.`,
-//       806
-//     );
-//   }
 
-//   // Étape 3 : Vérifier les entêtes existantes et générer un nom unique
-//   const headers = sheet.donnees[0]; // Première ligne contient les entêtes
-//   const existingHeaders = Object.values(headers).map((header) =>
-//     header?.toString().toLowerCase()
-//   ); // Convertir tous les noms existants en minuscule
 
-//   let uniqueName = nomColonne;
-//   let suffix = 1;
 
-//   while (existingHeaders.includes(uniqueName.toLowerCase())) {
-//     uniqueName = `${nomColonne}${suffix}`;
-//     suffix++;
-//   }
 
-//   // Étape 4 : Ajouter une nouvelle colonne
-//   const newColumnLetter = generateNextColumnLetter(sheet.colonnes);
-//   headers[`${newColumnLetter}1`] = uniqueName; // Ajouter l'entête avec un nom unique
-//   sheet.colonnes.push(newColumnLetter);
 
-//   // Initialiser les valeurs de la colonne à null
-//   sheet.donnees.slice(1).forEach((row, index) => {
-//     row[`${newColumnLetter}${index + 2}`] = null;
-//   });
 
-//   // Étape 5 : Sauvegarder les modifications
-//   if (Array.isArray(fichier)) {
-//     const sheetIndex = fichier.findIndex(
-//       (sheetObj) => sheetObj[nomFeuille || Object.keys(sheetObj)[0]]
-//     );
-//     if (sheetIndex >= 0) {
-//       fichier[sheetIndex][nomFeuille || Object.keys(fichier[sheetIndex])[0]] =
-//         sheet;
-//     }
-//   } else {
-//     fichier[nomFeuille || Object.keys(fichier)[0]] = sheet;
-//   }
 
-//   source.fichier = fichier;
-
-//   return await this.sourcededonneesrepo.save(source);
-// }
 async addColumn(
   idsource: string,
   body: addColumnDto
@@ -1066,23 +1098,186 @@ async applyFunctionAndSave(idsourceDonnes: string,applyFunctionDto: ApplyFunctio
 }
 
 
+async applyFunctionAndSave2(
+  idsourceDonnes: string,
+  applyFunctionDto: ApplyfunctionDto2
+): Promise<SourceDonnee> {
+  const { nomFeuille, formula, targetColumn } = applyFunctionDto;
 
+  // Étape 1 : Récupérer la source de données
+  const source = await this.getSourceById(idsourceDonnes);
+  let fichier = source.fichier;
 
+  // Étape 2 : Récupérer la feuille
+  const targetSheetName = nomFeuille && nomFeuille.trim() ? nomFeuille : Object.keys(fichier)[0];
+  const sheet = fichier[targetSheetName];
 
+  if (!sheet || !sheet.donnees || sheet.donnees.length <= 1) {
+    throw new HttpException(`La feuille spécifiée est vide ou ne contient pas de données.`, 806);
+  }
 
+  // Étape 3 : Extraire les références de cellules (A1, B2, C3, etc.)
+  const regex = /[A-Z]+\d+/g;
+  const references = formula.match(regex);
 
+  if (!references || references.length === 0) {
+    throw new HttpException(`Aucune référence de colonne valide trouvée dans la formule.`, 807);
+  }
 
+  // Étape 4 : Récupérer les valeurs de chaque cellule référencée
+  let columnValues: Record<string, any[]> = {};
+  references.forEach((ref) => {
+    const columnLetter = ref.replace(/\d/g, '');
+    if (!sheet.colonnes.includes(columnLetter)) {
+      throw new HttpException(`La colonne "${columnLetter}" n'existe pas.`, 803);
+    }
+    columnValues[ref] = sheet.donnees.slice(1).map((row, index) => {
+      const cellKey = `${columnLetter}${index + 2}`;
+      return row[cellKey] !== undefined ? row[cellKey] : null;
+    });
+  });
 
+  // ✅ Fonction de comparaison sécurisée
+  function safeCompare(a: any, b: any): boolean {
+    if (!isNaN(a) && !isNaN(b)) {
+      return Number(a) === Number(b); // Comparaison numérique
+    }
+    return String(a).localeCompare(String(b)) === 0; // Comparaison de texte
+  }
 
-// autre operation
+  // ✅ Fonction de conversion des formules Excel
+  // function convertExcelFunctions(formula: string): string {
+  //   const convertedFormula = formula
+  //     .replace(/SOMME\((.*?)\)/g, (_, values) => `(${values.replace(/;/g, ' + ')})`)
+  //     .replace(/MOYENNE\((.*?)\)/g, (_, values) => `(${values.replace(/;/g, ' + ')}) / ${values.split(";").length}`)
+  //     .replace(/SI\((.*?);(.*?);(.*?)\)/g, (_, condition, trueVal, falseVal) => {
+  //       let [left, right] = condition.split("=").map(v => v.trim());
+  
+  //       // Vérifier si les valeurs sont numériques ou textuelles
+  //       const isLeftNumeric = /^-?\d+(\.\d+)?$/.test(left);
+  //       const isRightNumeric = /^-?\d+(\.\d+)?$/.test(right);
+  
+  //       // Appliquer les guillemets uniquement aux valeurs textuelles
+  //       if (!isLeftNumeric) left = `"${left}"`;
+  //       if (!isRightNumeric) right = `"${right}"`;
+  
+  //       // Génération correcte de la condition
+  //       const comparison = `(${isLeftNumeric && isRightNumeric ? `${left} == ${right}` : `${left}.localeCompare(${right}) == 0`})`;
+  
+  //       return `( ${comparison} ? "${trueVal.trim()}" : "${falseVal.trim()}" )`;
+  //     });
+  
+  //   console.log("🔍 Formule Avant :", formula);
+  //   console.log("✅ Formule Après :", convertedFormula);
+  
+  //   return convertedFormula;
+  // }
+  function convertExcelFunctions(formula: string): string {
+    const convertedFormula = formula
+      // SOMME(X;Y;Z) -> (X + Y + Z)
+      .replace(/SOMME\((.*?)\)/g, (_, values) => `(${values.replace(/;/g, ' + ')})`)
+  
+      // MOYENNE(X;Y;Z) -> (X + Y + Z) / nombre de valeurs
+      .replace(/MOYENNE\((.*?)\)/g, (_, values) => {
+        const count = values.split(";").length;
+        return `(${values.replace(/;/g, ' + ')}) / ${count}`;
+      })
+  
+      // MIN(X;Y;Z) -> Math.min(X, Y, Z)
+      .replace(/MIN\((.*?)\)/g, (_, values) => `Math.min(${values.replace(/;/g, ', ')})`)
+  
+      // MAX(X;Y;Z) -> Math.max(X, Y, Z)
+      .replace(/MAX\((.*?)\)/g, (_, values) => `Math.max(${values.replace(/;/g, ', ')})`)
+  
+      // ABS(X) -> Math.abs(X)
+      .replace(/ABS\((.*?)\)/g, (_, value) => `Math.abs(${value})`)
+  
+      // CONCATENER(X;Y;Z) -> (X + Y + Z)
+      .replace(/CONCATENER\((.*?)\)/g, (_, values) => `(${values.replace(/;/g, ' + ')})`)
+  
+      // NB(X;Y;Z) -> Nombre d'éléments non vides
+      .replace(/NB\((.*?)\)/g, (_, values) => `(${values.split(";").map(v => `(${v} !== undefined && ${v} !== null ? 1 : 0)`).join(" + ")})`)
+  
+      // ET(A;B;C) -> (A && B && C)
+      .replace(/ET\((.*?)\)/g, (_, values) => `(${values.replace(/;/g, ' && ')})`)
+  
+      // OU(A;B;C) -> (A || B || C)
+      .replace(/OU\((.*?)\)/g, (_, values) => `(${values.replace(/;/g, ' || ')})`)
+  
+      // SI(condition;valeur_si_vrai;valeur_si_faux)
+      .replace(/SI\((.*?);(.*?);(.*?)\)/g, (_, condition, trueVal, falseVal) => {
+        let match = condition.match(/(>=|<=|>|<|=)/);
+        if (!match) throw new Error(`Opérateur de comparaison manquant dans la condition: ${condition}`);
+  
+        let operator = match[0];
+        let [left, right] = condition.split(operator).map(v => v.trim());
+  
+        const isLeftNumeric = /^-?\d+(\.\d+)?$/.test(left);
+        const isRightNumeric = /^-?\d+(\.\d+)?$/.test(right);
+  
+        if (!isLeftNumeric) left = `"${left}"`;
+        if (!isRightNumeric) right = `"${right}"`;
+  
+        if (isLeftNumeric && isRightNumeric) {
+          return `( ${left} ${operator} ${right} ? "${trueVal.trim()}" : "${falseVal.trim()}" )`;
+        }
+  
+        return `( ${left}.localeCompare(${right}) == 0 ? "${trueVal.trim()}" : "${falseVal.trim()}" )`;
+      });
+  
+    console.log("🔍 Formule Avant :", formula);
+    console.log("✅ Formule Après :", convertedFormula);
+  
+    return convertedFormula;
+  }
+  
+  
+  
+  
+  
 
+  // Étape 5 : Appliquer la formule ligne par ligne
+  const columnResult: any[] = [];
+  sheet.donnees.slice(1).forEach((row, index) => {
+    try {
+      let evaluatedFormula = formula;
 
+      // Remplacement des valeurs dans la formule
+      references.forEach((ref) => {
+        evaluatedFormula = evaluatedFormula.replace(ref, columnValues[ref][index] || 0);
+      });
 
+      // Conversion des fonctions Excel en JS
+      evaluatedFormula = convertExcelFunctions(evaluatedFormula);
 
+      // 🔍 Logs pour vérifier les formules
+      console.log(`🔄 Ligne ${index + 2} - Formule Finale :`, evaluatedFormula);
 
+      // ✅ Évaluation avec `safeCompare` ajouté dans le contexte
+      columnResult.push(evaluate(evaluatedFormula, { safeCompare }));
+    } catch (error) {
+      console.error(`❌ Erreur d'évaluation à la ligne ${index + 2}:`, error.message);
+      throw new HttpException(`Erreur lors de l'évaluation de la formule à la ligne ${index + 2}`, 808);
+    }
+  });
 
+  // Vérifier si la colonne cible existe
+  const targetColumnLetter = targetColumn.replace(/\d/g, '');
+  if (!sheet.colonnes.includes(targetColumnLetter)) {
+    throw new HttpException(`La colonne cible "${targetColumnLetter}" n'existe pas.`, 804);
+  }
 
+  // Étape 6 : Ajouter les résultats dans la colonne cible
+  sheet.donnees.slice(1).forEach((row, index) => {
+    const cellKey = `${targetColumnLetter}${index + 2}`;
+    row[cellKey] = columnResult[index];
+  });
 
+  fichier[targetSheetName] = sheet;
+  source.fichier = { ...fichier };
+
+  return await this.sourcededonneesrepo.save(source);
+}
 
 
 }
