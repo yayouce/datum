@@ -50,12 +50,20 @@ export class SourceDonneesController {
   }
 
 
-  @Post('/join-create/:idprojet')
-  async joinAndCreateSource(
+  // @Post('/join-create/:idprojet')
+  // async joinAndCreateSource(
+  //   @Param('idprojet') idprojet: string, // ✅ Récupération depuis l'URL
+  //   @Body() joinData: JoinSourcesDto
+  // ) {
+  //   return this.sourceDonneesService.joinSources(idprojet, joinData);
+  // }
+
+  @Post('/jointure/:idprojet')
+  async joinAndCreateSource2(
     @Param('idprojet') idprojet: string, // ✅ Récupération depuis l'URL
     @Body() joinData: JoinSourcesDto
   ) {
-    return this.sourceDonneesService.joinSources(idprojet, joinData);
+    return this.sourceDonneesService.joinSources2(idprojet, joinData);
   }
 
 

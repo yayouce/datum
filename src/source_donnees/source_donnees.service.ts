@@ -390,13 +390,93 @@ private processJsonFile(filePath: string): any {
 
 
 //jointure
-async joinSources(idprojet: string, joinSourcesDto: JoinSourcesDto): Promise<SourceDonnee> {
+// async joinSources(idprojet: string, joinSourcesDto: JoinSourcesDto): Promise<SourceDonnee> {
+//   const { source1, source2, sheet1, sheet2, key1, key2 } = joinSourcesDto;
+
+//   // 🔍 Étape 1: Récupérer les deux sources dans le projet
+//   const sourceData1 = await this.sourcededonneesrepo.findOne({
+//     where: { nomSource: source1, enquete: { projet: { idprojet } } },
+//     relations: ["enquete", "enquete.projet"],
+//   });
+
+//   const sourceData2 = await this.sourcededonneesrepo.findOne({
+//     where: { nomSource: source2, enquete: { projet: { idprojet } } },
+//     relations: ["enquete", "enquete.projet"],
+//   });
+
+//   if (!sourceData1 || !sourceData2) {
+//     throw new HttpException("Une des sources n'a pas été trouvée dans le projet", 404);
+//   }
+
+//   // 🔍 Vérification de la présence des feuilles spécifiées
+//   if (!sourceData1.fichier[sheet1] || !sourceData2.fichier[sheet2]) {
+//     throw new HttpException("L'une des feuilles spécifiées est introuvable", 404);
+//   }
+
+//   const sheetData1 = sourceData1.fichier[sheet1].donnees;
+//   const sheetData2 = sourceData2.fichier[sheet2].donnees;
+
+//   // 🔍 Étape 2: Extraction des en-têtes et des colonnes de données
+//   const headers1 = sheetData1[0];
+//   const headers2 = sheetData2[0];
+
+//   const keyIndex1 = Object.values(headers1).indexOf(key1);
+//   const keyIndex2 = Object.values(headers2).indexOf(key2);
+
+//   if (keyIndex1 === -1 || keyIndex2 === -1) {
+//     throw new HttpException("Les clés de jointure ne sont pas valides", 400);
+//   }
+
+//   // 🔍 Étape 3: Création d'une table indexée pour la jointure
+//   const mapData2 = new Map<string, any>();
+
+//   sheetData2.slice(1).forEach((row) => {
+//     const joinKey = row[`${String.fromCharCode(65 + keyIndex2)}${row.index + 2}`];
+//     if (joinKey) {
+//       mapData2.set(joinKey, row);
+//     }
+//   });
+
+//   // 🔍 Étape 4: Réalisation de la jointure et fusion des données
+//   const mergedData = sheetData1.map((row1, index) => {
+//     if (index === 0) return { ...row1, ...headers2 }; // Fusionner les en-têtes
+
+//     const joinKey = row1[`${String.fromCharCode(65 + keyIndex1)}${index + 2}`];
+//     const row2 = mapData2.get(joinKey) || {};
+
+//     return { ...row1, ...row2 };
+//   });
+
+//   // 🔍 Étape 5: Création de la nouvelle source fusionnée
+//   const mergedSource: SourceDonnee = this.sourcededonneesrepo.create({
+//     nomSource: `jointure_${source1}-${source2}`,
+//     commentaire: `jointure_${source1}-${source2}`,
+//     fichier: {
+//       [`Jointure_${source1}_${source2}`]: {
+//         colonnes: Object.values(headers1).concat(Object.values(headers2)),
+//         donnees: mergedData,
+//       },
+//     },
+//     source: `${source1}, ${source2}`,
+//     format: sourceData1.format,
+//     enquete: sourceData1.enquete,
+//   });
+
+//   return await this.sourcededonneesrepo.save(mergedSource);
+// }
+
+
+
+async joinSources2(
+  idprojet: string ,// Le projet auquel appartiennent les sources
+  joinSourcesDto: JoinSourcesDto,
+): Promise<SourceDonnee> {
   const { source1, source2, sheet1, sheet2, key1, key2 } = joinSourcesDto;
 
-  // 🔍 Étape 1: Récupérer les deux sources dans le projet
+  // 🔍 Récupération des sources filtrées par `idprojet`
   const sourceData1 = await this.sourcededonneesrepo.findOne({
     where: { nomSource: source1, enquete: { projet: { idprojet } } },
-    relations: ["enquete", "enquete.projet"],
+    relations: ["enquete", "enquete.projet", "format"],
   });
 
   const sourceData2 = await this.sourcededonneesrepo.findOne({
@@ -408,66 +488,104 @@ async joinSources(idprojet: string, joinSourcesDto: JoinSourcesDto): Promise<Sou
     throw new HttpException("Une des sources n'a pas été trouvée dans le projet", 404);
   }
 
-  // 🔍 Vérification de la présence des feuilles spécifiées
-  if (!sourceData1.fichier[sheet1] || !sourceData2.fichier[sheet2]) {
-    throw new HttpException("L'une des feuilles spécifiées est introuvable", 404);
+  // 🔍 Vérification des `Sheet`
+  const fichierA = sourceData1.fichier;
+  const fichierB = sourceData2.fichier;
+
+  if (!fichierA[sheet1] || !fichierB[sheet2]) {
+    throw new HttpException("Une des feuilles sélectionnées n'existe pas dans la source.",804);
   }
 
-  const sheetData1 = sourceData1.fichier[sheet1].donnees;
-  const sheetData2 = sourceData2.fichier[sheet2].donnees;
-
-  // 🔍 Étape 2: Extraction des en-têtes et des colonnes de données
-  const headers1 = sheetData1[0];
-  const headers2 = sheetData2[0];
-
-  const keyIndex1 = Object.values(headers1).indexOf(key1);
-  const keyIndex2 = Object.values(headers2).indexOf(key2);
-
-  if (keyIndex1 === -1 || keyIndex2 === -1) {
-    throw new HttpException("Les clés de jointure ne sont pas valides", 400);
-  }
-
-  // 🔍 Étape 3: Création d'une table indexée pour la jointure
-  const mapData2 = new Map<string, any>();
-
-  sheetData2.slice(1).forEach((row) => {
-    const joinKey = row[`${String.fromCharCode(65 + keyIndex2)}${row.index + 2}`];
-    if (joinKey) {
-      mapData2.set(joinKey, row);
+  // 🔍 Fonction interne d'extraction des données
+  async function extractSheetData(sheetData: any[], keyColumnRef: string) {
+    if (!sheetData || sheetData.length < 2) {
+      throw new Error("La feuille ne contient pas assez de données.");
     }
-  });
 
-  // 🔍 Étape 4: Réalisation de la jointure et fusion des données
-  const mergedData = sheetData1.map((row1, index) => {
-    if (index === 0) return { ...row1, ...headers2 }; // Fusionner les en-têtes
+    // Extraire les entêtes (ligne 1)
+    const headers = sheetData[0]; // Exemple: { "A1": "ID", "B1": "Amount", ... }
 
-    const joinKey = row1[`${String.fromCharCode(65 + keyIndex1)}${index + 2}`];
-    const row2 = mapData2.get(joinKey) || {};
+    // Vérifier que la clé existe dans les entêtes
+    if (!headers[keyColumnRef]) {
+      throw new Error(`La clé de jointure "${keyColumnRef}" n'existe pas dans la feuille.`);
+    }
 
-    return { ...row1, ...row2 };
-  });
+    // Trouver le vrai nom de la colonne pour la jointure
+    const keyColumn = headers[keyColumnRef]; // Ex: A1 → "ID"
 
-  // 🔍 Étape 5: Création de la nouvelle source fusionnée
-  const mergedSource: SourceDonnee = this.sourcededonneesrepo.create({
-    nomSource: `jointure_${source1}-${source2}`,
-    commentaire: `jointure_${source1}-${source2}`,
-    fichier: {
-      [`Jointure_${source1}_${source2}`]: {
-        colonnes: Object.values(headers1).concat(Object.values(headers2)),
-        donnees: mergedData,
-      },
-    },
-    source: `${source1}, ${source2}`,
-    format: sourceData1.format,
-    enquete: sourceData1.enquete,
-  });
+    // Associer chaque ligne aux entêtes
+    const rows = await Promise.all(sheetData.slice(1).map(async row => {
+      const formattedRow: Record<string, any> = {};
+      for (const cell in row) {
+        const columnLetter = cell.replace(/\d+/g, ''); // Extraire la lettre (ex: "A" de "A2")
+        const columnName = headers[columnLetter + "1"]; // Associer à l'entête
+        formattedRow[columnName] = row[cell]; // Assigner la valeur
+      }
+      return formattedRow;
+    }));
 
-  return await this.sourcededonneesrepo.save(mergedSource);
-}
+    return { headers, rows, keyColumn };
+  }
 
+  // 🔍 Extraction et transformation des données avec `await`
+  const { rows: dataA, keyColumn: keyColumnA } = await extractSheetData(fichierA[sheet1].donnees, key1);
+  const { rows: dataB, keyColumn: keyColumnB } = await extractSheetData(fichierB[sheet2].donnees, key2);
 
+  // 🔍 Appliquer la jointure **INNER JOIN**
+  const joinedData = dataA
+    .filter(rowA => dataB.some(rowB => rowA[keyColumnA] === rowB[keyColumnB])) // Garder les valeurs correspondantes
+    .map(rowA => ({
+      ...rowA,
+      ...dataB.find(rowB => rowA[keyColumnA] === rowB[keyColumnB]) // Fusionner les données
+    }));
+
+  if (joinedData.length === 0) {
+    throw new HttpException("Aucune correspondance trouvée.", 805);
+  }
+
+  // 🔍 Transformation en format A1, B1, C1...
+  const headers = Object.keys(joinedData[0]); // Liste des colonnes finales
+  const columns = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("").slice(0, headers.length); // Génération dynamique des colonnes (A, B, C...)
   
+  // 🔍 Génération du mapping des entêtes (A1, B1, ...)
+  const headerMapping = headers.reduce((acc, header, index) => {
+    acc[`${columns[index]}1`] = header; // Ex: { "A1": "ID", "B1": "Date", ... }
+    return acc;
+  }, {});
 
+  // 🔍 Transformation des valeurs en format A2, B2, C2...
+  const transformedData = joinedData.map((row, rowIndex) => {
+    return headers.reduce((acc, header, colIndex) => {
+      acc[`${columns[colIndex]}${rowIndex + 2}`] = row[header]; // Ex: { "A2": "ID-1", "B2": "2023-01-01", ... }
+      return acc;
+    }, {});
+  });
+
+  // 🔍 Générer le nom de la nouvelle `SourceDonnee`
+  const newDbName = source1 === source2 ? `Jointure_${sheet1}_${sheet2}` : `Jointure_${source1}_${source2}`;
+
+  // 🔍 Création de la nouvelle `SourceDonnee`
+  const newSource = new SourceDonnee();
+  newSource.nomSource = `jointure_${source1}-${source2}`;
+  newSource.commentaire = `jointure_${source1}-${source2}`;
+  newSource.libelleformat = sourceData1.libelleformat;
+  newSource.libelletypedonnees = sourceData1.libelletypedonnees;
+  newSource.format = sourceData1.format;
+  newSource.enquete = sourceData1.enquete;
+  newSource.fichier = {
+    [newDbName]: {
+      donnees: [headerMapping, ...transformedData], // Ajout des en-têtes et des données
+      colonnes: columns, // 🔥 Ajout de la liste des colonnes (A, B, C...)
+    },
+  };
+  newSource.bd_jointes = {
+    source1: sourceData1.idsourceDonnes,
+    source2: sourceData2.idsourceDonnes,
+  };
+
+  // 🔍 Sauvegarde dans la BD (ID généré automatiquement)
+  return await this.sourcededonneesrepo.save(newSource);
+}
 
 
 
@@ -1145,33 +1263,7 @@ async applyFunctionAndSave2(
     return String(a).localeCompare(String(b)) === 0; // Comparaison de texte
   }
 
-  // ✅ Fonction de conversion des formules Excel
-  // function convertExcelFunctions(formula: string): string {
-  //   const convertedFormula = formula
-  //     .replace(/SOMME\((.*?)\)/g, (_, values) => `(${values.replace(/;/g, ' + ')})`)
-  //     .replace(/MOYENNE\((.*?)\)/g, (_, values) => `(${values.replace(/;/g, ' + ')}) / ${values.split(";").length}`)
-  //     .replace(/SI\((.*?);(.*?);(.*?)\)/g, (_, condition, trueVal, falseVal) => {
-  //       let [left, right] = condition.split("=").map(v => v.trim());
   
-  //       // Vérifier si les valeurs sont numériques ou textuelles
-  //       const isLeftNumeric = /^-?\d+(\.\d+)?$/.test(left);
-  //       const isRightNumeric = /^-?\d+(\.\d+)?$/.test(right);
-  
-  //       // Appliquer les guillemets uniquement aux valeurs textuelles
-  //       if (!isLeftNumeric) left = `"${left}"`;
-  //       if (!isRightNumeric) right = `"${right}"`;
-  
-  //       // Génération correcte de la condition
-  //       const comparison = `(${isLeftNumeric && isRightNumeric ? `${left} == ${right}` : `${left}.localeCompare(${right}) == 0`})`;
-  
-  //       return `( ${comparison} ? "${trueVal.trim()}" : "${falseVal.trim()}" )`;
-  //     });
-  
-  //   console.log("🔍 Formule Avant :", formula);
-  //   console.log("✅ Formule Après :", convertedFormula);
-  
-  //   return convertedFormula;
-  // }
   function convertExcelFunctions(formula: string): string {
     const convertedFormula = formula
       // SOMME(X;Y;Z) -> (X + Y + Z)
