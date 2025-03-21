@@ -74,6 +74,14 @@ export class SourceDonneesController {
     return this.sourceDonneesService.getAllsource()
   }
 
+
+
+
+  @Get('getbdsbyjointure/:idSourceJointe')
+  async getBdsByJointureOne(@Param('idSourceJointe') idSourceJointe: string) {
+    return this.sourceDonneesService.getBdsByJointureOne(idSourceJointe);
+  }
+
   //data studio
 
   @Get('enquete/:idenquete')

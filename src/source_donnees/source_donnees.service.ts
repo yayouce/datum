@@ -588,6 +588,32 @@ async joinSources2(
 }
 
 
+async getBdsByJointureOne(idSourceJointe: string): Promise<{ source1: SourceDonnee; source2: SourceDonnee }> {
+  // 🔍 Récupérer la `SourceDonnee` jointe par son ID
+  const sourceJointe = await this.sourcededonneesrepo.findOne({
+    where: { idsourceDonnes: idSourceJointe },
+  });
+
+  if (!sourceJointe) {
+    throw new HttpException(`Aucune base de données jointe trouvée pour l'ID ${idSourceJointe}`,805);
+  }
+
+  // 🔍 Vérifier que la base jointe contient bien des références `bd_jointes`
+  if (!sourceJointe.bd_jointes || !sourceJointe.bd_jointes.source1 || !sourceJointe.bd_jointes.source2) {
+    throw new HttpException(`Les bases de données sources ne sont pas disponibles pour cette jointure.`,805);
+  }
+
+  // 🔍 Récupérer les bases sources ayant participé à cette jointure
+  const source1 = await this.sourcededonneesrepo.findOne({ where: { idsourceDonnes: sourceJointe.bd_jointes.source1 } });
+  const source2 = await this.sourcededonneesrepo.findOne({ where: { idsourceDonnes: sourceJointe.bd_jointes.source2 } });
+
+  if (!source1 || !source2) {
+    throw new HttpException(`Impossible de retrouver l'une des bases de données sources.`,805);
+  }
+
+  return { source1, source2 };
+}
+
 
 
 
