@@ -32,7 +32,7 @@ export class SourceDonneesController {
 
   @Patch("update/:idSource")
   async updateSourceDonnees(
-    @Param('id') idsourceDonnes: string,
+    @Param('idSource') idsourceDonnes: string,
     @Body() updateSourceDonneeDto: UpdateSourceDonneeDto
 ) {
     try {

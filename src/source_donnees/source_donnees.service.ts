@@ -352,7 +352,7 @@ private processExcelFile(filePath: string): any {
 }
 
 /**
- * 🔥 Convertit un fichier CSV en JSON formaté
+   Convertit un fichier CSV en JSON formaté
  */
 private async  processCsvFile(filePath: string): Promise<any> {
   return new Promise((resolve, reject) => {
@@ -381,89 +381,14 @@ private async  processCsvFile(filePath: string): Promise<any> {
   });
 }
 
-/**
- * 🔥 Charge un fichier JSON tel quel
- */
+
+  //Charge un fichier JSON tel quel
+ 
 private processJsonFile(filePath: string): any {
   return JSON.parse(fs.readFileSync(filePath, 'utf-8'));
 }
 
 
-//jointure
-// async joinSources(idprojet: string, joinSourcesDto: JoinSourcesDto): Promise<SourceDonnee> {
-//   const { source1, source2, sheet1, sheet2, key1, key2 } = joinSourcesDto;
-
-//   // 🔍 Étape 1: Récupérer les deux sources dans le projet
-//   const sourceData1 = await this.sourcededonneesrepo.findOne({
-//     where: { nomSource: source1, enquete: { projet: { idprojet } } },
-//     relations: ["enquete", "enquete.projet"],
-//   });
-
-//   const sourceData2 = await this.sourcededonneesrepo.findOne({
-//     where: { nomSource: source2, enquete: { projet: { idprojet } } },
-//     relations: ["enquete", "enquete.projet"],
-//   });
-
-//   if (!sourceData1 || !sourceData2) {
-//     throw new HttpException("Une des sources n'a pas été trouvée dans le projet", 404);
-//   }
-
-//   // 🔍 Vérification de la présence des feuilles spécifiées
-//   if (!sourceData1.fichier[sheet1] || !sourceData2.fichier[sheet2]) {
-//     throw new HttpException("L'une des feuilles spécifiées est introuvable", 404);
-//   }
-
-//   const sheetData1 = sourceData1.fichier[sheet1].donnees;
-//   const sheetData2 = sourceData2.fichier[sheet2].donnees;
-
-//   // 🔍 Étape 2: Extraction des en-têtes et des colonnes de données
-//   const headers1 = sheetData1[0];
-//   const headers2 = sheetData2[0];
-
-//   const keyIndex1 = Object.values(headers1).indexOf(key1);
-//   const keyIndex2 = Object.values(headers2).indexOf(key2);
-
-//   if (keyIndex1 === -1 || keyIndex2 === -1) {
-//     throw new HttpException("Les clés de jointure ne sont pas valides", 400);
-//   }
-
-//   // 🔍 Étape 3: Création d'une table indexée pour la jointure
-//   const mapData2 = new Map<string, any>();
-
-//   sheetData2.slice(1).forEach((row) => {
-//     const joinKey = row[`${String.fromCharCode(65 + keyIndex2)}${row.index + 2}`];
-//     if (joinKey) {
-//       mapData2.set(joinKey, row);
-//     }
-//   });
-
-//   // 🔍 Étape 4: Réalisation de la jointure et fusion des données
-//   const mergedData = sheetData1.map((row1, index) => {
-//     if (index === 0) return { ...row1, ...headers2 }; // Fusionner les en-têtes
-
-//     const joinKey = row1[`${String.fromCharCode(65 + keyIndex1)}${index + 2}`];
-//     const row2 = mapData2.get(joinKey) || {};
-
-//     return { ...row1, ...row2 };
-//   });
-
-//   // 🔍 Étape 5: Création de la nouvelle source fusionnée
-//   const mergedSource: SourceDonnee = this.sourcededonneesrepo.create({
-//     nomSource: `jointure_${source1}-${source2}`,
-//     commentaire: `jointure_${source1}-${source2}`,
-//     fichier: {
-//       [`Jointure_${source1}_${source2}`]: {
-//         colonnes: Object.values(headers1).concat(Object.values(headers2)),
-//         donnees: mergedData,
-//       },
-//     },
-//     source: `${source1}, ${source2}`,
-//     format: sourceData1.format,
-//     enquete: sourceData1.enquete,
-//   });
-
-//   return await this.sourcededonneesrepo.save(mergedSource);
-// }
 
 
 
@@ -666,6 +591,61 @@ async getBdsByJointureOne(idSourceJointe: string): Promise<{ source1: SourceDonn
           throw new HttpException(err.message, 705);
       }
   }
+  
+
+  // async updateSourceDonnees(
+  //   idsourceDonnes: string,
+  //   data: UpdateSourceDonneeDto
+  // ) {
+  //   try {
+  //     // 1. Vérifier si la source de données existe
+  //     const sourceExistante = await this.sourcededonneesrepo.findOne({
+  //       where: { idsourceDonnes },
+  //       relations: ["format", "typedonnes", "unitefrequence", "enquete"],
+  //     });
+  
+  //     if (!sourceExistante) {
+  //       throw new HttpException("Source de données non trouvée", 701);
+  //     }
+  
+  //     // 2. Récupérer les nouvelles valeurs des entités associées si elles sont fournies
+  //     const { libelleformat, libelletypedonnees, libelleunite, ...reste } = data;
+  
+  //     if (libelletypedonnees) {
+  //       const typedonnees = await this.datatypeservice.getoneByLibelle(libelletypedonnees);
+  //       if (!typedonnees) throw new HttpException("Type de données introuvable", 703);
+  //       sourceExistante.typedonnes = typedonnees;
+  //     }
+  
+  //     if (libelleformat) {
+  //       const format = await this.formatservice.getoneByLibelle(libelleformat);
+  //       if (!format) throw new HttpException("Format introuvable", 704);
+  //       sourceExistante.format = format;
+  //     }
+  
+  //     if (libelleunite) {
+  //       const unitefrequence = await this.unitefrequence.getoneBylibelle(libelleunite);
+  //       if (!unitefrequence) throw new HttpException("Unité de fréquence introuvable", 702);
+  //       sourceExistante.unitefrequence = unitefrequence;
+  //     }
+
+  //     console.log(sourceExistante)
+  
+  //     // 3. Mise à jour des champs sans `save()`
+  //     await this.sourcededonneesrepo.update(idsourceDonnes, {
+  //       ...reste,
+  //       typedonnes: sourceExistante.typedonnes,
+  //       format: sourceExistante.format,
+  //       unitefrequence: sourceExistante.unitefrequence,
+  //     });
+  
+  //     // 4. Retourner l'entité mise à jour
+  //     return await this.sourcededonneesrepo.findOne({ where: { idsourceDonnes } });
+  
+  //   } catch (err) {
+  //     throw new HttpException(err.message, 705);
+  //   }
+  // }
   
     
 
