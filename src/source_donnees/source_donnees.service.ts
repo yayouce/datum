@@ -1291,7 +1291,20 @@ async applyFunctionAndSave2(
       .replace(/ABS\((.*?)\)/g, (_, value) => `Math.abs(${value})`)
   
       // CONCATENER(X;Y;Z) -> (X + Y + Z)
-      .replace(/CONCATENER\((.*?)\)/g, (_, values) => `(${values.replace(/;/g, ' + ')})`)
+      .replace(/CONCATENER\((.*?)\)/g, (_, values) => {
+        return values
+          .split(";")
+          .map(value => {
+            const trimmedValue = value.trim();
+            return isNaN(trimmedValue) ? `"${trimmedValue}"` : trimmedValue; // Wrap only non-numeric values in quotes
+          })
+          .join(' + ');
+      })
+      
+      
+      
+      
+      
   
       // NB(X;Y;Z) -> Nombre d'éléments non vides
       .replace(/NB\((.*?)\)/g, (_, values) => `(${values.split(";").map(v => `(${v} !== undefined && ${v} !== null ? 1 : 0)`).join(" + ")})`)
@@ -1352,7 +1365,9 @@ async applyFunctionAndSave2(
       console.log(`🔄 Ligne ${index + 2} - Formule Finale :`, evaluatedFormula);
 
       // ✅ Évaluation avec `safeCompare` ajouté dans le contexte
-      columnResult.push(evaluate(evaluatedFormula, { safeCompare }));
+      // columnResult.push(evaluate(evaluatedFormula, { safeCompare }));
+      const safeEval = new Function(`return ${evaluatedFormula};`);
+      columnResult.push(safeEval());
     } catch (error) {
       console.error(`❌ Erreur d'évaluation à la ligne ${index + 2}:`, error.message);
       throw new HttpException(`Erreur lors de l'évaluation de la formule à la ligne ${index + 2}`, 808);
