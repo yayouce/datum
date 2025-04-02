@@ -10,6 +10,7 @@ import { modifyCellDto } from './dto/modifyCell.dto';
 import { UpdateSourceDonneeDto } from './dto/update-source_donnee.dto';
 import { JoinSourcesDto } from './dto/jointure.dto';
 import { ApplyfunctionDto2 } from './dto/Applyfunction.dto';
+import { MasqueColumnToggleDto } from './dto/masquercolonne.dto';
 
 
 @Controller('source-donnees')
@@ -180,6 +181,24 @@ async modifyCell(
 ) {
   return this.sourceDonneesService.modifyCell(idsourceDonnes, modifyCellDto);
 }
+
+
+//masque toggle
+@Post('togglecolumns/:idsourceDonnes')
+async toggleColumns(
+  @Param('idsourceDonnes') idsourceDonnes: string,
+  @Body() toggleColumnsDto: MasqueColumnToggleDto
+) {
+  return this.sourceDonneesService.toggleColumnsVisibility(idsourceDonnes, toggleColumnsDto);
+}
+
+@Get('filteredMasque/:idsourceDonnes')
+async getAllFeuillesFiltrees(
+  @Param('idsourceDonnes') idsourceDonnes: string
+) {
+  return this.sourceDonneesService.getSourceWithFilteredData(idsourceDonnes);
+}
+
 
 
 

@@ -30,6 +30,7 @@ import { evaluate,compare  } from 'mathjs'
 
 
 import { ApplyfunctionDto2 } from './dto/Applyfunction.dto';
+import { MasqueColumnToggleDto } from './dto/masquercolonne.dto';
 
 
 
@@ -718,6 +719,50 @@ async getBdsCountByProjet(idprojet: string): Promise<{ normales: number; jointes
 
 
 
+async getSourceWithFilteredData(idsourceDonnes: string): Promise<SourceDonnee> {
+  const source = await this.getSourceById(idsourceDonnes);
+  const fichier = source.fichier;
+
+  if (!fichier || typeof fichier !== 'object') {
+    throw new HttpException("Fichier invalide", 500);
+  }
+
+  const fichierFiltré: any = {};
+
+  for (const feuilleName of Object.keys(fichier)) {
+    const feuille = fichier[feuilleName];
+    const donnees = feuille.donnees || [];
+    const colonnesMasquees = feuille.meta?.colonnesMasquees || [];
+
+    const donneesFiltrees = donnees.map(ligne => {
+      const ligneFiltree: any = {};
+      for (const cle in ligne) {
+        const colLettre = cle.replace(/\d/g, '').toUpperCase();
+        if (!colonnesMasquees.includes(colLettre)) {
+          ligneFiltree[cle] = ligne[cle];
+        }
+      }
+      return ligneFiltree;
+    });
+
+    fichierFiltré[feuilleName] = {
+      ...feuille,
+      donnees: donneesFiltrees, // ✅ données filtrées
+    };
+  }
+
+  return {
+    ...source,
+    fichier: fichierFiltré, // ✅ remplacement par le fichier nettoyé
+  };
+}
+
+
+
+
+
+
+
 async getBdsByProjetWithFilter(
   idprojet: string,
   bdType: 'normales' | 'jointes' | 'tous'
@@ -1006,6 +1051,59 @@ async modifyCell(
         }
       }
 
+
+
+
+      //togglemasquer
+
+      async toggleColumnsVisibility(
+        idsourceDonnes: string,
+        body: MasqueColumnToggleDto
+      ): Promise<SourceDonnee> {
+        const { nomFeuille, colonnes, masquer } = body;
+      
+        const source = await this.getSourceById(idsourceDonnes);
+        const fichier = source.fichier;
+      
+        if (!fichier || typeof fichier !== 'object') {
+          throw new HttpException("Les données du fichier sont invalides.", 705);
+        }
+      
+        const targetSheetName = nomFeuille?.trim() || Object.keys(fichier)[0];
+        const sheet = fichier[targetSheetName];
+      
+        if (!sheet) {
+          throw new HttpException(`La feuille "${targetSheetName}" n'existe pas.`, 706);
+        }
+      
+        // 🔧 Initialiser les métadonnées si besoin
+        if (!sheet.meta) {
+          sheet.meta = {};
+        }
+      
+        if (!Array.isArray(sheet.meta.colonnesMasquees)) {
+          sheet.meta.colonnesMasquees = [];
+        }
+      
+        const colonnesMasquees = new Set(sheet.meta.colonnesMasquees.map(c => c.toUpperCase()));
+      
+        for (const col of colonnes.map(c => c.toUpperCase())) {
+          if (masquer) {
+            colonnesMasquees.add(col);
+          } else {
+            colonnesMasquees.delete(col);
+          }
+        }
+      
+        sheet.meta.colonnesMasquees = Array.from(colonnesMasquees);
+      
+        //  Sauvegarde finale
+        fichier[targetSheetName] = sheet;
+        source.fichier = fichier;
+      
+        return await this.sourcededonneesrepo.save(source);
+      }
+      
      
 
 
@@ -1300,7 +1398,7 @@ async applyFunctionAndSave2(
           })
           .join(' + ');
       })
-      
+       
       
       
       
