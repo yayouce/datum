@@ -507,7 +507,9 @@ async joinSources2(
   newSource.bd_jointes = {
     source1: sourceData1.idsourceDonnes,
     source2: sourceData2.idsourceDonnes,
-  };
+    key1:key1,
+    key2:key2
+  }
 
   // 🔍 Sauvegarde dans la BD (ID généré automatiquement)
   return await this.sourcededonneesrepo.save(newSource);
@@ -515,7 +517,7 @@ async joinSources2(
 
 
 async getBdsByJointureOne(idSourceJointe: string): Promise<{ source1: SourceDonnee; source2: SourceDonnee }> {
-  // 🔍 Récupérer la `SourceDonnee` jointe par son ID
+
   const sourceJointe = await this.sourcededonneesrepo.findOne({
     where: { idsourceDonnes: idSourceJointe },
   });
@@ -529,7 +531,7 @@ async getBdsByJointureOne(idSourceJointe: string): Promise<{ source1: SourceDonn
     throw new HttpException(`Les bases de données sources ne sont pas disponibles pour cette jointure.`,805);
   }
 
-  // 🔍 Récupérer les bases sources ayant participé à cette jointure
+  //  Récupérer les bases sources ayant participé à cette jointure
   const source1 = await this.sourcededonneesrepo.findOne({ where: { idsourceDonnes: sourceJointe.bd_jointes.source1 } });
   const source2 = await this.sourcededonneesrepo.findOne({ where: { idsourceDonnes: sourceJointe.bd_jointes.source2 } });
 
@@ -540,11 +542,7 @@ async getBdsByJointureOne(idSourceJointe: string): Promise<{ source1: SourceDonn
   return { source1, source2 };
 }
 
-
-
-
-
-  async updateSourceDonnees(
+async updateSourceDonnees(
       idsourceDonnes: string,
       data: UpdateSourceDonneeDto
     ) {
