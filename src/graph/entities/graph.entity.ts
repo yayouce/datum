@@ -29,4 +29,21 @@ export class Graph extends TimestampEntites {
 
   @Column({ type: "uuid", nullable: true })
   sourcesIdsourceDonnes: string;
+
+  
+  @Column({ type: 'json', nullable: true })
+  metaDonnees: {
+    sensEtiquette?: 'vertical' | 'horizontal';
+    positionEtiquette?: 'interieure' | 'exterieure';
+    axesSpecifies?: {
+      x?: boolean;
+      y?: boolean;
+    };
+    positionLegende?: 'haut' | 'bas' | 'gauche' | 'droite';
+    couleurs?: {
+      generiques?: string[];
+      specifiques?: string[];
+    };
+  };
+  
 }

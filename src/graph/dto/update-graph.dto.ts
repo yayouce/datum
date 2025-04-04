@@ -1,7 +1,7 @@
 import { PartialType } from '@nestjs/swagger';
 import { CreateGraphDto } from './create-graph.dto';
 
-import { IsEnum, IsString, IsArray, IsOptional, ValidateNested, IsNotEmpty } from "class-validator";
+import { IsEnum, IsString, IsArray, IsOptional, ValidateNested, IsNotEmpty, IsObject } from "class-validator";
 import { typegraphiqueEnum } from "src/generique/typegraphique.enum";
 import { Type } from 'class-transformer';
 import { SourceDonnee } from 'src/source_donnees/entities/source_donnee.entity';
@@ -56,4 +56,8 @@ export class UpdateGraphDto extends PartialType(CreateGraphDto) {
   @Type(() => SourceDonnee)
   @IsOptional()
   source_donnees?: any;
+
+  @IsOptional()
+  @IsObject()
+  metaDonnees
 }

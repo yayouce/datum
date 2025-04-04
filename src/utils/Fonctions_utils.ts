@@ -35,23 +35,23 @@ export function extractColumnValues(colonnes: any[], fichier: any): any[] {
     }
 
     return colonnes.map(item => {
-        console.log(`📌 Traitement de la colonne:`, item);
+        // console.log(`Traitement de la colonne:`, item);
 
         const feuille = fichier[item.nomFeuille];
 
         if (!feuille || !feuille.donnees) {
-            console.error(`⚠ ERREUR: Feuille "${item.nomFeuille}" non trouvée.`);
+            console.error(` Feuille "${item.nomFeuille}" non trouvée.`,802);
             return { colonne: item.colonne, formule: item.formule, valeurs: [] };
         }
 
         const donnees = feuille.donnees;
         const colKey = item.colonne.replace(/\d+/g, ''); // Extraire la colonne sans chiffre
 
-        console.log(`🛠 Clé de colonne extraite: ${colKey}`);
+        // console.log(`🛠 Clé de colonne extraite: ${colKey}`);
 
         // Obtenir le vrai nom de la colonne (ex: "B1" → "Mathématiques")
         const trueColumnName = donnees[0][`${colKey}1`] || item.colonne;
-        console.log(`📌 Nom réel de la colonne : ${trueColumnName}`);
+        // console.log(`📌 Nom réel de la colonne : ${trueColumnName}`);
 
         // Création d'un dictionnaire { "Alice": [valeurs], "Bob": [valeurs] }
         const groupedValues: Record<string, number[]> = {};
@@ -75,7 +75,7 @@ export function extractColumnValues(colonnes: any[], fichier: any): any[] {
             }
         });
 
-        // Appliquer la fonction à chaque élève de colonneX
+        // Appliquer la fonction à chaque élement de la colonneX
         const computedValues = colonneX.map(student => {
             const values = groupedValues[student] || [];
 
@@ -98,47 +98,68 @@ export function extractColumnValues(colonnes: any[], fichier: any): any[] {
 
 
 
+//graphique
 
-//---------------------- Formatage des réponses pour les graphes ---------------
-// export function formatGraphResponse(graphs: Graph[]): any[] {
-//     return graphs.map(graph => {
-//         const source = graph.sources; // ✅ Vérifier bien la source de données
-//         if (!source || !source.fichier) {
-//             console.error(`⚠ ERREUR: Pas de fichier pour le graph ${graph.idgraph}`);
-//             return graph; // Retourner l'objet brut si pas de fichier
-//         }
 
-//         return {
-//             typeGraphique: graph.typeGraphique,
-//             titreGraphique: graph.titreGraphique,
-//             colonneX: extractColumnValues(graph.colonneX || [], source.fichier), // ✅ Suppression de `this`
-//             colonneY: extractColumnValuesWithFormula(graph.colonneY || [], source.fichier), // ✅ Suppression de `this`
-//         };
-//     });
-// }
+
+  const defaultMetaDonnees = {
+    sensEtiquette: "horizontal",
+    positionEtiquette: "exterieure",
+    axesSpecifies: { x: true, y: true },
+    positionLegende: "haut",
+    couleurs: {
+      generiques: ["#4CAF50", "#8BC34A", "#FF9800"],
+      specifiques: []
+    }
+  };
+  
+  function applyDefaultMetaDonnees(meta: any): any {
+    const safeMeta = meta ?? {}; // ← corrige le cas où meta est null
+  
+    return {
+      ...defaultMetaDonnees,
+      ...safeMeta,
+      axesSpecifies: {
+        ...defaultMetaDonnees.axesSpecifies,
+        ...(safeMeta.axesSpecifies || {})
+      },
+      couleurs: {
+        generiques: safeMeta?.couleurs?.generiques || defaultMetaDonnees.couleurs.generiques,
+        specifiques: safeMeta?.couleurs?.specifiques || []
+      }
+    };
+  }
+  
+  
+  
 
 
 export function formatGraphResponse(graph: Graph): any {
     if (!graph || !graph.sources || !graph.sources.fichier) {
-        console.error(`⚠ ERREUR: Pas de fichier pour le graph ${graph.idgraph}`);
-        return graph; 
+      console.error(`Pas de fichier pour le graph ${graph.idgraph}`);
+      return graph;
     }
-
-    const feuille = graph.sources.fichier["Sheet1"]; // Utilisation de la feuille principale
-    const entetes = feuille.donnees[0]; // Première ligne (en-têtes)
-
+  
+    const feuille = graph.sources.fichier["Sheet1"];
+    const entetes = feuille.donnees[0];
+    const metaDonnees = applyDefaultMetaDonnees(graph.metaDonnees);
+  
     return {
-        typeGraphique: graph.typeGraphique,
-        titreGraphique: graph.titreGraphique,
-        colonneX: graph.colonneX, 
-        colonneY: graph.colonneY.map(col => ({
-            colonne: entetes[col.colonne] || col.colonne, // Convertir "B1" en "Mathématiques"
-            formule: col.formule,
-            valeurs: (col as any).valeurs || [],
-            legende:col.formule+" "+col.colonne
-        })),
+      typeGraphique: graph.typeGraphique,
+      titreGraphique: graph.titreGraphique,
+      idgraph:graph.idgraph,
+      colonneX: graph.colonneX,
+      colonneY: graph.colonneY.map((col, index) => ({
+        colonne: entetes[col.colonne] || col.colonne,
+        formule: col.formule,
+        valeurs: (col as any).valeurs || [],
+        legende: col.formule + " " + col.colonne,
+        couleur: metaDonnees.couleurs.specifiques[index] || metaDonnees.couleurs.generiques[index % metaDonnees.couleurs.generiques.length]
+      })),
+      metaDonnees
     };
-}
+  }
+  
 
 
 

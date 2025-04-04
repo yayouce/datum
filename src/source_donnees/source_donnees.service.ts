@@ -511,7 +511,7 @@ async joinSources2(
     key2:key2
   }
 
-  // 🔍 Sauvegarde dans la BD (ID généré automatiquement)
+  //  Sauvegarde dans la BD (ID généré automatiquement)
   return await this.sourcededonneesrepo.save(newSource);
 }
 
@@ -756,11 +756,6 @@ async getSourceWithFilteredData(idsourceDonnes: string): Promise<SourceDonnee> {
 }
 
 
-
-
-
-
-
 async getBdsByProjetWithFilter(
   idprojet: string,
   bdType: 'normales' | 'jointes' | 'tous'
@@ -805,8 +800,6 @@ async getBdsByProjetWithFilter(
 }
 
 
-
-
 //get bdByproject where InStudio est true
 
 async getBdsByProjetWithFilterInStudio(idprojet: string){
@@ -826,8 +819,6 @@ catch(err){
 
 
 // jointure eentables
-
-
 
 
 
