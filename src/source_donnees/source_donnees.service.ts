@@ -638,8 +638,8 @@ async joinSources2(
   newSource.bd_jointes = {
     source1: sourceData1.idsourceDonnes,
     source2: sourceData2.idsourceDonnes,
-    key1: key1,
-    key2: key2,
+    key1: key1+"_"+sheet1,
+    key2: key2+"_"+sheet2,
   };
 
   return await this.sourcededonneesrepo.save(newSource);
