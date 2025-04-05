@@ -393,13 +393,134 @@ private processJsonFile(filePath: string): any {
 
 
 
+// async joinSources2(
+//   idprojet: string ,// Le projet auquel appartiennent les sources
+//   joinSourcesDto: JoinSourcesDto,
+// ): Promise<SourceDonnee> {
+//   const { source1, source2, sheet1, sheet2, key1, key2 } = joinSourcesDto;
+
+//   // 🔍 Récupération des sources filtrées par `idprojet`
+//   const sourceData1 = await this.sourcededonneesrepo.findOne({
+//     where: { nomSource: source1, enquete: { projet: { idprojet } } },
+//     relations: ["enquete", "enquete.projet", "format"],
+//   });
+
+//   const sourceData2 = await this.sourcededonneesrepo.findOne({
+//     where: { nomSource: source2, enquete: { projet: { idprojet } } },
+//     relations: ["enquete", "enquete.projet"],
+//   });
+
+//   if (!sourceData1 || !sourceData2) {
+//     throw new HttpException("Une des sources n'a pas été trouvée dans le projet", 404);
+//   }
+
+//   // Vérification des `Sheet`
+//   const fichierA = sourceData1.fichier;
+//   const fichierB = sourceData2.fichier;
+
+//   if (!fichierA[sheet1] || !fichierB[sheet2]) {
+//     throw new HttpException("Une des feuilles sélectionnées n'existe pas dans la source.",804);
+//   }
+
+//   // Fonction interne d'extraction des données
+//   async function extractSheetData(sheetData: any[], keyColumnRef: string) {
+//     if (!sheetData || sheetData.length < 2) {
+//       throw new Error("La feuille ne contient pas assez de données.");
+//     }
+
+//     // Extraire les entêtes (ligne 1)
+//     const headers = sheetData[0]; // Exemple: { "A1": "ID", "B1": "Amount", ... }
+
+//     // Vérifier que la clé existe dans les entêtes
+//     if (!headers[keyColumnRef]) {
+//       throw new Error(`La clé de jointure "${keyColumnRef}" n'existe pas dans la feuille.`);
+//     }
+
+//     // Trouver le vrai nom de la colonne pour la jointure
+//     const keyColumn = headers[keyColumnRef]; // Ex: A1 → "ID"
+
+//     // Associer chaque ligne aux entêtes
+//     const rows = await Promise.all(sheetData.slice(1).map(async row => {
+//       const formattedRow: Record<string, any> = {};
+//       for (const cell in row) {
+//         const columnLetter = cell.replace(/\d+/g, ''); // Extraire la lettre (ex: "A" de "A2")
+//         const columnName = headers[columnLetter + "1"]; // Associer à l'entête
+//         formattedRow[columnName] = row[cell]; // Assigner la valeur
+//       }
+//       return formattedRow;
+//     }));
+
+//     return { headers, rows, keyColumn };
+//   }
+
+//   // 🔍 Extraction et transformation des données avec `await`
+//   const { rows: dataA, keyColumn: keyColumnA } = await extractSheetData(fichierA[sheet1].donnees, key1);
+//   const { rows: dataB, keyColumn: keyColumnB } = await extractSheetData(fichierB[sheet2].donnees, key2);
+
+//   // 🔍 Appliquer la jointure **INNER JOIN**
+//   const joinedData = dataA
+//     .filter(rowA => dataB.some(rowB => rowA[keyColumnA] === rowB[keyColumnB])) // Garder les valeurs correspondantes
+//     .map(rowA => ({
+//       ...rowA,
+//       ...dataB.find(rowB => rowA[keyColumnA] === rowB[keyColumnB]) // Fusionner les données
+//     }));
+
+//   if (joinedData.length === 0) {
+//     throw new HttpException("Aucune correspondance trouvée.", 805);
+//   }
+
+//   // 🔍 Transformation en format A1, B1, C1...
+//   const headers = Object.keys(joinedData[0]); // Liste des colonnes finales
+//   const columns = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("").slice(0, headers.length); // Génération dynamique des colonnes (A, B, C...)
+  
+//   // 🔍 Génération du mapping des entêtes (A1, B1, ...)
+//   const headerMapping = headers.reduce((acc, header, index) => {
+//     acc[`${columns[index]}1`] = header; // Ex: { "A1": "ID", "B1": "Date", ... }
+//     return acc;
+//   }, {});
+
+//   //  Transformation des valeurs en format A2, B2, C2...
+//   const transformedData = joinedData.map((row, rowIndex) => {
+//     return headers.reduce((acc, header, colIndex) => {
+//       acc[`${columns[colIndex]}${rowIndex + 2}`] = row[header]; // Ex: { "A2": "ID-1", "B2": "2023-01-01", ... }
+//       return acc;
+//     }, {});
+//   });
+
+//   //  Générer le nom de la nouvelle `SourceDonnee`
+//   const newDbName = source1 === source2 ? `Jointure_${sheet1}_${sheet2}` : `Jointure_${source1}_${source2}`;
+
+//   //  Création de la nouvelle `SourceDonnee`
+//   const newSource = new SourceDonnee();
+//   newSource.nomSource = `jointure_${source1}-${source2}`;
+//   newSource.commentaire = `jointure_${source1}-${source2}`;
+//   newSource.libelleformat = sourceData1.libelleformat;
+//   newSource.libelletypedonnees = sourceData1.libelletypedonnees;
+//   newSource.format = sourceData1.format;
+//   newSource.enquete = sourceData1.enquete;
+//   newSource.fichier = {
+//     [newDbName]: {
+//       donnees: [headerMapping, ...transformedData], // Ajout des en-têtes et des données
+//       colonnes: columns, // 🔥 Ajout de la liste des colonnes (A, B, C...)
+//     },
+//   };
+//   newSource.bd_jointes = {
+//     source1: sourceData1.idsourceDonnes,
+//     source2: sourceData2.idsourceDonnes,
+//     key1:key1,
+//     key2:key2
+//   }
+
+//   //  Sauvegarde dans la BD (ID généré automatiquement)
+//   return await this.sourcededonneesrepo.save(newSource);
+// }
+
 async joinSources2(
-  idprojet: string ,// Le projet auquel appartiennent les sources
+  idprojet: string,
   joinSourcesDto: JoinSourcesDto,
 ): Promise<SourceDonnee> {
   const { source1, source2, sheet1, sheet2, key1, key2 } = joinSourcesDto;
 
-  // 🔍 Récupération des sources filtrées par `idprojet`
   const sourceData1 = await this.sourcededonneesrepo.findOne({
     where: { nomSource: source1, enquete: { projet: { idprojet } } },
     relations: ["enquete", "enquete.projet", "format"],
@@ -414,38 +535,31 @@ async joinSources2(
     throw new HttpException("Une des sources n'a pas été trouvée dans le projet", 404);
   }
 
-  // 🔍 Vérification des `Sheet`
   const fichierA = sourceData1.fichier;
   const fichierB = sourceData2.fichier;
 
   if (!fichierA[sheet1] || !fichierB[sheet2]) {
-    throw new HttpException("Une des feuilles sélectionnées n'existe pas dans la source.",804);
+    throw new HttpException("Une des feuilles sélectionnées n'existe pas dans la source.", 804);
   }
 
-  // 🔍 Fonction interne d'extraction des données
   async function extractSheetData(sheetData: any[], keyColumnRef: string) {
     if (!sheetData || sheetData.length < 2) {
       throw new Error("La feuille ne contient pas assez de données.");
     }
 
-    // Extraire les entêtes (ligne 1)
-    const headers = sheetData[0]; // Exemple: { "A1": "ID", "B1": "Amount", ... }
-
-    // Vérifier que la clé existe dans les entêtes
+    const headers = sheetData[0];
     if (!headers[keyColumnRef]) {
       throw new Error(`La clé de jointure "${keyColumnRef}" n'existe pas dans la feuille.`);
     }
 
-    // Trouver le vrai nom de la colonne pour la jointure
-    const keyColumn = headers[keyColumnRef]; // Ex: A1 → "ID"
+    const keyColumn = headers[keyColumnRef];
 
-    // Associer chaque ligne aux entêtes
     const rows = await Promise.all(sheetData.slice(1).map(async row => {
       const formattedRow: Record<string, any> = {};
       for (const cell in row) {
-        const columnLetter = cell.replace(/\d+/g, ''); // Extraire la lettre (ex: "A" de "A2")
-        const columnName = headers[columnLetter + "1"]; // Associer à l'entête
-        formattedRow[columnName] = row[cell]; // Assigner la valeur
+        const columnLetter = cell.replace(/\d+/g, '');
+        const columnName = headers[columnLetter + "1"];
+        formattedRow[columnName] = row[cell];
       }
       return formattedRow;
     }));
@@ -453,44 +567,61 @@ async joinSources2(
     return { headers, rows, keyColumn };
   }
 
-  // 🔍 Extraction et transformation des données avec `await`
   const { rows: dataA, keyColumn: keyColumnA } = await extractSheetData(fichierA[sheet1].donnees, key1);
   const { rows: dataB, keyColumn: keyColumnB } = await extractSheetData(fichierB[sheet2].donnees, key2);
 
-  // 🔍 Appliquer la jointure **INNER JOIN**
   const joinedData = dataA
-    .filter(rowA => dataB.some(rowB => rowA[keyColumnA] === rowB[keyColumnB])) // Garder les valeurs correspondantes
-    .map(rowA => ({
-      ...rowA,
-      ...dataB.find(rowB => rowA[keyColumnA] === rowB[keyColumnB]) // Fusionner les données
-    }));
+    .map(rowA => {
+      const matchingRowB = dataB.find(rowB =>
+        rowA[keyColumnA] === rowB[keyColumnB]
+      );
+      if (!matchingRowB) return null;
+
+      const rowAFormatted = Object.fromEntries(
+        Object.entries(rowA).map(([k, v]) => [`${k}_source1`, v])
+      );
+
+      const rowBFormatted = Object.fromEntries(
+        Object.entries(matchingRowB).map(([k, v]) => [`${k}_source2`, v])
+      );
+
+      return {
+        ...rowAFormatted,
+        ...rowBFormatted,
+        index_jointure: rowA[keyColumnA],
+      };
+    })
+    .filter(Boolean);
 
   if (joinedData.length === 0) {
     throw new HttpException("Aucune correspondance trouvée.", 805);
   }
 
-  // 🔍 Transformation en format A1, B1, C1...
-  const headers = Object.keys(joinedData[0]); // Liste des colonnes finales
-  const columns = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("").slice(0, headers.length); // Génération dynamique des colonnes (A, B, C...)
-  
-  // 🔍 Génération du mapping des entêtes (A1, B1, ...)
+  // Ordre clair : source1 → source2 → clé
+  const headers = [
+    ...Object.keys(joinedData[0]).filter(k => k.endsWith('_source1')),
+    ...Object.keys(joinedData[0]).filter(k => k.endsWith('_source2')),
+    'index_jointure'
+  ];
+
+  const columns = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("").slice(0, headers.length);
+
   const headerMapping = headers.reduce((acc, header, index) => {
-    acc[`${columns[index]}1`] = header; // Ex: { "A1": "ID", "B1": "Date", ... }
+    acc[`${columns[index]}1`] = header;
     return acc;
   }, {});
 
-  //  Transformation des valeurs en format A2, B2, C2...
   const transformedData = joinedData.map((row, rowIndex) => {
     return headers.reduce((acc, header, colIndex) => {
-      acc[`${columns[colIndex]}${rowIndex + 2}`] = row[header]; // Ex: { "A2": "ID-1", "B2": "2023-01-01", ... }
+      acc[`${columns[colIndex]}${rowIndex + 2}`] = row[header] ?? null;
       return acc;
     }, {});
   });
 
-  //  Générer le nom de la nouvelle `SourceDonnee`
-  const newDbName = source1 === source2 ? `Jointure_${sheet1}_${sheet2}` : `Jointure_${source1}_${source2}`;
+  const newDbName = source1 === source2
+    ? `Jointure_${sheet1}_${sheet2}`
+    : `Jointure_${source1}_${source2}`;
 
-  //  Création de la nouvelle `SourceDonnee`
   const newSource = new SourceDonnee();
   newSource.nomSource = `jointure_${source1}-${source2}`;
   newSource.commentaire = `jointure_${source1}-${source2}`;
@@ -500,20 +631,21 @@ async joinSources2(
   newSource.enquete = sourceData1.enquete;
   newSource.fichier = {
     [newDbName]: {
-      donnees: [headerMapping, ...transformedData], // Ajout des en-têtes et des données
-      colonnes: columns, // 🔥 Ajout de la liste des colonnes (A, B, C...)
+      donnees: [headerMapping, ...transformedData],
+      colonnes: columns,
     },
   };
   newSource.bd_jointes = {
     source1: sourceData1.idsourceDonnes,
     source2: sourceData2.idsourceDonnes,
-    key1:key1,
-    key2:key2
-  }
+    key1: key1,
+    key2: key2,
+  };
 
-  //  Sauvegarde dans la BD (ID généré automatiquement)
   return await this.sourcededonneesrepo.save(newSource);
 }
+
+
 
 
 async getBdsByJointureOne(idSourceJointe: string): Promise<{ source1: SourceDonnee; source2: SourceDonnee }> {
