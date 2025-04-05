@@ -30,7 +30,13 @@ export class Graph extends TimestampEntites {
   @Column({ type: "uuid", nullable: true })
   sourcesIdsourceDonnes: string;
 
-  
+  @Column({type:"json",nullable:true})
+  titremetaDonnees:{
+    couleurTitre?:string;
+    couleurFond?:string
+  }
+
+
   @Column({ type: 'json', nullable: true })
   metaDonnees: {
     sensEtiquette?: 'vertical' | 'horizontal';

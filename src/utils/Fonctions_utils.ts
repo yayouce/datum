@@ -148,6 +148,7 @@ export function formatGraphResponse(graph: Graph): any {
       typeGraphique: graph.typeGraphique,
       titreGraphique: graph.titreGraphique,
       idgraph:graph.idgraph,
+      titremetaDonnees:graph.titremetaDonnees,
       colonneX: graph.colonneX,
       colonneY: graph.colonneY.map((col, index) => ({
         colonne: entetes[col.colonne] || col.colonne,

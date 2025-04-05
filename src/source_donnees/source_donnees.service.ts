@@ -479,7 +479,7 @@ async joinSources2(
     return acc;
   }, {});
 
-  // 🔍 Transformation des valeurs en format A2, B2, C2...
+  //  Transformation des valeurs en format A2, B2, C2...
   const transformedData = joinedData.map((row, rowIndex) => {
     return headers.reduce((acc, header, colIndex) => {
       acc[`${columns[colIndex]}${rowIndex + 2}`] = row[header]; // Ex: { "A2": "ID-1", "B2": "2023-01-01", ... }
@@ -487,10 +487,10 @@ async joinSources2(
     }, {});
   });
 
-  // 🔍 Générer le nom de la nouvelle `SourceDonnee`
+  //  Générer le nom de la nouvelle `SourceDonnee`
   const newDbName = source1 === source2 ? `Jointure_${sheet1}_${sheet2}` : `Jointure_${source1}_${source2}`;
 
-  // 🔍 Création de la nouvelle `SourceDonnee`
+  //  Création de la nouvelle `SourceDonnee`
   const newSource = new SourceDonnee();
   newSource.nomSource = `jointure_${source1}-${source2}`;
   newSource.commentaire = `jointure_${source1}-${source2}`;
@@ -676,17 +676,13 @@ async updateSourceDonnees(
     }
     
 
-
 // sources des données par enquete par projet
-
 async getSourcesByEnquete(idenquete: string): Promise<SourceDonnee[]> {
   return this.sourcededonneesrepo.find({
     where: { enquete: { idenquete } },
     relations: ['enquete'], // Charge la relation si nécessaire
   });
 }
-
-
 
 async getSourcesByProjet(idprojet: string): Promise<SourceDonnee[]> {
   return this.sourcededonneesrepo.find({

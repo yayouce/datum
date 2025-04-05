@@ -157,7 +157,7 @@ async getBdsCountByProjet(
 
   // modifier colonne
 
-  @Patch('modify_column/:idsource')
+  @Post('modify_column/:idsource')
   async modifyColumn(
     @Body() body: modifyColumnDto,
     @Param('idsource') idsource:string

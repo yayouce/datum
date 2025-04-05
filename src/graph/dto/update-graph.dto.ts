@@ -59,5 +59,9 @@ export class UpdateGraphDto extends PartialType(CreateGraphDto) {
 
   @IsOptional()
   @IsObject()
-  metaDonnees
+  metaDonnees:any
+
+  @IsOptional()
+  @IsObject()
+  titremetaDonnees:any
 }
