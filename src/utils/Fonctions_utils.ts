@@ -59,7 +59,7 @@ export function extractColumnValues(colonnes: any[], fichier: any): any[] {
         donnees.slice(1).forEach((row, index) => {
             // console.log(`🔍 Vérification ligne ${index + 2}:`, row);
 
-            const studentName = row[`A${index + 2}`]; // Colonne A (nom de l'élève)
+            const studentName = row[`${colKey}${index + 2}`]; // Colonne A (nom de l'élève)
             const rawValue = row[`${colKey}${index + 2}`];
 
             // console.log(`👤 Élève détecté: ${studentName}, Valeur brute: ${rawValue}`);
