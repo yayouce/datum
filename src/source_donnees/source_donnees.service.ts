@@ -1402,7 +1402,7 @@ async applyFunctionAndSave2(
 }
 
 
-@Cron(CronExpression.EVERY_MINUTE)
+@Cron(CronExpression.EVERY_MINUTE,{ name: 'syncSources' })
 async autoSync() {
   await this.refreshSourcesAuto();
 }
