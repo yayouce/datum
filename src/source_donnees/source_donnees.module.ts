@@ -10,11 +10,12 @@ import { EnqueteModule } from 'src/enquete/enquete.module';
 import { FileHandlerService } from 'src/utils/file-handler.service';
 import { HttpModule } from '@nestjs/axios';
 import { ProjetModule } from '@/projet/projet.module';
+// import { SourceAutoSyncService } from './source-auto-sync.service';
 
 @Module({
   imports: [TypeOrmModule.forFeature([SourceDonnee]),UnitefrequenceModule,DataTypeModule,FormatfichierModule,HttpModule,EnqueteModule,ProjetModule],
   controllers: [SourceDonneesController],
-  providers: [SourceDonneesService,FileHandlerService,],
+  providers: [SourceDonneesService,FileHandlerService],
   exports:[SourceDonneesService]
 })
 export class SourceDonneesModule {}

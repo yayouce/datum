@@ -1,3 +1,4 @@
+import { TimestampEntites } from "@/generique/timestamp";
 import { DataType } from "src/data_type/entities/data_type.entity";
 import { Enquete } from "src/enquete/entities/enquete.entity";
 import { Formatfichier } from "src/formatfichier/entities/formatfichier.entity";
@@ -7,12 +8,11 @@ import { Column, Entity, ManyToOne, OneToMany, PrimaryGeneratedColumn } from "ty
 
 
 @Entity("sourcedonnees")
-export class SourceDonnee {
+export class SourceDonnee extends TimestampEntites {
 
     
     @PrimaryGeneratedColumn("uuid")
     idsourceDonnes:string
-
 
     @Column( {nullable: true })
     typeDonnees:string

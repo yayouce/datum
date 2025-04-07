@@ -12,10 +12,10 @@ import { AteliersModule } from './ateliers/ateliers.module';
 import { EnqueteModule } from './enquete/enquete.module';
 import { FormatfichierModule } from './formatfichier/formatfichier.module';
 import { DataTypeModule } from './data_type/data_type.module';
-
 import { SourceDonneesModule } from './source_donnees/source_donnees.module';
 import { UnitefrequenceModule } from './frequence/unitefrequence.module';
 import { GraphModule } from './graph/graph.module';
+import { ScheduleModule } from '@nestjs/schedule';
 
 @Module({
   imports: [
@@ -31,7 +31,7 @@ import { GraphModule } from './graph/graph.module';
       entities: ["dist/**/*.entity{.ts,.js}"],
       synchronize: false,
     }),
-    
+    ScheduleModule.forRoot(),
     MembreStructModule,
     UserModule,
     AuthModule,
