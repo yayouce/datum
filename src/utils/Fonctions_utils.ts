@@ -59,10 +59,13 @@ export function extractColumnValues(colonnes: any[], fichier: any): any[] {
         donnees.slice(1).forEach((row, index) => {
             // console.log(`🔍 Vérification ligne ${index + 2}:`, row);
 
-            const studentName = row[`${colKey}${index + 2}`]; // Colonne A (nom de l'élève)
+            const studentName = row[`A${index + 2}`]; // Colonne A (nom de l'élève)
+            console.log(studentName)
+            console.log(colKey)
             const rawValue = row[`${colKey}${index + 2}`];
+            console.log(rawValue)
 
-            // console.log(`👤 Élève détecté: ${studentName}, Valeur brute: ${rawValue}`);
+            //  console.log(`👤 Élève détecté: ${studentName}, Valeur brute: ${rawValue}`);
 
             // Vérifier que la valeur est un nombre et éviter NaN
             const numericValue = !isNaN(parseFloat(rawValue)) ? parseFloat(rawValue) : 0;
