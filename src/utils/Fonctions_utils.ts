@@ -28,83 +28,70 @@ export function extractColumnValues(colonnes: any[], fichier: any): any[] {
   }
   
 
-  export function extractColumnValuesWithFormula(colonnes: any[], fichier: any, colonneX: string[]): any[] {
+  export function extractColumnValuesWithFormula(
+    colonnes: any[],
+    fichier: any,
+    colonneX: string[],
+    colonneIdFromX: string // vient de colonneX[0].colonne
+  ): any[] {
     if (!fichier || typeof fichier !== "object") {
-        console.error("ERREUR: `fichier` est invalide", fichier);
-        return [];
+      console.error("ERREUR: `fichier` est invalide", fichier);
+      return [];
     }
-
+  
+    const idColKey = colonneIdFromX.replace(/\d+/g, ''); // par exemple "B" si colonneIdFromX = "B1"
+  
     return colonnes.map(item => {
-        // console.log(`Traitement de la colonne:`, item);
-
-        const feuille = fichier[item.nomFeuille];
-
-        if (!feuille || !feuille.donnees) {
-            console.error(` Feuille "${item.nomFeuille}" non trouvée.`,802);
-            return { colonne: item.colonne, formule: item.formule, valeurs: [] };
+      const feuille = fichier[item.nomFeuille];
+  
+      if (!feuille || !feuille.donnees) {
+        console.error(` Feuille "${item.nomFeuille}" non trouvée.`);
+        return { colonne: item.colonne, formule: item.formule, valeurs: [] };
+      }
+  
+      const donnees = feuille.donnees;
+      const colKey = item.colonne.replace(/\d+/g, '');
+      const trueColumnName = donnees[0]?.[`${colKey}1`] || item.colonne;
+  
+      const groupedValues: Record<string, number[]> = {};
+  
+      donnees.slice(1).forEach((row, index) => {
+        const numeroLigne = index + 2;
+        const studentName = row[`${idColKey}${numeroLigne}`];
+        const rawValue = row[`${colKey}${numeroLigne}`];
+        const numericValue = !isNaN(parseFloat(rawValue)) ? parseFloat(rawValue) : 0;
+  
+        if (studentName) {
+          if (!groupedValues[studentName]) {
+            groupedValues[studentName] = [];
+          }
+          groupedValues[studentName].push(numericValue);
         }
-
-        const donnees = feuille.donnees;
-        const colKey = item.colonne.replace(/\d+/g, ''); // Extraire la colonne sans chiffre
-
-        // console.log(`🛠 Clé de colonne extraite: ${colKey}`);
-
-        // Obtenir le vrai nom de la colonne (ex: "B1" → "Mathématiques")
-        const trueColumnName = donnees[0][`${colKey}1`] || item.colonne;
-        // console.log(`📌 Nom réel de la colonne : ${trueColumnName}`);
-
-        // Création d'un dictionnaire { "Alice": [valeurs], "Bob": [valeurs] }
-        const groupedValues: Record<string, number[]> = {};
-
-        donnees.slice(1).forEach((row, index) => {
-            // console.log(`🔍 Vérification ligne ${index + 2}:`, row);
-
-            const studentName = row[`A${index + 2}`]; // Colonne A (nom de l'élève)
-            console.log(studentName)
-            console.log(colKey)
-            const rawValue = row[`${colKey}${index + 2}`];
-            console.log(rawValue)
-
-            //  console.log(`👤 Élève détecté: ${studentName}, Valeur brute: ${rawValue}`);
-
-            // Vérifier que la valeur est un nombre et éviter NaN
-            const numericValue = !isNaN(parseFloat(rawValue)) ? parseFloat(rawValue) : 0;
-
-            if (studentName) {
-                if (!groupedValues[studentName]) {
-                    groupedValues[studentName] = [];
-                }
-                groupedValues[studentName].push(numericValue);
-            }
-        });
-
-        // Appliquer la fonction à chaque élement de la colonneX
-        const computedValues = colonneX.map(student => {
-            const values = groupedValues[student] || [];
-
-            if (values.length === 0) return 0;
-
-            switch (item.formule) {
-                case "somme":
-                    return values.reduce((acc, val) => acc + val, 0);
-                case "moyenne":
-                    return values.reduce((acc, val) => acc + val, 0) / values.length;
-                default:
-                    return 0;
-            }
-        });
-
-        
-        return { colonne: trueColumnName, formule: item.formule, valeurs: computedValues };
+      });
+  
+      const computedValues = colonneX.map(student => {
+        const values = groupedValues[student] || [];
+        if (values.length === 0) return 0;
+  
+        switch (item.formule) {
+          case "somme":
+            return values.reduce((acc, val) => acc + val, 0);
+          case "moyenne":
+            return values.reduce((acc, val) => acc + val, 0) / values.length;
+          default:
+            console.warn(`Formule "${item.formule}" non reconnue pour la colonne ${trueColumnName}.`);
+            return 0;
+        }
+      });
+  
+      return { colonne: trueColumnName, formule: item.formule, valeurs: computedValues };
     });
-}
+  }
+  
 
 
 
 //graphique
-
-
-
   const defaultMetaDonnees = {
     sensEtiquette: "horizontal",
     positionEtiquette: "exterieure",
@@ -117,7 +104,7 @@ export function extractColumnValues(colonnes: any[], fichier: any): any[] {
   };
   
   function applyDefaultMetaDonnees(meta: any): any {
-    const safeMeta = meta ?? {}; // ← corrige le cas où meta est null
+    const safeMeta = meta ?? {}; 
   
     return {
       ...defaultMetaDonnees,

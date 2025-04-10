@@ -28,13 +28,14 @@ export class GraphService {
     // Extraction de colonneX (élèves uniques)
     const colonneXData = extractColumnValues(createGraphDto.colonneX, fichier);
     const colonneX = colonneXData.length > 0 ? colonneXData[0].tabColonne : [];
+    const colonneXColonneId = colonneXData[0].colonne ;
 
     if (!colonneX || colonneX.length === 0) {
         throw new HttpException("La colonne X est invalide ou introuvable.", 701);
     }
 
 
-    const colonneY = extractColumnValuesWithFormula(createGraphDto.colonneY, fichier, colonneX);
+    const colonneY = extractColumnValuesWithFormula(createGraphDto.colonneY, fichier, colonneX,colonneXColonneId);
 
     if (colonneY.some(col => col.valeurs.length === 0 || col.valeurs.every(val => val === 0))) {
         throw new HttpException("Les colonnes Y n'ont pas été bien calculées.", 702);
@@ -124,13 +125,14 @@ async update(id: string, updateGraphDto: UpdateGraphDto): Promise<Graph> {
 
   const fichier = source.fichier;
 
-  // Préparation de la mise à jour partielle
   const updatedFields: Partial<Graph> = {
     ...updateGraphDto,
     nomsourceDonnees: source.nomSource
   };
 
-  // Mise à jour conditionnelle de colonneX
+  let colonneXColonneId: string | undefined;
+
+  // 🔁 Mise à jour conditionnelle de colonneX
   if (updateGraphDto.colonneX) {
     const colonneXData = extractColumnValues(updateGraphDto.colonneX, fichier);
     const colonneX = colonneXData.length > 0 ? colonneXData[0].tabColonne : [];
@@ -140,12 +142,15 @@ async update(id: string, updateGraphDto: UpdateGraphDto): Promise<Graph> {
     }
 
     updatedFields.colonneX = colonneX;
+    colonneXColonneId = colonneXData[0].colonne;
   }
 
-  // Mise à jour conditionnelle de colonneY
+  // 🔁 Mise à jour conditionnelle de colonneY
   if (updateGraphDto.colonneY) {
-    const colonneX = updatedFields.colonneX || graph.colonneX; // pour cohérence
-    const colonneY = extractColumnValuesWithFormula(updateGraphDto.colonneY, fichier, colonneX);
+    const colonneX = updatedFields.colonneX || graph.colonneX;
+    const colonneIdUsed = colonneXColonneId || (graph.metaDonnees?.colonneXOriginale); // fallback si non modifiée
+
+    const colonneY = extractColumnValuesWithFormula(updateGraphDto.colonneY, fichier, colonneX, colonneIdUsed);
 
     if (colonneY.some(col => col.valeurs.length === 0 || col.valeurs.every(val => val === 0))) {
       throw new HttpException("Les colonnes Y n'ont pas été bien calculées.", 702);
@@ -154,7 +159,7 @@ async update(id: string, updateGraphDto: UpdateGraphDto): Promise<Graph> {
     updatedFields.colonneY = colonneY;
   }
 
-  // Fusion intelligente de metaDonnees
+  // 🔧 Fusion intelligente de metaDonnees
   const metaActuelle = graph.metaDonnees ?? {};
   const metaNouvelle = updateGraphDto.metaDonnees ?? {};
 
@@ -172,9 +177,9 @@ async update(id: string, updateGraphDto: UpdateGraphDto): Promise<Graph> {
   };
 
   Object.assign(graph, updatedFields);
-
   return await this.graphRepository.save(graph);
 }
+
 
 
 
