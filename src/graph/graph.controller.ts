@@ -13,7 +13,7 @@ export class GraphController {
     @Param('idsource') idsource:string
   
   ) {
-    return this.graphService.create(createGraphDto,idsource);
+    return this.graphService.create2(createGraphDto,idsource);
   }
 
   @Post("add2/:idsource")
