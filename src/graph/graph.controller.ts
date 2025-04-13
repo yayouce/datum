@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Param, Patch, Delete } from "@nestjs/common";
+import { Controller, Get, Post, Body, Param, Patch, Delete, NotFoundException, BadRequestException, ParseUUIDPipe } from "@nestjs/common";
 import { GraphService } from "./graph.service";
 import { CreateGraphDto } from "./dto/create-graph.dto";
 import { UpdateGraphDto } from "./dto/update-graph.dto";
@@ -15,6 +15,34 @@ export class GraphController {
   ) {
     return this.graphService.create(createGraphDto,idsource);
   }
+
+  @Post("add2/:idsource")
+  create2(
+    @Body() createGraphDto: CreateGraphDto,
+    @Param('idsource') idsource:string
+  
+  ) {
+    return this.graphService.create2(createGraphDto,idsource);
+  }
+
+
+  @Get(':id/map-data')
+  // async getMapData(@Param('id', ParseUUIDPipe) id: string) {
+  //   try {
+  //     // Appelle la nouvelle méthode dans le service
+  //     const geoJsonData = await this.graphService.getMapData(id);
+  //     return geoJsonData;
+  //   } catch (error) {
+  //       // Relancer les exceptions spécifiques pour que NestJS les gère
+  //       if (error instanceof NotFoundException || error instanceof BadRequestException) {
+  //           throw error;
+  //       }
+  //       // Loggez l'erreur interne imprévue
+  //       console.error(`Erreur inattendue lors de la récupération des données cartographiques pour le graphique ${id}:`, error);
+  //       // Renvoyer une erreur 500 générique
+  //       throw new BadRequestException('Impossible de générer les données cartographiques.'); // Ou InternalServerErrorException
+  //   }
+  // }
 
   @Get("all")
   findAll() {

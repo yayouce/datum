@@ -39,7 +39,7 @@ export function extractColumnValues(colonnes: any[], fichier: any): any[] {
       return [];
     }
   
-    const idColKey = colonneIdFromX.replace(/\d+/g, ''); // par exemple "B" si colonneIdFromX = "B1"
+    const idColKey = colonneIdFromX.replace(/\d+/g,''); // par exemple "B" si colonneIdFromX = "B1"
   
     return colonnes.map(item => {
       const feuille = fichier[item.nomFeuille];
@@ -84,7 +84,7 @@ export function extractColumnValues(colonnes: any[], fichier: any): any[] {
         }
       });
   
-      return { colonne: trueColumnName, formule: item.formule, valeurs: computedValues };
+      return { colonne: trueColumnName, formule: item.formule, valeurs: computedValues};
     });
   }
   
@@ -124,31 +124,60 @@ export function extractColumnValues(colonnes: any[], fichier: any): any[] {
   
 
 
-export function formatGraphResponse(graph: Graph): any {
+  export function formatGraphResponse(graph: Graph): any {
+    // --- Vérifications initiales (sources, fichier) ---
     if (!graph || !graph.sources || !graph.sources.fichier) {
-      console.error(`Pas de fichier pour le graph ${graph.idgraph}`);
-      return graph;
+      console.error(`Pas de fichier ou source pour le graph ${graph?.idgraph}. Formatage partiel.`);
+      // Retourner une structure de base si possible
+      return {
+          typeGraphique: graph?.typeGraphique,
+          titreGraphique: graph?.titreGraphique,
+          idgraph:graph?.idgraph,
+          titremetaDonnees:graph?.titremetaDonnees,
+          colonneX: graph?.colonneX,
+          colonneY: graph?.colonneY || [],
+          metaDonnees: graph?.metaDonnees // Retourne directement ce qui vient de la BDD
+      };
     }
-  
-    const feuille = graph.sources.fichier["Sheet1"];
-    const entetes = feuille.donnees[0];
-    const metaDonnees = applyDefaultMetaDonnees(graph.metaDonnees);
-  
+
+    const feuille = graph.sources.fichier["Sheet1"]; // Attention nom en dur
+     if (!feuille || !feuille.donnees || !Array.isArray(feuille.donnees) || feuille.donnees.length === 0) {
+         console.error(`Données invalides dans Sheet1 pour le graph ${graph.idgraph}. Formatage partiel.`);
+        return { /* ... structure partielle ... */ metaDonnees: graph.metaDonnees };
+     }
+    const entetes = feuille.donnees[0] || {};
+
+    // --- Récupérer les metaDonnees DIRECTEMENT depuis l'objet graph (BDD) ---
+    // PAS d'appel à applyDefaultMetaDonnees ici.
+    const metaDonneesFromDb = graph.metaDonnees || {}; // Utiliser {} comme fallback si null en BDD
+
+    // Couleurs de secours si jamais metaDonneesFromDb est vide ou mal formé
+    const fallbackGenericColors = ["#CCCCCC", "#AAAAAA", "#888888"];
+
     return {
       typeGraphique: graph.typeGraphique,
       titreGraphique: graph.titreGraphique,
       idgraph:graph.idgraph,
-      titremetaDonnees:graph.titremetaDonnees,
-      colonneX: graph.colonneX,
-      colonneY: graph.colonneY.map((col, index) => ({
-        colonne: entetes[col.colonne] || col.colonne,
-        formule: col.formule,
-        valeurs: (col as any).valeurs || [],
-        legende: col.formule + " " + col.colonne,
-        couleur: metaDonnees.couleurs.specifiques[index] || metaDonnees.couleurs.generiques[index % metaDonnees.couleurs.generiques.length]
-      })),
-      metaDonnees
+      titremetaDonnees: graph.titremetaDonnees, // Directement de la BDD
+      colonneX: graph.colonneX, // Directement de la BDD
+      colonneY: Array.isArray(graph.colonneY) ? graph.colonneY.map((col, index) => {
+          // Lire les couleurs depuis metaDonneesFromDb
+          const specificColor = metaDonneesFromDb?.couleurs?.specifiques?.[index];
+          const genericColors = metaDonneesFromDb?.couleurs?.generiques || fallbackGenericColors;
+          const genericColor = genericColors[index % genericColors.length];
+
+          return {
+            colonne: entetes[col.colonne] || col.colonne,
+            formule: col.formule,
+            valeurs: (col as any).valeurs || [],
+            legende: `${col.formule || ''} ${entetes[col.colonne] || col.colonne}`.trim(),
+            couleur: specificColor || genericColor // Priorité: Spécifique BDD > Générique BDD > Secours
+          };
+      }) : [],
+      // --- Retourner les metaDonnees TELLE QUELLES de la BDD ---
+      metaDonneesFromDb// ✨ IMPORTANT : Renvoie la valeur brute de graph.metaDonnees ✨
     };
+  
   }
   
 

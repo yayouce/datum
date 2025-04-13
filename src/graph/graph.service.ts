@@ -1,19 +1,196 @@
-import { HttpException, Injectable } from '@nestjs/common';
+import { HttpException, HttpStatus, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { CreateGraphDto } from './dto/create-graph.dto';
 import { UpdateGraphDto } from './dto/update-graph.dto';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Graph } from './entities/graph.entity';
+import { Graph, TypeGeometrieMap } from './entities/graph.entity';
 import { Repository } from 'typeorm';
 import { SourceDonneesService } from 'src/source_donnees/source_donnees.service';
 import { extractColumnValues, extractColumnValuesWithFormula, formatGraphResponse } from 'src/utils/Fonctions_utils';
+import { typegraphiqueEnum } from '@/generique/typegraphique.enum';
 
 @Injectable()
 export class GraphService {
+  private readonly logger = new Logger(GraphService.name);
   constructor(
     @InjectRepository(Graph)
     private graphRepository: Repository<Graph>,
     private sourceDonneesservice: SourceDonneesService
   ) {}
+
+
+// --- Fonction Helper pour déterminer si c'est un type de graphique géo ---
+private isGeospatialType(graphType: typegraphiqueEnum): boolean {
+  const geospatialTypes = [
+      typegraphiqueEnum.CARTE_POINTS,
+      typegraphiqueEnum.CARTE_POLYGONE,
+      typegraphiqueEnum.CARTE_LIGNE,
+      typegraphiqueEnum.CARTE_CHOROPLETHE,
+      // typegraphiqueEnum.CARTE_DE_CHALEUR, // Si ajouté
+  ];
+  return geospatialTypes.includes(graphType);
+}
+
+
+// --- Méthode CREATE modifiée ---
+async create2(createGraphDto: CreateGraphDto, idsource: string): Promise<any> { // Retourne la réponse formatée
+  const source = await this.sourceDonneesservice.getSourceById(idsource);
+  if (!source) {
+    throw new NotFoundException(`Source de données avec ID "${idsource}" introuvable.`);
+  }
+
+  const processedData = source.bd_normales; // Adaptez si nécessaire
+  if (!processedData || typeof processedData !== 'object') {
+    throw new HttpException("Données traitées (bd_normales) introuvables ou invalides dans la source.", HttpStatus.INTERNAL_SERVER_ERROR);
+  }
+
+  let graphDataToSave: Partial<Graph>;
+  let finalMetaDonnees: any = null; // Initialisation (restera null pour Géo par défaut)
+
+  // ========== GRAPHIQUE GEOSPATIAL ==========
+  if (this.isGeospatialType(createGraphDto.typeGraphique)) {
+    const configGeo = createGraphDto.configGeographique;
+    // --- Validation pour Géo ---
+    if (!configGeo || !configGeo.typeGeometrie || !configGeo.nomGroupeDonnees) {
+      throw new HttpException("Configuration géographique (configGeographique) incomplète ou manquante.", HttpStatus.BAD_REQUEST);
+    }
+    if (!processedData[configGeo.nomGroupeDonnees]) {
+       throw new HttpException(`Le groupe de données '${configGeo.nomGroupeDonnees}' spécifié n'existe pas dans la source.`, HttpStatus.BAD_REQUEST);
+    }
+    // ... (autres validations géo: POINT, POLYGONE, LIGNE) ...
+    if (createGraphDto.colonnesEtiquettes) {
+       for (const etiquette of createGraphDto.colonnesEtiquettes) {
+           if (!etiquette.headerText || !etiquette.libelleAffichage) {
+               throw new HttpException("Chaque colonne d'étiquette doit avoir 'headerText' et 'libelleAffichage'.", HttpStatus.BAD_REQUEST);
+           }
+       }
+    }
+
+    // Les metaDonnees ne sont pas fournies via DTO à la création.
+    // Si les graphiques Géo ont des metaDonnees par défaut spécifiques, définissez-les ici.
+    // Exemple: finalMetaDonnees = { mapStyle: 'default', zoomLevel: 5 };
+    // Sinon, elles restent null.
+
+    // --- Préparation des données Géo ---
+    graphDataToSave = {
+      typeGraphique: createGraphDto.typeGraphique,
+      titreGraphique: createGraphDto.titreGraphique,
+      configGeographique: createGraphDto.configGeographique, // Fourni par DTO
+      colonnesEtiquettes: createGraphDto.colonnesEtiquettes, // Fourni par DTO
+      nomsourceDonnees: source.nomSource,
+      sources: source,
+      sourcesIdsourceDonnes: source.idsourceDonnes, // Assurez-vous que ce nom de propriété est correct
+      colonneX: null,
+      colonneY: null,
+      metaDonnees: finalMetaDonnees, // Reste null ou défaut Géo
+      titremetaDonnees: null, // Toujours null à la création
+    };
+  }
+
+  // ========== GRAPHIQUE CLASSIQUE ==========
+  else {
+    // --- Validation pour Classique ---
+    if (!createGraphDto.colonneX || !Array.isArray(createGraphDto.colonneX) || createGraphDto.colonneX.length === 0) {
+      throw new HttpException("La définition pour colonneX est requise.", HttpStatus.BAD_REQUEST);
+    }
+    if (!createGraphDto.colonneY || !Array.isArray(createGraphDto.colonneY) || createGraphDto.colonneY.length === 0) {
+       throw new HttpException("La définition pour colonneY est requise.", HttpStatus.BAD_REQUEST);
+    }
+
+    // --- Extraction des données (votre logique actuelle) ---
+    const colonneXData = extractColumnValues(createGraphDto.colonneX, processedData);
+    const extractedXValues = colonneXData.length > 0 ? colonneXData[0].tabColonne : [];
+    const colonneXColonneId = colonneXData.length > 0 ? colonneXData[0].colonne : null;
+
+    if (!extractedXValues.length) {
+      throw new HttpException("La colonne X définie est invalide ou n'a pas retourné de valeurs.", HttpStatus.BAD_REQUEST);
+    }
+
+    const extractedYValues = extractColumnValuesWithFormula(
+      createGraphDto.colonneY,
+      processedData,
+      extractedXValues,
+      colonneXColonneId
+    );
+
+    if (extractedYValues.some(col => !col.valeurs || col.valeurs.length === 0)) {
+       throw new HttpException("Erreur lors du calcul ou de l'extraction des valeurs pour les colonnes Y.", HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+
+    // --- Génération des MetaDonnées par défaut (directement) ---
+    const defaultGenericColors = ["#F44336", "#3F51B5", "#4CAF50", "#FF9800", "#9C27B0", "#00BCD4", "#FFC107", "#795548"];
+    const generatedSpecificColors = extractedYValues.map((_, index) =>
+        defaultGenericColors[index % defaultGenericColors.length]
+    );
+
+    // Assignation directe des valeurs par défaut générées
+    finalMetaDonnees = {
+        sensEtiquette: "horizontal",
+        positionEtiquette: "exterieure",
+        positionLegende: "bas",
+        axesSpecifies: { x: true, y: true },
+        couleurs: {
+          generiques: defaultGenericColors,
+          specifiques: generatedSpecificColors // Couleurs spécifiques générées ici
+        },
+        colonneXOriginale: colonneXColonneId // Utile si vous stockez les données extraites
+    };
+
+     // --- Préparation des données Classiques ---
+    graphDataToSave = {
+      typeGraphique: createGraphDto.typeGraphique,
+      titreGraphique: createGraphDto.titreGraphique,
+      // Stockez soit les données extraites (votre approche actuelle), soit la définition (createGraphDto.colonneX/Y)
+      colonneX: extractedXValues,
+      colonneY: extractedYValues,
+      nomsourceDonnees: source.nomSource,
+      sources: source,
+      sourcesIdsourceDonnes: source.idsourceDonnes, // Vérifiez ce nom
+      configGeographique: null,
+      colonnesEtiquettes: null,
+      metaDonnees: finalMetaDonnees, // ✨ METADONNEES GÉNÉRÉES PAR DÉFAUT ✨
+      titremetaDonnees: null,       // ✨ TOUJOURS NULL À LA CRÉATION ✨
+    };
+  }
+  // --- Sauvegarde ---
+  const newGraph = this.graphRepository.create(graphDataToSave);
+  console.log('--- AVANT SAVE ---');
+console.log('Type de newGraph.metaDonnees:', typeof newGraph.metaDonnees);
+console.log('Valeur de newGraph.metaDonnees:', JSON.stringify(newGraph.metaDonnees, null, 2)); // Affiche le JSON formaté
+
+  try {
+    const savedGraph = await this.graphRepository.save(newGraph);
+
+    // --- Formatage de la réponse ---
+    // Recharger avec la relation 'sources' est crucial si formatGraphResponse a besoin de sources.fichier
+    const graphToFormat = await this.graphRepository.findOne({
+        where: { idgraph: savedGraph.idgraph },
+        relations: ['sources'], // Assurez-vous que 'sources' est le nom correct de la relation
+    });
+
+    if (!graphToFormat) {
+         throw new NotFoundException("Graphique créé mais non retrouvé pour le formatage.");
+    }
+    // Vérification essentielle avant d'appeler le formateur
+    if (!graphToFormat.sources || !graphToFormat.sources.fichier) {
+          console.error(`Données de fichier manquantes pour le graphique ${graphToFormat.idgraph} lors du formatage (création).`);
+          throw new HttpException("Données de fichier source manquantes pour formater la réponse.", HttpStatus.INTERNAL_SERVER_ERROR);
+     }
+
+     return formatGraphResponse(graphToFormat); // Appel de votre formateur
+
+  } catch (error) {
+    console.error("Erreur lors de la sauvegarde ou formatage du graphique:", error);
+    throw new HttpException('Erreur interne du serveur lors de la création du graphique.', HttpStatus.INTERNAL_SERVER_ERROR);
+  }
+}
+
+
+// ... autres méthodes du service ...
+
+
+
+
+
 
 
 
@@ -116,69 +293,99 @@ async findByNameAndProject(name: string, projectId: string): Promise<any[]> {
 
 
 
-async update(id: string, updateGraphDto: UpdateGraphDto): Promise<Graph> {
+async update(id: string, updateGraphDto: UpdateGraphDto): Promise<any> {
+  this.logger.log(`Tentative de mise à jour (index 1-based) du graphique ID: ${id}`);
+  this.logger.debug(`DTO d'update reçu: ${JSON.stringify(updateGraphDto)}`);
+
   const graph = await this.findOne(id);
-  if (!graph) throw new HttpException(`Graphique avec l'ID ${id} introuvable.`, 705);
 
-  const source = await this.sourceDonneesservice.getSourceById(graph.sourcesIdsourceDonnes);
-  if (!source) throw new HttpException("Source de données introuvable.", 700);
+  // --- Mise à jour champs simples ---
+  // ... (titreGraphique, titremetaDonnees, nomsourceDonnees) ...
 
-  const fichier = source.fichier;
-
-  const updatedFields: Partial<Graph> = {
-    ...updateGraphDto,
-    nomsourceDonnees: source.nomSource
-  };
-
-  let colonneXColonneId: string | undefined;
-
-  // 🔁 Mise à jour conditionnelle de colonneX
-  if (updateGraphDto.colonneX) {
-    const colonneXData = extractColumnValues(updateGraphDto.colonneX, fichier);
-    const colonneX = colonneXData.length > 0 ? colonneXData[0].tabColonne : [];
-
-    if (!colonneX || colonneX.length === 0) {
-      throw new HttpException("La colonne X est invalide ou introuvable.", 701);
-    }
-
-    updatedFields.colonneX = colonneX;
-    colonneXColonneId = colonneXData[0].colonne;
+  // --- 1. MAJ globales metaDonnees ---
+  let metaNeedsSave = false;
+  if (updateGraphDto.metaDonnees !== undefined) {
+     // ... (logique de fusion globale comme avant) ...
+     metaNeedsSave = true;
+      if (updateGraphDto.metaDonnees === null) { graph.metaDonnees = null; } else { /*... fusion ...*/ }
   }
 
-  // 🔁 Mise à jour conditionnelle de colonneY
-  if (updateGraphDto.colonneY) {
-    const colonneX = updatedFields.colonneX || graph.colonneX;
-    const colonneIdUsed = colonneXColonneId || (graph.metaDonnees?.colonneXOriginale); // fallback si non modifiée
+  // --- 2. MAJ ciblées couleurY (par INDEX BASÉ SUR 1) ---
+  if (updateGraphDto.couleurY && Array.isArray(updateGraphDto.couleurY)) {
+       this.logger.log(`Application MAJ ciblées (couleurY index 1-based) pour ${id}`);
+       metaNeedsSave = true;
 
-    const colonneY = extractColumnValuesWithFormula(updateGraphDto.colonneY, fichier, colonneX, colonneIdUsed);
+       // Vérifier et préparer graph.colonneY et specifiques
+       if (!graph.colonneY || !Array.isArray(graph.colonneY)) {
+            throw new HttpException("Données colonneY manquantes pour la mise à jour ciblée.", HttpStatus.INTERNAL_SERVER_ERROR);
+       }
+       const currentColonneY = graph.colonneY;
+       const nbY = currentColonneY.length;
 
-    if (colonneY.some(col => col.valeurs.length === 0 || col.valeurs.every(val => val === 0))) {
-      throw new HttpException("Les colonnes Y n'ont pas été bien calculées.", 702);
-    }
+       // Préparer specifiques comme avant (initialiser, synchroniser taille)
+       if (!graph.metaDonnees) graph.metaDonnees = {};
+       if (!graph.metaDonnees.couleurs) graph.metaDonnees.couleurs = {};
+       // ... (logique d'initialisation/synchronisation de specifiques) ...
+        if (!graph.metaDonnees.couleurs.specifiques || !Array.isArray(graph.metaDonnees.couleurs.specifiques)) { graph.metaDonnees.couleurs.specifiques = new Array(nbY).fill(null); }
+        while (graph.metaDonnees.couleurs.specifiques.length < nbY) { graph.metaDonnees.couleurs.specifiques.push(null); }
+        if (graph.metaDonnees.couleurs.specifiques.length > nbY) { graph.metaDonnees.couleurs.specifiques = graph.metaDonnees.couleurs.specifiques.slice(0, nbY); }
+       const specifiques = graph.metaDonnees.couleurs.specifiques;
 
-    updatedFields.colonneY = colonneY;
+
+       for (const updateItem of updateGraphDto.couleurY) {
+           const clientIndex = updateItem.indexY; // Index fourni par le client (1, 2, ...)
+           const providedName = updateItem.colonneName;
+           const newCouleur = updateItem.couleur;
+
+           // ✨ Conversion vers index interne (0-based) ✨
+           const internalIndex = clientIndex - 1;
+
+           // Validation de l'index INTERNE
+           if (internalIndex >= 0 && internalIndex < nbY) {
+               // L'index interne est valide
+               const actualColonneNameAtIndex = currentColonneY[internalIndex]?.colonne;
+
+               // Validation optionnelle du nom
+               if (actualColonneNameAtIndex === providedName) {
+                   // Nom cohérent
+                   if (newCouleur !== undefined) {
+                      //  this.logger.debug(`MAJ Couleur Y[Client Idx:${clientIndex}/Internal Idx:${internalIndex}] (Nom:"${providedName}") à ${newCouleur} pour ${id}`);
+                       specifiques[internalIndex] = newCouleur; // Utilise l'index interne
+                   }
+                   // if (newLegende !== undefined) { ... }
+                } 
+                //else {
+              //      this.logger.warn(`Incohérence pour ${id}: L'index client ${clientIndex} (interne ${internalIndex}) contient "${actualColonneNameAtIndex}", mais le nom "${providedName}" a été fourni. MAJ ignorée.`);
+              //  }
+           } 
+          // //else {
+          //      // Index invalide
+          //      this.logger.warn(`Index client ${clientIndex} (interne ${internalIndex}) invalide pour couleurY sur ${id}. Ignoré. (Nb Séries Y: ${nbY})`);
+          //  }
+       }
+       graph.metaDonnees.couleurs.specifiques = specifiques; // Réassigne
   }
 
-  // 🔧 Fusion intelligente de metaDonnees
-  const metaActuelle = graph.metaDonnees ?? {};
-  const metaNouvelle = updateGraphDto.metaDonnees ?? {};
+  // --- Sauvegarde ---
+  try {
+      this.logger.log(`Sauvegarde finale pour ${id}`);
+      const savedGraph = await this.graphRepository.save(graph);
+      this.logger.log(`Graphique ${id} sauvegardé.`);
 
-  updatedFields.metaDonnees = {
-    ...metaActuelle,
-    ...metaNouvelle,
-    axesSpecifies: {
-      ...metaActuelle.axesSpecifies,
-      ...(metaNouvelle.axesSpecifies || {})
-    },
-    couleurs: {
-      ...metaActuelle.couleurs,
-      ...metaNouvelle.couleurs
-    }
-  };
+      // --- Rechargement et Formatage ---
+      this.logger.log(`Rechargement du graphique ${id} après sauvegarde pour formatage.`);
+      const reloadedGraph = await this.findOne(id);
 
-  Object.assign(graph, updatedFields);
-  return await this.graphRepository.save(graph);
+      if (!reloadedGraph.sources?.fichier) { this.logger.warn(`Fichier manquant sur ${id} rechargé.`); }
+      return formatGraphResponse(reloadedGraph);
+
+  } catch (error) {
+      this.logger.error(`Erreur sauvegarde/rechargement (update) ${id}: ${error.message}`, error.stack);
+      throw new HttpException('Erreur interne serveur (update).', HttpStatus.INTERNAL_SERVER_ERROR);
+  }
 }
+
+
 
 
 

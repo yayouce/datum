@@ -490,7 +490,7 @@ async updateSourceDonnees(
         } else if (formatFichier === 'json') {
           fichier = this.processJsonFile(filePath);
         } else {
-          console.warn(`❌ Format non supporté pour la source ${source.source}`);
+          console.log(` Format non supporté pour la source ${source.source}`);
           continue;
         }
   
@@ -498,7 +498,7 @@ async updateSourceDonnees(
   
         const format = await this.formatservice.getoneByLibelle(formatFichier);
         if (!format) {
-          console.warn(`❌ Format introuvable en base : ${formatFichier}`);
+          console.log(`Format introuvable en base : ${formatFichier}`);
           continue;
         }
   
@@ -508,13 +508,13 @@ async updateSourceDonnees(
         source.libelleformat = format.libelleFormat;
   
         await this.sourcededonneesrepo.save(source);
-        console.log(`✅ Mise à jour automatique : ${source.nomSource}`);
+        console.log(` Mise à jour automatique : ${source.nomSource}`);
       } catch (error) {
-        console.warn(`⚠️ Erreur sur ${source.source} : ${error.message}`);
+        console.log(`Erreur sur ${source.source} : ${error.message}`);
       }
     }
   
-    console.log('🔁 Rafraîchissement automatique terminé.');
+    console.log('Rafraîchissement automatique terminé.');
   }
   
   

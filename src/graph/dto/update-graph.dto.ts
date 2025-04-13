@@ -1,67 +1,37 @@
-import { PartialType } from '@nestjs/swagger';
-import { CreateGraphDto } from './create-graph.dto';
-
-import { IsEnum, IsString, IsArray, IsOptional, ValidateNested, IsNotEmpty, IsObject } from "class-validator";
-import { typegraphiqueEnum } from "src/generique/typegraphique.enum";
+// src/graph/dto/update-graph.dto.ts
+import { PartialType } from '@nestjs/mapped-types'; // Ou @nestjs/swagger si vous préférez
+import { CreateGraphDto } from './create-graph.dto'; // Importe le DTO de base
+import { IsOptional, ValidateNested, IsObject, IsArray } from "class-validator";
 import { Type } from 'class-transformer';
-import { SourceDonnee } from 'src/source_donnees/entities/source_donnee.entity';
 
-class ColonneY {
-  @IsNotEmpty()
-  @IsString()
-  colonne: string;
-
-  @IsOptional()
-  @IsString()
-  formule: string;
-
-  @IsOptional()
-  @IsString()
-  nomFeuille: string | null;
-}
-
-class ColonneX {
-  @IsNotEmpty()
-  @IsString()
-  colonne: string;
-
-  @IsOptional()
-  @IsString()
-  nomFeuille: string | null;
-}
-
-
+// Importe les DTOs communs et celui spécifique à l'update
+import { MetaDonneesDto, TitreMetaDonneesDto, YSerieAppearanceUpdateDto } from './common-graph.dto';
 
 export class UpdateGraphDto extends PartialType(CreateGraphDto) {
-  @IsOptional()
-  @IsEnum(typegraphiqueEnum)
-  typeGraphique?: typegraphiqueEnum;
+  // Les champs de CreateGraphDto (typeGraphique, titreGraphique, colonneX, colonneY, etc.)
+  // sont hérités et rendus optionnels par PartialType.
+  // PAS BESOIN de les redéclarer sauf si on change les validateurs.
 
-  @IsOptional()
-  @IsString()
-  titreGraphique?: string;
+  // --- Champs spécifiques ou dont on veut forcer le type/validation ---
 
+  // Assurer la validation correcte pour metaDonnees (remplace le 'any' implicite)
+  @IsOptional()
+  @ValidateNested() // Valide l'objet interne selon MetaDonneesDto
+  @Type(() => MetaDonneesDto) // Nécessaire pour class-transformer
+  metaDonnees?: MetaDonneesDto | null; // Permet de mettre à jour ou supprimer
+
+  // Assurer la validation correcte pour titremetaDonnees
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => TitreMetaDonneesDto)
+  titremetaDonnees?: TitreMetaDonneesDto | null; // Permet de mettre à jour ou supprimer
+
+  // --- Nouveau champ pour les mises à jour ciblées par nom ---
   @IsOptional()
   @IsArray()
-  @ValidateNested({each:true})
-  @Type(()=>ColonneX)
-  colonneX?: ColonneX[];
+  @ValidateNested({ each: true }) // Valide chaque item du tableau
+  @Type(() => YSerieAppearanceUpdateDto) // Utilise le DTO par nom de colonne
+  couleurY?: YSerieAppearanceUpdateDto[];
 
-  @IsOptional()
-  @IsArray()
-  @ValidateNested({ each: true })
-  @Type(() => ColonneY)
-  colonneY?: ColonneY[];
-
-  @Type(() => SourceDonnee)
-  @IsOptional()
-  source_donnees?: any;
-
-  @IsOptional()
-  @IsObject()
-  metaDonnees:any
-
-  @IsOptional()
-  @IsObject()
-  titremetaDonnees:any
+  // Le champ 'source_donnees' a été supprimé car non pertinent/dangereux ici.
 }
