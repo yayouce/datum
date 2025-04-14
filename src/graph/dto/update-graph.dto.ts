@@ -1,37 +1,52 @@
-// src/graph/dto/update-graph.dto.ts
-import { PartialType } from '@nestjs/mapped-types'; // Ou @nestjs/swagger si vous préférez
-import { CreateGraphDto } from './create-graph.dto'; // Importe le DTO de base
-import { IsOptional, ValidateNested, IsObject, IsArray } from "class-validator";
+// src/graph/dto/update-graph.dto.ts (Version finale et correcte)
+import { PartialType } from '@nestjs/mapped-types';
+import { CreateGraphDto } from './create-graph.dto'; // Hérite de la version MISE À JOUR
+import { IsOptional, ValidateNested, IsArray, IsObject } from "class-validator";
 import { Type } from 'class-transformer';
 
-// Importe les DTOs communs et celui spécifique à l'update
-import { MetaDonneesDto, TitreMetaDonneesDto, YSerieAppearanceUpdateDto } from './common-graph.dto';
+// Importe TOUS les DTOs communs nécessaires
+import {
+    ConfigGeographiqueDto,          // Le DTO de base pour la config géo
+    ColonneEtiquetteConfigDto,      // Le DTO de base pour les étiquettes
+    MetaDonneesDto,
+    TitreMetaDonneesDto,
+    YSerieAppearanceUpdateDto
+} from './common-graph.dto';
 
 export class UpdateGraphDto extends PartialType(CreateGraphDto) {
-  // Les champs de CreateGraphDto (typeGraphique, titreGraphique, colonneX, colonneY, etc.)
-  // sont hérités et rendus optionnels par PartialType.
-  // PAS BESOIN de les redéclarer sauf si on change les validateurs.
+  // typeGraphique?, titreGraphique?, colonneX?, colonneY? sont hérités et optionnels.
 
-  // --- Champs spécifiques ou dont on veut forcer le type/validation ---
-
-  // Assurer la validation correcte pour metaDonnees (remplace le 'any' implicite)
+  // configGeographique est hérité comme Partial<ConfigGeographiqueDto> | undefined.
+  // On le redéclare JUSTE pour ajouter la possibilité d'envoyer 'null' pour le supprimer.
+  // On utilise le même @Type que dans CreateGraphDto.
   @IsOptional()
-  @ValidateNested() // Valide l'objet interne selon MetaDonneesDto
-  @Type(() => MetaDonneesDto) // Nécessaire pour class-transformer
-  metaDonnees?: MetaDonneesDto | null; // Permet de mettre à jour ou supprimer
+  @ValidateNested()
+  @Type(() => ConfigGeographiqueDto) // <<< Pointe vers le DTO commun de base
+  @IsObject()
+  configGeographique?: ConfigGeographiqueDto | null; // Le type est compatible avec ce que PartialType génère
 
-  // Assurer la validation correcte pour titremetaDonnees
+  // Idem pour colonnesEtiquettes
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => ColonneEtiquetteConfigDto) // <<< Pointe vers le DTO commun de base
+  colonnesEtiquettes?: ColonneEtiquetteConfigDto[] | null;
+
+  // Idem pour metaDonnees et titremetaDonnees (pour permettre null)
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => MetaDonneesDto)
+  metaDonnees?: MetaDonneesDto | null;
+
   @IsOptional()
   @ValidateNested()
   @Type(() => TitreMetaDonneesDto)
-  titremetaDonnees?: TitreMetaDonneesDto | null; // Permet de mettre à jour ou supprimer
+  titremetaDonnees?: TitreMetaDonneesDto | null;
 
-  // --- Nouveau champ pour les mises à jour ciblées par nom ---
+  // Le champ spécifique à l'update
   @IsOptional()
   @IsArray()
-  @ValidateNested({ each: true }) // Valide chaque item du tableau
-  @Type(() => YSerieAppearanceUpdateDto) // Utilise le DTO par nom de colonne
+  @ValidateNested({ each: true })
+  @Type(() => YSerieAppearanceUpdateDto)
   couleurY?: YSerieAppearanceUpdateDto[];
-
-  // Le champ 'source_donnees' a été supprimé car non pertinent/dangereux ici.
 }

@@ -1,7 +1,9 @@
-import { Controller, Get, Post, Body, Param, Patch, Delete, NotFoundException, BadRequestException, ParseUUIDPipe } from "@nestjs/common";
+import { Controller, Get, Post, Body, Param, Patch, Delete, NotFoundException, BadRequestException, ParseUUIDPipe, HttpException, InternalServerErrorException } from "@nestjs/common";
 import { GraphService } from "./graph.service";
 import { CreateGraphDto } from "./dto/create-graph.dto";
 import { UpdateGraphDto } from "./dto/update-graph.dto";
+import { FeatureCollection, FeatureCollection as GeoJsonFeatureCollection } from 'geojson';
+
 
 @Controller("graph")
 export class GraphController {
@@ -26,23 +28,6 @@ export class GraphController {
   }
 
 
-  @Get(':id/map-data')
-  // async getMapData(@Param('id', ParseUUIDPipe) id: string) {
-  //   try {
-  //     // Appelle la nouvelle méthode dans le service
-  //     const geoJsonData = await this.graphService.getMapData(id);
-  //     return geoJsonData;
-  //   } catch (error) {
-  //       // Relancer les exceptions spécifiques pour que NestJS les gère
-  //       if (error instanceof NotFoundException || error instanceof BadRequestException) {
-  //           throw error;
-  //       }
-  //       // Loggez l'erreur interne imprévue
-  //       console.error(`Erreur inattendue lors de la récupération des données cartographiques pour le graphique ${id}:`, error);
-  //       // Renvoyer une erreur 500 générique
-  //       throw new BadRequestException('Impossible de générer les données cartographiques.'); // Ou InternalServerErrorException
-  //   }
-  // }
 
   @Get("all")
   findAll() {
@@ -54,7 +39,7 @@ export class GraphController {
     return this.graphService.findOne(id);
   }
 
-  @Patch("update/:id")
+  @Post("update/:id")
   update(@Param("id") id: string, @Body() updateGraphDto: UpdateGraphDto) {
     return this.graphService.update(id, updateGraphDto);
   }
@@ -84,5 +69,37 @@ async getGraphByNameAndProject(@Param('name') name: string, @Param('projectId') 
   async getTotalGraphs(@Param('idprojet') idprojet: string) {
     return { totalGraphs: await this.graphService.getTotalGraphsByProject(idprojet) };
   }
+
+
+  @Get('/data/geojson/:idgraphique') // Votre route spécifique
+    async getgeojson(
+        // Assurez-vous que le nom du paramètre ici ('idgraphique') correspond à celui dans la route
+        @Param('idgraphique', ParseUUIDPipe) idgraphique: string
+    ): Promise<FeatureCollection> {
+        // this.logger.log(`Contrôleur : Requête GET pour /graphs/data/geojson/${idgraphique}`);
+
+        try {
+            // --- APPEL UNIQUE AU SERVICE QUI FAIT TOUT ---
+            const geoJsonData = await this.graphService.generateGeoJsonForGraph(idgraphique);
+            // Si tout va bien, retourne les données
+            return geoJsonData;
+
+        } catch (error) {
+            // Log l'erreur telle qu'elle arrive au contrôleur
+            // this.logger.error(`Erreur interceptée dans le contrôleur pour graph ${idgraphique}: ${error.message}`, error.stack);
+
+            // Si l'erreur est déjà une HttpException (levée par GraphService),
+            // la relancer telle quelle pour que NestJS envoie la bonne réponse HTTP (404, 400, etc.)
+            if (error instanceof HttpException) {
+                throw error;
+            }
+
+            // Pour toute autre erreur inattendue (ex: erreur DB non gérée dans le service)
+            // envoyer une réponse 500 générique.
+            throw new InternalServerErrorException(`Une erreur serveur inattendue est survenue lors de la récupération des données pour le graphique ${idgraphique}.`);
+        }
+    }
+
+  
 
 }

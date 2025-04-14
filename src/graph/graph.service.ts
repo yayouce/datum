@@ -1,4 +1,4 @@
-import { HttpException, HttpStatus, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { HttpException, HttpStatus, Injectable, InternalServerErrorException, Logger, NotFoundException } from '@nestjs/common';
 import { CreateGraphDto } from './dto/create-graph.dto';
 import { UpdateGraphDto } from './dto/update-graph.dto';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -7,6 +7,8 @@ import { Repository } from 'typeorm';
 import { SourceDonneesService } from 'src/source_donnees/source_donnees.service';
 import { extractColumnValues, extractColumnValuesWithFormula, formatGraphResponse } from 'src/utils/Fonctions_utils';
 import { typegraphiqueEnum } from '@/generique/typegraphique.enum';
+import { GeoService } from './geospatiale.service';
+import { FeatureCollection, FeatureCollection as GeoJsonFeatureCollection } from 'geojson';
 
 @Injectable()
 export class GraphService {
@@ -14,7 +16,8 @@ export class GraphService {
   constructor(
     @InjectRepository(Graph)
     private graphRepository: Repository<Graph>,
-    private sourceDonneesservice: SourceDonneesService
+    private sourceDonneesservice: SourceDonneesService,
+    private readonly geoService: GeoService,
   ) {}
 
 
@@ -387,10 +390,6 @@ async update(id: string, updateGraphDto: UpdateGraphDto): Promise<any> {
 
 
 
-
-
-
-
   async softDelete(id: string): Promise<void> {
     const graph = await this.findOne(id);
     await this.graphRepository.softRemove(graph);
@@ -426,8 +425,84 @@ async update(id: string, updateGraphDto: UpdateGraphDto): Promise<any> {
 }
 
 
+async findOneById(id: string): Promise<Graph | null> {
+  return this.graphRepository.findOne({ where: { idgraph: id } });}
 
 
+async generateGeoJsonForGraph(graphId: string): Promise<FeatureCollection> { // <-- Le type FeatureCollection vient de l'import 'geojson'
+    this.logger.log(`Début génération GeoJSON orchestrée pour graph ID: ${graphId}`);
+
+    // Étape 1: Récupérer config Graphique
+    const graph = await this.findOneById(graphId);
+    if (!graph) {
+        throw new NotFoundException(`Graphique avec l'ID ${graphId} introuvable.`);
+    }
+
+    // Étape 2: Valider type
+    // Remplissez les types géo réels de votre enum ici
+    const geoGraphTypes = [ typegraphiqueEnum.CARTE_POLYGONE /*, typegraphiqueEnum.CARTE_POINTS, ... */ ];
+    if (!geoGraphTypes.includes(graph.typeGraphique)) {
+         // Utilisons BadRequestException pour une requête sémantiquement incorrecte
+        throw new HttpException(`Graphique ${graphId} (type: ${graph.typeGraphique}) n'est pas un type cartographique valide pour cette opération.`,802);
+        // Ou gardez votre HttpException si le code 802 a une signification spécifique
+        // throw new HttpException(`Graphique ${graphId} (type: ${graph.typeGraphique}) n'est pas cartographique.`, 802);
+    }
+
+    // Étape 3: Valider config géo
+    if (!graph.configGeographique || !graph.configGeographique.typeGeometrie || !graph.configGeographique.nomGroupeDonnees) {
+         // Idem, BadRequestException est standard pour une configuration manquante/invalide
+         throw new HttpException(`Configuration géographique manquante ou incomplète pour le graphique ${graphId}.`,800);
+        // Ou gardez votre HttpException si le code 800 a une signification spécifique
+        // throw new HttpException(`Configuration géographique manquante/incomplète pour graph ${graphId}.`, 800);
+    }
+
+    // Étape 4: Obtenir ID Source
+    const sourceDonneeId = graph.sourcesIdsourceDonnes;
+    if (!sourceDonneeId) {
+        throw new NotFoundException(`Aucun ID de source de données associé au graphique ${graphId}.`); // Logique : sans ID, la ressource data est introuvable
+    }
+
+    // Étape 5: Récupérer entité Source
+    const sourceDonnee = await this.sourceDonneesservice.findOneById(sourceDonneeId);
+    if (!sourceDonnee) {
+        throw new NotFoundException(`Source de données (ID: ${sourceDonneeId}) associée au graphique ${graphId} introuvable.`);
+    }
+
+    // Étape 6: Accéder et valider données brutes
+    const rawData: any = sourceDonnee.bd_normales; // Ajustez si nécessaire
+    const nomGroupe = graph.configGeographique.nomGroupeDonnees;
+    if (!rawData || typeof rawData !== 'object' || !rawData[nomGroupe]) {
+        // Les données spécifiques sont introuvables DANS la source trouvée -> 404
+        throw new NotFoundException(`Données brutes requises (groupe '${nomGroupe}') manquantes ou invalides dans la source ID ${sourceDonneeId}.`);
+    }
+
+    // Étape 7: Appeler GeoService
+    this.logger.log(`Appel de GeoService pour graph ID: ${graphId}`);
+    try {
+        // geoService.createGeoJsonData retourne un FeatureCollection de 'geojson'
+        const geoJsonResult: FeatureCollection = this.geoService.createGeoJsonData(
+            rawData,
+            graph.configGeographique,
+            graph.colonnesEtiquettes || [],
+            graph.idgraph
+        );
+        this.logger.log(`GeoJSON généré par GeoService pour graph ${graphId}. Features: ${geoJsonResult.features.length}`);
+        // Le type retourné correspond maintenant au type déclaré dans la signature de la fonction
+        return geoJsonResult;
+
+    } catch (error) {
+        this.logger.error(`Erreur dans GeoService lors de la génération pour graph ${graphId}`, error.stack);
+        if (error instanceof HttpException) {
+            // Relance les erreurs HTTP déjà formatées (potentiellement de GeoService)
+            throw error;
+        }
+        // Pour les erreurs inattendues de GeoService, utilisez InternalServerErrorException
+         throw new InternalServerErrorException(`Erreur interne lors de la transformation des données pour le graphique ${graphId}.`);
+        // Ou gardez votre HttpException si 802 est nécessaire
+        // throw new HttpException(`Erreur interne lors de la transformation pour graph ${graphId}.`, 802);
+    }
+} // --- Fin de generateGeoJsonForGraph ---
+// ... potentiellement d'autres méthodes dans GraphService (create, update, etc.)
 
 
 

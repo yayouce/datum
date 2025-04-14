@@ -55,7 +55,11 @@ export class SourceDonneesService implements OnModuleInit {
     console.log('🚀 [INIT] SourceDonneesService initialisé. Lancement de la première synchronisation...');
     this.refreshSourcesAuto();
   }
-
+  async findOneById(id: string): Promise<SourceDonnee | null> {
+    // Implémentation avec votre ORM
+    // Assurez-vous que le champ contenant les données parsées (ex: bd_normales) est sélectionné
+    return this.sourcededonneesrepo.findOne({ where: { idsourceDonnes: id } });
+}
 
   async CreationSourcededonnees(data: CreateSourceDonneeDto, idenquete: string) {
     try {
