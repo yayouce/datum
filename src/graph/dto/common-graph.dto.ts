@@ -47,7 +47,7 @@ export class YSerieAppearanceUpdateDto {
     indexY: number;
 
     @IsString() @IsNotEmpty()
-    colonneName: string; // Nom de la colonne Y cible
+    colonne: string; // Nom de la colonne Y cible
 
     @IsOptional() @IsString() @IsNotEmpty() /* @IsHexColor() */
     couleur?: string; // Nouvelle couleur

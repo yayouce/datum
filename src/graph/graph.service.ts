@@ -337,7 +337,7 @@ async update(id: string, updateGraphDto: UpdateGraphDto): Promise<any> {
 
        for (const updateItem of updateGraphDto.couleurY) {
            const clientIndex = updateItem.indexY; // Index fourni par le client (1, 2, ...)
-           const providedName = updateItem.colonneName;
+           const providedName = updateItem.colonne;
            const newCouleur = updateItem.couleur;
 
            // ✨ Conversion vers index interne (0-based) ✨
@@ -429,7 +429,7 @@ async findOneById(id: string): Promise<Graph | null> {
   return this.graphRepository.findOne({ where: { idgraph: id } });}
 
 
-async generateGeoJsonForGraph(graphId: string): Promise<FeatureCollection> { // <-- Le type FeatureCollection vient de l'import 'geojson'
+  async generateGeoJsonForGraph(graphId: string): Promise<FeatureCollection> { // <-- Le type FeatureCollection vient de l'import 'geojson'
     this.logger.log(`Début génération GeoJSON orchestrée pour graph ID: ${graphId}`);
 
     // Étape 1: Récupérer config Graphique
