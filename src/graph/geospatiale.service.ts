@@ -31,15 +31,7 @@ interface ParsedSourceData {
 export class GeoService {
     private readonly logger = new Logger(GeoService.name);
 
-    /**
-     * Fonction principale pour créer une FeatureCollection GeoJSON à partir des données sources
-     * et de la configuration stockée dans l'entité Graph.
-     * @param sourceData Données brutes parsées (structure attendue: ParsedSourceData)
-     * @param configGeo Configuration géographique issue de l'entité Graph
-     * @param etiquettesConfig Configuration des étiquettes issue de l'entité Graph
-     * @param graphId Identifiant du graphique (pour le logging)
-     * @returns FeatureCollection GeoJSON prête à être utilisée par une librairie carto (Leaflet, Mapbox GL, etc.)
-     */
+
     public createGeoJsonData(
         sourceData: ParsedSourceData,
         configGeo: ConfigGeographique,

@@ -49,6 +49,4 @@ export class CreateGraphDto {
     @IsOptional() @IsObject() @ValidateNested() @Type(() => MetaDonneesDto)
     metaDonnees?: MetaDonneesDto | null;
 
-    @IsString() @IsNotEmpty()
-    sourcesIdsourceDonnes: string; // Assurez-vous que ce champ est bien dans le DTO si requis à la création
 }

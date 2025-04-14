@@ -32,6 +32,11 @@ export class MetaDonneesDto {
 
   @IsOptional() @ValidateNested() @Type(() => CouleursDto)
   couleurs?: CouleursDto;
+
+
+  @IsOptional()
+  @IsString()
+  proprieteColoration?: string; // Le nom de la propriété GeoJSON à utiliser pour la couleur (ex: "ID Parcelle")
 }
 
 // DTO pour TitreMetaDonnees

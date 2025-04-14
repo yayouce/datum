@@ -2,7 +2,7 @@ import { HttpException, HttpStatus, Injectable, InternalServerErrorException, Lo
 import { CreateGraphDto } from './dto/create-graph.dto';
 import { UpdateGraphDto } from './dto/update-graph.dto';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Graph, TypeGeometrieMap } from './entities/graph.entity';
+import { ColonneEtiquetteConfig, ConfigGeographique, Graph, TypeGeometrieMap } from './entities/graph.entity';
 import { Repository } from 'typeorm';
 import { SourceDonneesService } from 'src/source_donnees/source_donnees.service';
 import { extractColumnValues, extractColumnValuesWithFormula, formatGraphResponse } from 'src/utils/Fonctions_utils';
@@ -296,95 +296,165 @@ async findByNameAndProject(name: string, projectId: string): Promise<any[]> {
 
 
 
-async update(id: string, updateGraphDto: UpdateGraphDto): Promise<any> {
-  this.logger.log(`Tentative de mise à jour (index 1-based) du graphique ID: ${id}`);
+async update(idgraph: string, updateGraphDto: UpdateGraphDto): Promise<any> { // Utilisez un type plus précis si possible (ex: Graph ou un DTO de réponse)
+  this.logger.log(`Tentative de mise à jour du graphique ID: ${idgraph}`);
   this.logger.debug(`DTO d'update reçu: ${JSON.stringify(updateGraphDto)}`);
 
-  const graph = await this.findOne(id);
-
-  // --- Mise à jour champs simples ---
-  // ... (titreGraphique, titremetaDonnees, nomsourceDonnees) ...
-
-  // --- 1. MAJ globales metaDonnees ---
-  let metaNeedsSave = false;
-  if (updateGraphDto.metaDonnees !== undefined) {
-     // ... (logique de fusion globale comme avant) ...
-     metaNeedsSave = true;
-      if (updateGraphDto.metaDonnees === null) { graph.metaDonnees = null; } else { /*... fusion ...*/ }
-  }
-
-  // --- 2. MAJ ciblées couleurY (par INDEX BASÉ SUR 1) ---
-  if (updateGraphDto.couleurY && Array.isArray(updateGraphDto.couleurY)) {
-       this.logger.log(`Application MAJ ciblées (couleurY index 1-based) pour ${id}`);
-       metaNeedsSave = true;
-
-       // Vérifier et préparer graph.colonneY et specifiques
-       if (!graph.colonneY || !Array.isArray(graph.colonneY)) {
-            throw new HttpException("Données colonneY manquantes pour la mise à jour ciblée.", HttpStatus.INTERNAL_SERVER_ERROR);
-       }
-       const currentColonneY = graph.colonneY;
-       const nbY = currentColonneY.length;
-
-       // Préparer specifiques comme avant (initialiser, synchroniser taille)
-       if (!graph.metaDonnees) graph.metaDonnees = {};
-       if (!graph.metaDonnees.couleurs) graph.metaDonnees.couleurs = {};
-       // ... (logique d'initialisation/synchronisation de specifiques) ...
-        if (!graph.metaDonnees.couleurs.specifiques || !Array.isArray(graph.metaDonnees.couleurs.specifiques)) { graph.metaDonnees.couleurs.specifiques = new Array(nbY).fill(null); }
-        while (graph.metaDonnees.couleurs.specifiques.length < nbY) { graph.metaDonnees.couleurs.specifiques.push(null); }
-        if (graph.metaDonnees.couleurs.specifiques.length > nbY) { graph.metaDonnees.couleurs.specifiques = graph.metaDonnees.couleurs.specifiques.slice(0, nbY); }
-       const specifiques = graph.metaDonnees.couleurs.specifiques;
-
-
-       for (const updateItem of updateGraphDto.couleurY) {
-           const clientIndex = updateItem.indexY; // Index fourni par le client (1, 2, ...)
-           const providedName = updateItem.colonne;
-           const newCouleur = updateItem.couleur;
-
-           // ✨ Conversion vers index interne (0-based) ✨
-           const internalIndex = clientIndex - 1;
-
-           // Validation de l'index INTERNE
-           if (internalIndex >= 0 && internalIndex < nbY) {
-               // L'index interne est valide
-               const actualColonneNameAtIndex = currentColonneY[internalIndex]?.colonne;
-
-               // Validation optionnelle du nom
-               if (actualColonneNameAtIndex === providedName) {
-                   // Nom cohérent
-                   if (newCouleur !== undefined) {
-                      //  this.logger.debug(`MAJ Couleur Y[Client Idx:${clientIndex}/Internal Idx:${internalIndex}] (Nom:"${providedName}") à ${newCouleur} pour ${id}`);
-                       specifiques[internalIndex] = newCouleur; // Utilise l'index interne
-                   }
-                   // if (newLegende !== undefined) { ... }
-                } 
-                //else {
-              //      this.logger.warn(`Incohérence pour ${id}: L'index client ${clientIndex} (interne ${internalIndex}) contient "${actualColonneNameAtIndex}", mais le nom "${providedName}" a été fourni. MAJ ignorée.`);
-              //  }
-           } 
-          // //else {
-          //      // Index invalide
-          //      this.logger.warn(`Index client ${clientIndex} (interne ${internalIndex}) invalide pour couleurY sur ${id}. Ignoré. (Nb Séries Y: ${nbY})`);
-          //  }
-       }
-       graph.metaDonnees.couleurs.specifiques = specifiques; // Réassigne
-  }
-
-  // --- Sauvegarde ---
+  // 1. Trouver le graphique existant
+  // Utiliser findOneOrFail pour lancer NotFoundException automatiquement si non trouvé
+  let graph: Graph;
   try {
-      this.logger.log(`Sauvegarde finale pour ${id}`);
+      graph = await this.graphRepository.findOneOrFail({ where: { idgraph } });
+  } catch (error) {
+      this.logger.warn(`Graphique ID ${idgraph} non trouvé pour la mise à jour.`);
+      throw new NotFoundException(`Graphique avec l'ID "${idgraph}" non trouvé.`);
+  }
+
+  // 2. Appliquer les mises à jour depuis le DTO
+  // On parcourt les clés du DTO pour mettre à jour UNIQUEMENT ce qui est fourni.
+  let changesMade = false;
+
+  for (const key in updateGraphDto) {
+      if (Object.prototype.hasOwnProperty.call(updateGraphDto, key) && updateGraphDto[key] !== undefined) {
+           // On vérifie si la valeur est différente de celle existante (optionnel, mais évite des écritures inutiles)
+           // Attention: comparaison profonde nécessaire pour les objets/tableaux si vous voulez être précis
+           if (graph[key] !== updateGraphDto[key]) { // Simplifié, peut nécessiter une comparaison plus robuste pour les objets/tableaux
+              changesMade = true;
+              this.logger.debug(`Mise à jour du champ '${key}' pour ${idgraph}`);
+
+               // --- Assignation des valeurs ---
+               if (key === 'colonnesEtiquettes') {
+                    // Directement assigner le tableau ou null (validé par le DTO)
+                    graph.colonnesEtiquettes = updateGraphDto.colonnesEtiquettes as ColonneEtiquetteConfig[] | null;
+               } else if (key === 'configGeographique') {
+                    // Directement assigner l'objet ou null (validé par le DTO)
+                    graph.configGeographique = updateGraphDto.configGeographique as ConfigGeographique | null;
+               } else if (key === 'metaDonnees') {
+                   // Gérer la fusion si nécessaire ou remplacer (ici on remplace)
+                    graph.metaDonnees = updateGraphDto.metaDonnees; // Assumes MetaDonneesDto is compatible or null
+               } else if (key === 'titremetaDonnees') {
+                    // Remplacer l'objet ou le mettre à null
+                    graph.titremetaDonnees = updateGraphDto.titremetaDonnees;
+               } else if (key === 'colonneX') {
+                    // Remplacer (le type 'any' est hérité, validation DTO limitée)
+                    graph.colonneX = updateGraphDto.colonneX;
+               } else if (key === 'colonneY') {
+                   // Remplacer le tableau (DTO valide la structure interne)
+                    graph.colonneY = updateGraphDto.colonneY as any[] | null; // Utiliser le type correct de votre entité
+               } else if (key === 'couleurY') {
+                  // Gérer spécifiquement la mise à jour de metaDonnees.couleurs.specifiques
+                   // Assurez-vous que la logique ci-dessous est correcte et nécessaire
+                   // *** Attention : Ne mettez pas à jour directement graph[key] ici ***
+               }
+               // --- Gérer tous les autres champs SIMPLES ---
+               else if (key !== 'couleurY') { // Évite d'assigner 'couleurY' directement à l'entité
+                  // Vérifie si la clé existe bien sur l'entité Graph pour éviter les erreurs
+                  if (key in graph) {
+                      graph[key] = updateGraphDto[key];
+                  } else {
+                       this.logger.warn(`Propriété '${key}' non trouvée sur l'entité Graph. Ignorée.`);
+                  }
+               }
+           }
+      }
+  }
+
+   // --- 3. Traitement SPÉCIFIQUE pour 'couleurY' (Modification de metaDonnees.couleurs.specifiques) ---
+   // Doit être fait APRÈS avoir potentiellement mis à jour graph.colonneY via le DTO
+   if (updateGraphDto.couleurY && Array.isArray(updateGraphDto.couleurY) && updateGraphDto.couleurY.length > 0) {
+        this.logger.log(`Application MAJ ciblées (couleurY) pour ${idgraph}`);
+
+        // S'assurer que colonneY existe pour déterminer la taille et valider les noms
+        if (!graph.colonneY || !Array.isArray(graph.colonneY) || graph.colonneY.length === 0) {
+             this.logger.warn(`Données colonneY manquantes ou vides pour la mise à jour ciblée de couleurY sur ${idgraph}. Opération ignorée.`);
+             // Ne pas lancer d'erreur ici, juste ignorer cette partie de la mise à jour
+        } else {
+             const currentColonneY = graph.colonneY as {colonne: string}[]; // Ajuster le type si nécessaire
+             const nbY = currentColonneY.length;
+
+              // Préparer graph.metaDonnees et les couleurs spécifiques
+             if (!graph.metaDonnees) {
+                 graph.metaDonnees = { couleurs: { specifiques: new Array(nbY).fill(null) } };
+             } else if (!graph.metaDonnees.couleurs) {
+                  graph.metaDonnees.couleurs = { specifiques: new Array(nbY).fill(null) };
+             } else if (!graph.metaDonnees.couleurs.specifiques || !Array.isArray(graph.metaDonnees.couleurs.specifiques)) {
+                 graph.metaDonnees.couleurs.specifiques = new Array(nbY).fill(null);
+             }
+
+             // S'assurer que le tableau specifiques a la bonne taille
+             let specifiques = graph.metaDonnees.couleurs.specifiques;
+             while (specifiques.length < nbY) { specifiques.push(null); }
+             if (specifiques.length > nbY) { specifiques = specifiques.slice(0, nbY); }
+
+              let specifiquesModified = false;
+              for (const updateItem of updateGraphDto.couleurY) {
+                   // Utiliser indexY fourni (supposé être 0-based maintenant ou ajuster la conversion)
+                   // Assumons indexY est 0-based comme dans le DTO suggéré plus tôt
+                   const internalIndex = updateItem.indexY;
+                   const providedName = updateItem.colonne; // Correction: Utilise le nom de la propriété DTO
+                   const newCouleur = updateItem.couleur;
+
+                    // Validation de l'index INTERNE
+                   if (internalIndex >= 0 && internalIndex < nbY) {
+                       const actualColonneNameAtIndex = currentColonneY[internalIndex]?.colonne;
+
+                        // Validation optionnelle mais recommandée du nom
+                        if (actualColonneNameAtIndex === providedName) {
+                            if (newCouleur !== undefined && specifiques[internalIndex] !== newCouleur) {
+                                specifiques[internalIndex] = newCouleur;
+                                specifiquesModified = true;
+                                this.logger.debug(`MAJ Couleur specifique[${internalIndex}] (Nom:"${providedName}") à ${newCouleur}`);
+                            }
+                            // Gérer 'legende' si nécessaire
+                        } else {
+                            this.logger.warn(`Incohérence pour ${idgraph}: L'index ${internalIndex} contient "${actualColonneNameAtIndex}", mais le nom "${providedName}" a été fourni pour couleurY. MAJ couleur ignorée.`);
+                        }
+                   } else {
+                        this.logger.warn(`Index ${internalIndex} invalide pour couleurY sur ${idgraph}. Ignoré. (Nb Séries Y: ${nbY})`);
+                   }
+              }
+
+             // Réassigner uniquement si des modifications ont eu lieu
+             if (specifiquesModified) {
+                  graph.metaDonnees.couleurs.specifiques = specifiques;
+                  changesMade = true; // Marquer qu'une sauvegarde est nécessaire
+             }
+         }
+   }
+
+
+  // --- Sauvegarde UNIQUEMENT si des changements ont été détectés ---
+  if (!changesMade) {
+       this.logger.log(`Aucune modification détectée pour ${idgraph}, pas de sauvegarde nécessaire.`);
+        // Retourner le graphique original formaté (évite une écriture BDD inutile)
+        if (!graph.sources?.fichier) { this.logger.warn(`Fichier manquant sur ${idgraph} (non sauvegardé).`); }
+       return formatGraphResponse(graph); // Assurez-vous que formatGraphResponse existe et est importée
+  }
+
+  try {
+      this.logger.log(`Sauvegarde des modifications pour ${idgraph}`);
+      // save() met à jour l'entité 'graph' existante avec les nouvelles valeurs
       const savedGraph = await this.graphRepository.save(graph);
-      this.logger.log(`Graphique ${id} sauvegardé.`);
+      this.logger.log(`Graphique ${idgraph} sauvegardé avec succès.`);
 
-      // --- Rechargement et Formatage ---
-      this.logger.log(`Rechargement du graphique ${id} après sauvegarde pour formatage.`);
-      const reloadedGraph = await this.findOne(id);
-
-      if (!reloadedGraph.sources?.fichier) { this.logger.warn(`Fichier manquant sur ${id} rechargé.`); }
-      return formatGraphResponse(reloadedGraph);
+       // Utiliser l'entité retournée par save() pour le formatage
+       if (!savedGraph.sources?.fichier) {
+            // Si la relation 'sources' n'est pas automatiquement retournée par save (selon config TypeORM),
+            // recharger PEUT être nécessaire SI formatGraphResponse a besoin des données du fichier.
+            // Sinon, il vaut mieux éviter.
+            this.logger.warn(`Relation 'sources' non chargée après sauvegarde pour ${idgraph}. Rechargement peut être nécessaire pour formatage.`);
+           // const reloadedGraph = await this.findOne(idgraph); // Recharger SEULEMENT SI NÉCESSAIRE
+           // return formatGraphResponse(reloadedGraph);
+       }
+      return formatGraphResponse(savedGraph); // Utilise l'entité sauvegardée
 
   } catch (error) {
-      this.logger.error(`Erreur sauvegarde/rechargement (update) ${id}: ${error.message}`, error.stack);
-      throw new HttpException('Erreur interne serveur (update).', HttpStatus.INTERNAL_SERVER_ERROR);
+      this.logger.error(`Erreur lors de la sauvegarde (update) ${idgraph}: ${error.message}`, error.stack);
+      // Remonter une erreur plus spécifique si possible (ex: validation échoue)
+      if (error instanceof QueryFailedError) {
+           throw new HttpException(`Erreur de base de données lors de la mise à jour: ${error.message}`,800);
+      }
+      throw new HttpException('Erreur interne serveur lors de la sauvegarde de la mise à jour.', HttpStatus.INTERNAL_SERVER_ERROR);
   }
 }
 
@@ -440,12 +510,11 @@ async findOneById(id: string): Promise<Graph | null> {
 
     // Étape 2: Valider type
     // Remplissez les types géo réels de votre enum ici
-    const geoGraphTypes = [ typegraphiqueEnum.CARTE_POLYGONE /*, typegraphiqueEnum.CARTE_POINTS, ... */ ];
+    const geoGraphTypes = [ typegraphiqueEnum.CARTE_POLYGONE , typegraphiqueEnum.CARTE_POINTS,typegraphiqueEnum.CARTE_LIGNE ];
     if (!geoGraphTypes.includes(graph.typeGraphique)) {
-         // Utilisons BadRequestException pour une requête sémantiquement incorrecte
+     
         throw new HttpException(`Graphique ${graphId} (type: ${graph.typeGraphique}) n'est pas un type cartographique valide pour cette opération.`,802);
-        // Ou gardez votre HttpException si le code 802 a une signification spécifique
-        // throw new HttpException(`Graphique ${graphId} (type: ${graph.typeGraphique}) n'est pas cartographique.`, 802);
+    
     }
 
     // Étape 3: Valider config géo
