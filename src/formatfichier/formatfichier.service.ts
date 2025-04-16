@@ -33,6 +33,7 @@ async getAllFormat(){
 }
 
 
+
 async getone(idformat){
 try{
   return await this.formatRepo.findOneBy({idformat})
@@ -41,6 +42,7 @@ catch(err){
   throw new HttpException(err.message,802)
 }
 }
+
 
 
 

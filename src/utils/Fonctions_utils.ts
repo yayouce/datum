@@ -130,13 +130,16 @@ export function extractColumnValues(colonnes: any[], fichier: any): any[] {
       console.error(`Pas de fichier ou source pour le graph ${graph?.idgraph}. Formatage partiel.`);
       // Retourner une structure de base si possible
       return {
+
+        
           typeGraphique: graph?.typeGraphique,
           titreGraphique: graph?.titreGraphique,
           idgraph:graph?.idgraph,
           titremetaDonnees:graph?.titremetaDonnees,
           colonneX: graph?.colonneX,
           colonneY: graph?.colonneY || [],
-          metaDonnees: graph?.metaDonnees // Retourne directement ce qui vient de la BDD
+          metaDonnees: graph?.metaDonnees,
+          ...graph,
       };
     }
 
@@ -162,20 +165,21 @@ export function extractColumnValues(colonnes: any[], fichier: any): any[] {
       colonneX: graph.colonneX, // Directement de la BDD
       colonneY: Array.isArray(graph.colonneY) ? graph.colonneY.map((col, index) => {
           // Lire les couleurs depuis metaDonneesFromDb
-          const specificColor = metaDonneesFromDb?.couleurs?.specifiques?.[index];
-          const genericColors = metaDonneesFromDb?.couleurs?.generiques || fallbackGenericColors;
-          const genericColor = genericColors[index % genericColors.length];
+      const specificColor = metaDonneesFromDb?.couleurs?.specifiques?.[index];
+      const genericColors = metaDonneesFromDb?.couleurs?.generiques || fallbackGenericColors;
+      const genericColor = genericColors[index % genericColors.length];
 
-          return {
-            colonne: entetes[col.colonne] || col.colonne,
-            formule: col.formule,
-            valeurs: (col as any).valeurs || [],
-            legende: `${col.formule || ''} ${entetes[col.colonne] || col.colonne}`.trim(),
+      return {
+       colonne: entetes[col.colonne] || col.colonne,
+       formule: col.formule,
+      valeurs: (col as any).valeurs || [],
+        legende: `${col.formule || ''} ${entetes[col.colonne] || col.colonne}`.trim(),
             couleur: specificColor || genericColor // Priorité: Spécifique BDD > Générique BDD > Secours
           };
       }) : [],
-      // --- Retourner les metaDonnees TELLE QUELLES de la BDD ---
-      metaDonneesFromDb// ✨ IMPORTANT : Renvoie la valeur brute de graph.metaDonnees ✨
+
+      metaDonneesFromDb,
+      ...graph
     };
   
   }

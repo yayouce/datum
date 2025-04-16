@@ -17,9 +17,7 @@ import {
     TypeGeometrieMap       // Enum de type de géométrie importé
 } from './entities/graph.entity'; // Ajustez le chemin si nécessaire
 
-// --- Définition du type pour les données sources (à affiner si possible) ---
-// Représente la structure attendue après parsing du fichier:
-// { "nomGroupe": { donnees: [ { A1: 'Header1', B1: 'Header2', ...}, { A2: 'Val1A', B2: 'Val1B', ...}, ... ] } }
+
 interface ParsedSourceData {
     [groupName: string]: {
         donnees: Array<{ [cellAddress: string]: any }>; // Array d'objets représentant les lignes
@@ -31,7 +29,15 @@ interface ParsedSourceData {
 export class GeoService {
     private readonly logger = new Logger(GeoService.name);
 
-
+    /**
+     * Fonction principale pour créer une FeatureCollection GeoJSON à partir des données sources
+     * et de la configuration stockée dans l'entité Graph.
+     * @param sourceData Données brutes parsées (structure attendue: ParsedSourceData)
+     * @param configGeo Configuration géographique issue de l'entité Graph
+     * @param etiquettesConfig Configuration des étiquettes issue de l'entité Graph
+     * @param graphId Identifiant du graphique (pour le logging)
+     * @returns FeatureCollection GeoJSON prête à être utilisée par une librairie carto (Leaflet, Mapbox GL, etc.)
+     */
     public createGeoJsonData(
         sourceData: ParsedSourceData,
         configGeo: ConfigGeographique,

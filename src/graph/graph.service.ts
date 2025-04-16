@@ -260,6 +260,39 @@ async findBySource(idsource: string): Promise<any[]> {
   return graphs.map(graph => formatGraphResponse(graph));
 }
 
+async findOneGraphiqebyID(idgraph:string):Promise<Graph>{
+try{
+
+  const graph=await this.graphRepository.findOneBy({idgraph})
+  
+
+    return formatGraphResponse(graph)
+  
+}
+catch(err){
+  throw new HttpException(err.message,802)
+}
+
+
+}
+
+async InOutstudio(idgraph:string){
+  try{
+    const graph = await this.findOneGraphiqebyID(idgraph)
+    console.log(graph)
+    if(!graph){
+      throw new HttpException("graph non trouvée",705)
+    }
+  graph.inStudio=!graph.inStudio
+  await this.graphRepository.save(graph)
+  }
+  catch(err){
+    throw new HttpException(err.message,705)
+  }
+}
+
+
+
 async findByName(name: string): Promise<any[]> {
   const graphs = await this.graphRepository.find({
     where: { titreGraphique: name },
@@ -468,17 +501,20 @@ async update(idgraph: string, updateGraphDto: UpdateGraphDto): Promise<any> { //
 
 
 
-  async getGraphTitlesByProject(idprojet: string): Promise<string[]> {
+  async getGraphByProject(idprojet: string): Promise<string[]> {
     const results = await this.graphRepository
       .createQueryBuilder("graph")
       .leftJoin("graph.sources", "source")
       .leftJoin("source.enquete", "enquete")
       .leftJoin("enquete.projet", "projet")
-      .where("projet.idprojet = :idprojet", { idprojet })// Assurez-vous que l'alias est correct
+      .where("projet.idprojet = :idprojet", { idprojet })
       .getRawMany();
   
     return results; // Extraire la bonne clé
   }
+
+
+
 
 
 
@@ -496,11 +532,12 @@ async update(idgraph: string, updateGraphDto: UpdateGraphDto): Promise<any> { //
 
 
 async findOneById(id: string): Promise<Graph | null> {
-  return this.graphRepository.findOne({ where: { idgraph: id } });}
+  return this.graphRepository.findOne({ where: { idgraph: id } });
+}
 
 
-  async generateGeoJsonForGraph(graphId: string): Promise<FeatureCollection> { // <-- Le type FeatureCollection vient de l'import 'geojson'
-    this.logger.log(`Début génération GeoJSON orchestrée pour graph ID: ${graphId}`);
+async generateGeoJsonForGraph(graphId: string): Promise<FeatureCollection> { // <-- Le type FeatureCollection vient de l'import 'geojson'
+  this.logger.log(`Début génération GeoJSON orchestrée pour graph ID: ${graphId}`);
 
     // Étape 1: Récupérer config Graphique
     const graph = await this.findOneById(graphId);
@@ -555,23 +592,36 @@ async findOneById(id: string): Promise<Graph | null> {
             graph.colonnesEtiquettes || [],
             graph.idgraph
         );
-        this.logger.log(`GeoJSON généré par GeoService pour graph ${graphId}. Features: ${geoJsonResult.features.length}`);
-        // Le type retourné correspond maintenant au type déclaré dans la signature de la fonction
         return geoJsonResult;
 
     } catch (error) {
-        this.logger.error(`Erreur dans GeoService lors de la génération pour graph ${graphId}`, error.stack);
         if (error instanceof HttpException) {
-            // Relance les erreurs HTTP déjà formatées (potentiellement de GeoService)
-            throw error;
+  
+            throw new HttpException(error.message,800);
         }
         // Pour les erreurs inattendues de GeoService, utilisez InternalServerErrorException
-         throw new InternalServerErrorException(`Erreur interne lors de la transformation des données pour le graphique ${graphId}.`);
-        // Ou gardez votre HttpException si 802 est nécessaire
-        // throw new HttpException(`Erreur interne lors de la transformation pour graph ${graphId}.`, 802);
+         throw new HttpException(`Erreur interne lors de la transformation des données pour le graphique ${graphId}.`,800);
+   
     }
-} // --- Fin de generateGeoJsonForGraph ---
-// ... potentiellement d'autres méthodes dans GraphService (create, update, etc.)
+} 
+
+
+
+
+// async InOutstudio(idsource:string){
+//   try{
+//     const source = await this.getSourceById(idsource)
+//     if(!source){
+//       throw new HttpException("source non trouvée",705)
+//     }
+//   source.inStudio=!source.inStudio
+//   await this.sourcededonneesrepo.save(source)
+//   }
+//   catch(err){
+//     throw new HttpException(err.message,705)
+//   }
+// }
+
 
 
 

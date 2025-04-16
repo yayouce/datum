@@ -71,10 +71,10 @@ export class SourceDonneesService implements OnModuleInit {
       const unitefrequence = libelleunite ? await this.unitefrequence.getoneBylibelle(libelleunite) : null;
       const enquetedata = await this.enqueteservice.getenqueteByID(idenquete);
 
-      let fichier = data.fichier; // 📌 Si fichier est fourni, on le garde
-      let formatFichier = null; // Variable pour stocker le format du fichier
+      let fichier = data.fichier; 
+      let formatFichier = null; 
 
-      // 2. Si `source` est fourni, essayer de télécharger et formater les données
+  
       if (source) {
         try {
           const response = await firstValueFrom(this.httpService.get(source, { responseType: 'arraybuffer' }));

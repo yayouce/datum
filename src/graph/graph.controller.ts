@@ -39,9 +39,25 @@ export class GraphController {
     return this.graphService.findOne(id);
   }
 
+
+  @Get("getOneById/:idgraph")
+  async findOneGraphiqebyID(
+    @Param("idgraph") idgraph: string){
+    return this.graphService.findOneGraphiqebyID(idgraph)
+  }
+
+  //changer l'etat in studio ou outstudio (true ou false)
+@Post("inOutstudio/:idgraph")
+async addInOutstudio(
+  @Param("idgraph") idgrpah:string
+){
+
+  return await this.graphService.InOutstudio(idgrpah)
+}
+
   @Post("update/:id")
-  update(@Param("id") id: string, @Body() updateGraphDto: UpdateGraphDto) {
-    return this.graphService.update(id, updateGraphDto);
+  async update(@Param("id") id: string, @Body() updateGraphDto: UpdateGraphDto) {
+    return await this.graphService.update(id, updateGraphDto);
   }
 
   @Delete("delete/:id")
@@ -56,7 +72,7 @@ async getBySource(@Param('idsource') idsource: string) {
 
 @Get('graphByproject/:idprojet')
 async getGraphTitlesByProject(@Param('idprojet') idprojet: string) {
-  return this.graphService.getGraphTitlesByProject(idprojet);
+  return this.graphService.getGraphByProject(idprojet);
 }
 
 @Get('graphbyNameAndProject/:name/:projectId')

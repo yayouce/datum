@@ -26,9 +26,7 @@ export interface ConfigGeographique {
   colonneLatitudeHeader?: string;   // En-tête de la colonne Latitude (pour POINT)
   colonneLongitudeHeader?: string;  // En-tête de la colonne Longitude (pour POINT)
   colonneTraceHeader?: string;      // En-tête de la colonne contenant le tracé (pour POLYGONE/LIGNE)
-  // colonneIdentifiantGeoHeader?: string; // Pour CHOROPLETHE
-  // colonneValeurChoroHeader?: string;    // Pour CHOROPLETHE
-  // formuleValeurChoro?: string;          // Pour CHOROPLETHE
+
 }
 
 // --- Interface pour la configuration des colonnes d'étiquettes ---
@@ -37,9 +35,7 @@ export interface ColonneEtiquetteConfig {
   libelleAffichage: string; // Nom à afficher dans le popup (ex: "Nom Producteur")
 }
 
-// ==================================================================
-// ==                DEFINITION DE L'ENTITE GRAPH                  ==
-// ==================================================================
+
 
 @Entity("graph")
 export class Graph extends TimestampEntites {
@@ -52,19 +48,24 @@ export class Graph extends TimestampEntites {
   @Column()
   titreGraphique: string;
 
+  @Column({
+    default:false
+  })
+  inStudio:boolean;
+
   // --- Champs pour Graphiques Classiques ---
-  // Rendez-les nullable si un graphique ne peut pas être à la fois classique et géo
-  @Column({ type: "json", nullable: true }) // Rendu nullable
+  //nullable si un graphique ne peut pas être à la fois classique et géo
+  @Column({ type: "json", nullable: true }) 
   colonneX: any | null; // Stocke soit la définition, soit les valeurs extraites (selon votre choix dans le service)
 
-  @Column({ type: "json", nullable: true }) // Rendu nullable
+  @Column({ type: "json", nullable: true }) 
   colonneY: any | null; // Stocke soit la définition, soit les valeurs extraites
 
-  // --- NOUVEAUX Champs pour Graphiques Géospatiaux ---
-  @Column({ type: 'json', nullable: true }) // Rendu nullable
+  // pour Graphiques Géospatiaux 
+  @Column({ type: 'json', nullable: true }) 
   configGeographique: ConfigGeographique | null; // Stocke la configuration géo
 
-  @Column({ type: 'json', nullable: true }) // Rendu nullable
+  @Column({ type: 'json', nullable: true }) 
   colonnesEtiquettes: ColonneEtiquetteConfig[] | null; // Stocke la configuration des étiquettes
 
   // --- Relation et autres métadonnées ---
