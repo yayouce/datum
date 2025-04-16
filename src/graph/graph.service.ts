@@ -1,4 +1,4 @@
-import { HttpException, HttpStatus, Injectable, InternalServerErrorException, Logger, NotFoundException } from '@nestjs/common';
+import { HttpCode, HttpException, HttpStatus, Injectable, InternalServerErrorException, Logger, NotFoundException } from '@nestjs/common';
 import { CreateGraphDto } from './dto/create-graph.dto';
 import { UpdateGraphDto } from './dto/update-graph.dto';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -9,6 +9,7 @@ import { extractColumnValues, extractColumnValuesWithFormula, formatGraphRespons
 import { typegraphiqueEnum } from '@/generique/typegraphique.enum';
 import { GeoService } from './geospatiale.service';
 import { FeatureCollection, FeatureCollection as GeoJsonFeatureCollection } from 'geojson';
+import { HttpStatusCode } from 'axios';
 
 @Injectable()
 export class GraphService {
@@ -279,12 +280,13 @@ catch(err){
 async InOutstudio(idgraph:string){
   try{
     const graph = await this.findOneGraphiqebyID(idgraph)
-    console.log(graph)
+ 
     if(!graph){
       throw new HttpException("graph non trouvée",705)
     }
   graph.inStudio=!graph.inStudio
   await this.graphRepository.save(graph)
+  return graph.inStudio
   }
   catch(err){
     throw new HttpException(err.message,705)
