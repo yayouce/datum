@@ -1,7 +1,7 @@
 // src/graph/dto/create-graph.dto.ts (Adapté)
 import { Type } from 'class-transformer';
 import { IsString, IsNotEmpty, IsEnum, IsOptional, IsArray, ValidateNested, IsObject } from 'class-validator';
-import { typegraphiqueEnum } from 'src/generique/typegraphique.enum'; // Ajustez
+import { typegraphiqueEnum } from '@/generique/cartes.enum'; // Ajustez
 
 // Importe les DTOs depuis le fichier commun
 import { ConfigGeographiqueDto, ColonneEtiquetteConfigDto, MetaDonneesDto, TitreMetaDonneesDto } from './common-graph.dto';

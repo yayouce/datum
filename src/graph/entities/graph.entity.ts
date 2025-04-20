@@ -1,7 +1,7 @@
 // src/graph/entities/graph.entity.ts
 
 import { TimestampEntites } from "src/generique/timestamp";
-import { typegraphiqueEnum } from "src/generique/typegraphique.enum"; // Assurez-vous que cet enum est à jour
+import { TypeGeometrieMap, typegraphiqueEnum } from "@/generique/cartes.enum"; // Assurez-vous que cet enum est à jour
 import { SourceDonnee } from "src/source_donnees/entities/source_donnee.entity";
 import { Column, Entity, JoinColumn, ManyToOne, PrimaryGeneratedColumn } from "typeorm";
 
@@ -9,30 +9,24 @@ import { Column, Entity, JoinColumn, ManyToOne, PrimaryGeneratedColumn } from "t
 // == DEFINITIONS DES TYPES GEOSPATIAUX (AJOUTEES ET EXPORTEES) ==
 // ==================================================================
 
-// --- Enum pour les types de géométrie ---
-export enum TypeGeometrieMap {
-  POINT = 'point',
-  POLYGONE = 'polygone',
-  LIGNE = 'ligne',
-  CHOROPLETHE = 'choroplethe', // Si vous l'implémentez
-}
+
 
 // --- Interface pour la configuration géographique ---
 export interface ConfigGeographique {
   typeGeometrie: TypeGeometrieMap;
-  nomGroupeDonnees: string;       // Clé du groupe dans bd_normales (ex: "group_fu8vs82")
+  feuille: string;       // Clé du groupe dans bd_normales (ex: "group_fu8vs82")
 
   // Champs conditionnels (selon typeGeometrie)
-  colonneLatitudeHeader?: string;   // En-tête de la colonne Latitude (pour POINT)
-  colonneLongitudeHeader?: string;  // En-tête de la colonne Longitude (pour POINT)
-  colonneTraceHeader?: string;      // En-tête de la colonne contenant le tracé (pour POLYGONE/LIGNE)
+  colonneLatitude?: string;   // En-tête de la colonne Latitude (pour POINT)
+  colonneLongitude?: string;  // En-tête de la colonne Longitude (pour POINT)
+  colonneTrace?: string;      // En-tête de la colonne contenant le tracé (pour POLYGONE/LIGNE)
 
 }
 
 // --- Interface pour la configuration des colonnes d'étiquettes ---
 export interface ColonneEtiquetteConfig {
-  headerText: string;      // En-tête de la colonne source (ex: "User_Name")
-  libelleAffichage: string; // Nom à afficher dans le popup (ex: "Nom Producteur")
+  colonne: string;      // En-tête de la colonne source (ex: "User_Name")
+  // libelleAffichage: string; // Nom à afficher dans le popup (ex: "Nom Producteur")
 }
 
 
@@ -116,3 +110,5 @@ metaDonnees: {
 } | null;
 
 }
+
+export { TypeGeometrieMap };

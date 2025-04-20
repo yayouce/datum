@@ -75,6 +75,13 @@ async getGraphTitlesByProject(@Param('idprojet') idprojet: string) {
   return this.graphService.getGraphByProject(idprojet);
 }
 
+
+@Get('graphByprojectinStudio/:idprojet')
+async getGraphTitlesByProjectinStudio(@Param('idprojet') idprojet: string) {
+  return this.graphService.getGraphByProjectInStudio(idprojet);
+}
+
+
 @Get('graphbyNameAndProject/:name/:projectId')
 async getGraphByNameAndProject(@Param('name') name: string, @Param('projectId') projectId: string) {
     return this.graphService.findByNameAndProject(name, projectId);
@@ -87,12 +94,11 @@ async getGraphByNameAndProject(@Param('name') name: string, @Param('projectId') 
   }
 
 
-  @Get('/data/geojson/:idgraphique') // Votre route spécifique
+  @Get('/data/geojson/:idgraphique') 
     async getgeojson(
-        // Assurez-vous que le nom du paramètre ici ('idgraphique') correspond à celui dans la route
+
         @Param('idgraphique', ParseUUIDPipe) idgraphique: string
     ): Promise<FeatureCollection> {
-        // this.logger.log(`Contrôleur : Requête GET pour /graphs/data/geojson/${idgraphique}`);
 
         try {
             // --- APPEL UNIQUE AU SERVICE QUI FAIT TOUT ---
@@ -101,21 +107,10 @@ async getGraphByNameAndProject(@Param('name') name: string, @Param('projectId') 
             return geoJsonData;
 
         } catch (error) {
-            // Log l'erreur telle qu'elle arrive au contrôleur
-            // this.logger.error(`Erreur interceptée dans le contrôleur pour graph ${idgraphique}: ${error.message}`, error.stack);
-
-            // Si l'erreur est déjà une HttpException (levée par GraphService),
-            // la relancer telle quelle pour que NestJS envoie la bonne réponse HTTP (404, 400, etc.)
             if (error instanceof HttpException) {
                 throw error;
             }
-
-            // Pour toute autre erreur inattendue (ex: erreur DB non gérée dans le service)
-            // envoyer une réponse 500 générique.
             throw new InternalServerErrorException(`Une erreur serveur inattendue est survenue lors de la récupération des données pour le graphique ${idgraphique}.`);
         }
     }
-
-  
-
 }

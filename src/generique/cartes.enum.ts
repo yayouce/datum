@@ -17,5 +17,15 @@ export enum typegraphiqueEnum {
     CARTE_POLYGONE = "Carte_de_polygones",           // Pour afficher des formes (parcelles, régions) définies par des tracés
     CARTE_LIGNE = "Carte_de_lignes",                 // Pour afficher des itinéraires ou des tracés linéaires
     CARTE_CHOROPLETHE = "Carte_choroplethe",         // Pour colorer des zones prédéfinies (pays, régions) selon une valeur
-    // CARTE_DE_CHALEUR = "Carte_de_chaleur"         // Heatmap (optionnel, si besoin futur)
 }
+
+
+
+
+// --- Enum pour les types de géométrie ---
+export enum TypeGeometrieMap {
+    POINT = 'point',
+    POLYGONE = 'polygone',
+    LIGNE = 'ligne',
+  
+  }

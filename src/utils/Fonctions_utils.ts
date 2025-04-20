@@ -143,10 +143,15 @@ export function extractColumnValues(colonnes: any[], fichier: any): any[] {
       };
     }
 
-    const feuille = graph.sources.fichier["Sheet1"]; // Attention nom en dur
+
+    const nomsFeuilles = Object.keys(graph.sources.fichier);
+    const premiereFeuille = nomsFeuilles[0]; 
+    const feuille = graph.sources.fichier[premiereFeuille];
+
+  
      if (!feuille || !feuille.donnees || !Array.isArray(feuille.donnees) || feuille.donnees.length === 0) {
-         console.error(`Données invalides dans Sheet1 pour le graph ${graph.idgraph}. Formatage partiel.`);
-        return { /* ... structure partielle ... */ metaDonnees: graph.metaDonnees };
+         console.error(`Données invalides dans ${premiereFeuille} pour le graph ${graph.idgraph}. Formatage partiel.`);
+        return {  metaDonnees: graph.metaDonnees };
      }
     const entetes = feuille.donnees[0] || {};
 
@@ -172,7 +177,7 @@ export function extractColumnValues(colonnes: any[], fichier: any): any[] {
       return {
        colonne: entetes[col.colonne] || col.colonne,
        formule: col.formule,
-      valeurs: (col as any).valeurs || [],
+        valeurs: (col as any).valeurs || [],
         legende: `${col.formule || ''} ${entetes[col.colonne] || col.colonne}`.trim(),
             couleur: specificColor || genericColor // Priorité: Spécifique BDD > Générique BDD > Secours
           };

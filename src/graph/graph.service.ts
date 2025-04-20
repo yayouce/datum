@@ -6,10 +6,11 @@ import { ColonneEtiquetteConfig, ConfigGeographique, Graph, TypeGeometrieMap } f
 import { Repository } from 'typeorm';
 import { SourceDonneesService } from 'src/source_donnees/source_donnees.service';
 import { extractColumnValues, extractColumnValuesWithFormula, formatGraphResponse } from 'src/utils/Fonctions_utils';
-import { typegraphiqueEnum } from '@/generique/typegraphique.enum';
+import { typegraphiqueEnum } from '@/generique/cartes.enum';
 import { GeoService } from './geospatiale.service';
 import { FeatureCollection, FeatureCollection as GeoJsonFeatureCollection } from 'geojson';
 import { HttpStatusCode } from 'axios';
+import { and } from 'mathjs';
 
 @Injectable()
 export class GraphService {
@@ -54,17 +55,17 @@ async create2(createGraphDto: CreateGraphDto, idsource: string): Promise<any> { 
   if (this.isGeospatialType(createGraphDto.typeGraphique)) {
     const configGeo = createGraphDto.configGeographique;
     // --- Validation pour Géo ---
-    if (!configGeo || !configGeo.typeGeometrie || !configGeo.nomGroupeDonnees) {
+    if (!configGeo || !configGeo.typeGeometrie || !configGeo.feuille) {
       throw new HttpException("Configuration géographique (configGeographique) incomplète ou manquante.", HttpStatus.BAD_REQUEST);
     }
-    if (!processedData[configGeo.nomGroupeDonnees]) {
-       throw new HttpException(`Le groupe de données '${configGeo.nomGroupeDonnees}' spécifié n'existe pas dans la source.`, HttpStatus.BAD_REQUEST);
+    if (!processedData[configGeo.feuille]) {
+       throw new HttpException(`La feuille de données '${configGeo.feuille}' spécifié n'existe pas dans la source.`, HttpStatus.BAD_REQUEST);
     }
     // ... (autres validations géo: POINT, POLYGONE, LIGNE) ...
     if (createGraphDto.colonnesEtiquettes) {
        for (const etiquette of createGraphDto.colonnesEtiquettes) {
-           if (!etiquette.headerText || !etiquette.libelleAffichage) {
-               throw new HttpException("Chaque colonne d'étiquette doit avoir 'headerText' et 'libelleAffichage'.", HttpStatus.BAD_REQUEST);
+           if (!etiquette.colonne ) {
+               throw new HttpException("Chaque colonne d'étiquette doit avoir 'colonne' ", HttpStatus.BAD_REQUEST);
            }
        }
     }
@@ -517,6 +518,26 @@ async update(idgraph: string, updateGraphDto: UpdateGraphDto): Promise<any> { //
 
 
 
+  async getGraphByProjectInStudio(idprojet: string): Promise<string[]> {
+    const results = await this.graphRepository
+      .createQueryBuilder("graph")
+      .leftJoin("graph.sources", "source")
+      .leftJoin("source.enquete", "enquete")
+      .leftJoin("enquete.projet", "projet")
+      .where("projet.idprojet = :idprojet", { idprojet })
+      .andWhere("graph.inStudio=true")
+      .getRawMany();
+  
+    return results; // Extraire la bonne clé
+  }
+
+
+
+
+  
+
+
+
 
 
 
@@ -539,7 +560,7 @@ async findOneById(id: string): Promise<Graph | null> {
 
 
 async generateGeoJsonForGraph(graphId: string): Promise<FeatureCollection> { // <-- Le type FeatureCollection vient de l'import 'geojson'
-  this.logger.log(`Début génération GeoJSON orchestrée pour graph ID: ${graphId}`);
+  // this.logger.log(`Début génération GeoJSON orchestrée pour graph ID: ${graphId}`);
 
     // Étape 1: Récupérer config Graphique
     const graph = await this.findOneById(graphId);
@@ -557,11 +578,10 @@ async generateGeoJsonForGraph(graphId: string): Promise<FeatureCollection> { // 
     }
 
     // Étape 3: Valider config géo
-    if (!graph.configGeographique || !graph.configGeographique.typeGeometrie || !graph.configGeographique.nomGroupeDonnees) {
+    if ( !graph.configGeographique.typeGeometrie || !graph.configGeographique.feuille) {
          // Idem, BadRequestException est standard pour une configuration manquante/invalide
-         throw new HttpException(`Configuration géographique manquante ou incomplète pour le graphique ${graphId}.`,800);
-        // Ou gardez votre HttpException si le code 800 a une signification spécifique
-        // throw new HttpException(`Configuration géographique manquante/incomplète pour graph ${graphId}.`, 800);
+         throw new HttpException(`configGeographique,typeGeometrie ou feuille manquante  pour le graphique ${graphId}.`,800);
+      
     }
 
     // Étape 4: Obtenir ID Source
@@ -577,17 +597,16 @@ async generateGeoJsonForGraph(graphId: string): Promise<FeatureCollection> { // 
     }
 
     // Étape 6: Accéder et valider données brutes
-    const rawData: any = sourceDonnee.bd_normales; // Ajustez si nécessaire
-    const nomGroupe = graph.configGeographique.nomGroupeDonnees;
+    const rawData: any = sourceDonnee.fichier||sourceDonnee.bd_normales; // Ajustez si nécessaire
+    const nomGroupe = graph.configGeographique.feuille;
     if (!rawData || typeof rawData !== 'object' || !rawData[nomGroupe]) {
-        // Les données spécifiques sont introuvables DANS la source trouvée -> 404
+     
         throw new NotFoundException(`Données brutes requises (groupe '${nomGroupe}') manquantes ou invalides dans la source ID ${sourceDonneeId}.`);
     }
 
     // Étape 7: Appeler GeoService
-    this.logger.log(`Appel de GeoService pour graph ID: ${graphId}`);
     try {
-        // geoService.createGeoJsonData retourne un FeatureCollection de 'geojson'
+
         const geoJsonResult: FeatureCollection = this.geoService.createGeoJsonData(
             rawData,
             graph.configGeographique,
@@ -601,7 +620,7 @@ async generateGeoJsonForGraph(graphId: string): Promise<FeatureCollection> { // 
   
             throw new HttpException(error.message,800);
         }
-        // Pour les erreurs inattendues de GeoService, utilisez InternalServerErrorException
+        // Pour les erreurs inattendues de GeoService,
          throw new HttpException(`Erreur interne lors de la transformation des données pour le graphique ${graphId}.`,800);
    
     }
@@ -610,19 +629,7 @@ async generateGeoJsonForGraph(graphId: string): Promise<FeatureCollection> { // 
 
 
 
-// async InOutstudio(idsource:string){
-//   try{
-//     const source = await this.getSourceById(idsource)
-//     if(!source){
-//       throw new HttpException("source non trouvée",705)
-//     }
-//   source.inStudio=!source.inStudio
-//   await this.sourcededonneesrepo.save(source)
-//   }
-//   catch(err){
-//     throw new HttpException(err.message,705)
-//   }
-// }
+
 
 
 

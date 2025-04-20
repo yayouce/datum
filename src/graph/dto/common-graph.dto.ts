@@ -2,7 +2,8 @@
 
 import { Type } from 'class-transformer';
 import { IsString, IsIn, IsOptional, ValidateNested, IsBoolean, IsObject, IsArray, IsNotEmpty, IsInt, Min, IsEnum } from 'class-validator';
-import { TypeGeometrieMap, ConfigGeographique, ColonneEtiquetteConfig } from '../entities/graph.entity'; // !! Ajustez le chemin !!
+import { ConfigGeographique, ColonneEtiquetteConfig } from '../entities/graph.entity'; // !! Ajustez le chemin !!
+import { TypeGeometrieMap } from '@/generique/cartes.enum';
 
 // --- VOS DTOs COMMUNS EXISTANTS ---
 
@@ -67,11 +68,11 @@ export class YSerieAppearanceUpdateDto {
 export class ColonneEtiquetteConfigDto implements ColonneEtiquetteConfig {
     @IsString()
     @IsNotEmpty()
-    headerText: string;
+    colonne: string;
 
-    @IsString()
-    @IsNotEmpty()
-    libelleAffichage: string;
+    // @IsOptional()
+    // @IsNotEmpty()
+    // libelleAffichage: string;
 }
 
 // DTO pour ConfigGeographique (utilisé par Create et comme base pour Update via PartialType)
@@ -82,22 +83,22 @@ export class ConfigGeographiqueDto implements ConfigGeographique { // Utilise l'
 
     @IsString()
     @IsNotEmpty()
-    nomGroupeDonnees: string;
+    feuille: string;
 
     @IsOptional()
     @IsString()
     @IsNotEmpty() // Vide n'est pas valide si le champ est présent
-    colonneLatitudeHeader?: string;
+    colonneLatitude?: string;
 
     @IsOptional()
     @IsString()
     @IsNotEmpty()
-    colonneLongitudeHeader?: string;
+    colonneLongitude?: string;
 
     @IsOptional()
     @IsString()
     @IsNotEmpty()
-    colonneTraceHeader?: string;
+    colonneTrace?: string;
 
     
 }

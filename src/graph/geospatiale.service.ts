@@ -48,8 +48,8 @@ export class GeoService {
         // --- Étapes 1 & 2: Validation Initiale et Accès au Groupe de Données ---
         // (Code de validation omis pour la concision, mais présent dans la version complète précédente)
         if (!sourceData || typeof sourceData !== 'object') throw new HttpException('Données source invalides.', HttpStatus.INTERNAL_SERVER_ERROR);
-        if (!configGeo || !configGeo.nomGroupeDonnees) throw new HttpException('Configuration géo invalide.', HttpStatus.BAD_REQUEST);
-        const nomGroupe = configGeo.nomGroupeDonnees;
+        if (!configGeo || !configGeo.feuille) throw new HttpException('Configuration géo invalide.', HttpStatus.BAD_REQUEST);
+        const nomGroupe = configGeo.feuille;
         const groupeData = sourceData[nomGroupe];
         if (!groupeData || !Array.isArray(groupeData.donnees) || groupeData.donnees.length === 0) throw new HttpException(`Groupe '${nomGroupe}' introuvable ou vide.`, HttpStatus.BAD_REQUEST);
         if (!groupeData.donnees[0] || typeof groupeData.donnees[0] !== 'object') throw new HttpException(`Ligne d'en-tête invalide.`, HttpStatus.INTERNAL_SERVER_ERROR);
@@ -73,15 +73,15 @@ export class GeoService {
         // Valider et récupérer les lettres des colonnes géographiques requises
         switch (configGeo.typeGeometrie) {
             case TypeGeometrieMap.POINT:
-                 if (!configGeo.colonneLatitudeHeader || !configGeo.colonneLongitudeHeader) throw new HttpException(`Config POINT incomplète.`, HttpStatus.BAD_REQUEST);
-                latLetter = headerToLetterMap[configGeo.colonneLatitudeHeader];
-                lonLetter = headerToLetterMap[configGeo.colonneLongitudeHeader];
+                 if (!configGeo.colonneLatitude || !configGeo.colonneLongitude) throw new HttpException(`Config POINT incomplète.`, HttpStatus.BAD_REQUEST);
+                latLetter = headerToLetterMap[configGeo.colonneLatitude];
+                lonLetter = headerToLetterMap[configGeo.colonneLongitude];
                 if (!latLetter || !lonLetter) throw new HttpException(`En-tête Lat/Lon introuvable.`, HttpStatus.BAD_REQUEST);
                 break;
             case TypeGeometrieMap.POLYGONE:
             case TypeGeometrieMap.LIGNE:
-                 if (!configGeo.colonneTraceHeader) throw new HttpException(`Config ${configGeo.typeGeometrie.toUpperCase()} incomplète.`, HttpStatus.BAD_REQUEST);
-                traceLetter = headerToLetterMap[configGeo.colonneTraceHeader];
+                 if (!configGeo.colonneTrace) throw new HttpException(`Config ${configGeo.typeGeometrie.toUpperCase()} incomplète.`, HttpStatus.BAD_REQUEST);
+                traceLetter = headerToLetterMap[configGeo.colonneTrace];
                 if (!traceLetter) throw new HttpException(`En-tête tracé introuvable.`, HttpStatus.BAD_REQUEST);
                 break;
             default: throw new HttpException(`Type géo non supporté: ${configGeo.typeGeometrie}`, HttpStatus.BAD_REQUEST);
@@ -90,7 +90,7 @@ export class GeoService {
         // Mapper les lettres pour les étiquettes configurées
         const mappedEtiquettes = (etiquettesConfig || []).map(etq => ({
             ...etq,
-            letter: headerToLetterMap[etq.headerText]
+            letter: headerToLetterMap[etq.colonne]
         })).filter(etq => !!etq.letter);
 
 
@@ -203,11 +203,11 @@ export class GeoService {
                 // B. Si une géométrie valide a été créée, extraire les propriétés
                 if (geometry) {
                      // Extraire les propriétés définies dans etiquettesConfig
-                    for (const etq of mappedEtiquettes) {
-                        // etq.letter est garanti d'être défini ici grâce au .filter() préalable
-                        const propValue = currentRow[etq.letter! + rowNum];
-                        properties[etq.libelleAffichage] = propValue ?? null; // Utilise le libellé comme clé, gère null/undefined
-                    }
+                    // for (const etq of mappedEtiquettes) {
+                    //     // etq.letter est garanti d'être défini ici grâce au .filter() préalable
+                    //     const propValue = currentRow[etq.letter! + rowNum];
+                    //     properties[etq.libelleAffichage] = propValue ?? null; // Utilise le libellé comme clé, gère null/undefined
+                    // }
 
                     // C. Ajouter la Feature (Géométrie + Propriétés) au tableau
                     features.push({

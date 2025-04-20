@@ -83,14 +83,14 @@ export class SourceDonneesService implements OnModuleInit {
             throw new HttpException(`L'API ${source} ne retourne pas de fichier valide`, 803);
           }
 
-          // 🔥 Détecter le format du fichier via son extension
+
           formatFichier = this.detectFileFormat(source);
 
-          // 🔥 Convertir le buffer en fichier temporaire
+          // Convertir le buffer en fichier temporaire
           const filePath = path.join(__dirname, `temp.${formatFichier}`);
           fs.writeFileSync(filePath, response.data);
 
-          // 🔥 Lire et formater le fichier selon son type
+          // Lire et formater le fichier selon son type
           if (formatFichier === 'xlsx') {
             fichier = this.processExcelFile(filePath);
           } else if (formatFichier === 'csv') {
@@ -120,7 +120,7 @@ export class SourceDonneesService implements OnModuleInit {
         unitefrequence: unitefrequence,
         format: format,
         source:source,
-        fichier: fichier, // ✅ Données JSON formatées
+        fichier: fichier, 
       });
 
       // 4. Sauvegarde dans la base de données
@@ -1410,6 +1410,11 @@ async applyFunctionAndSave2(
 async autoSync() {
   await this.refreshSourcesAuto();
 }
+
+
+
+
+
 
 
 }
