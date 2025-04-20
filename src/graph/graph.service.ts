@@ -43,9 +43,9 @@ async create2(createGraphDto: CreateGraphDto, idsource: string): Promise<any> { 
     throw new NotFoundException(`Source de données avec ID "${idsource}" introuvable.`);
   }
 
-  const processedData = source.bd_normales; // Adaptez si nécessaire
+  const processedData = source.fichier; // Adaptez si nécessaire
   if (!processedData || typeof processedData !== 'object') {
-    throw new HttpException("Données traitées (bd_normales) introuvables ou invalides dans la source.", HttpStatus.INTERNAL_SERVER_ERROR);
+    throw new HttpException("Données traitées fichier introuvables ou invalides dans la source.", 800);
   }
 
   const existingGraphCount = await this.graphRepository.countBy({
@@ -102,10 +102,10 @@ async create2(createGraphDto: CreateGraphDto, idsource: string): Promise<any> { 
   else {
     // --- Validation pour Classique ---
     if (!createGraphDto.colonneX || !Array.isArray(createGraphDto.colonneX) || createGraphDto.colonneX.length === 0) {
-      throw new HttpException("La définition pour colonneX est requise.", HttpStatus.BAD_REQUEST);
+      throw new HttpException("La définition pour colonneX est requise.", 800);
     }
     if (!createGraphDto.colonneY || !Array.isArray(createGraphDto.colonneY) || createGraphDto.colonneY.length === 0) {
-       throw new HttpException("La définition pour colonneY est requise.", HttpStatus.BAD_REQUEST);
+       throw new HttpException("La définition pour colonneY est requise.", 800);
     }
 
     // --- Extraction des données (votre logique actuelle) ---
@@ -519,9 +519,9 @@ async update(idgraph: string, updateGraphDto: UpdateGraphDto): Promise<any> { //
       .leftJoin("source.enquete", "enquete")
       .leftJoin("enquete.projet", "projet")
       .where("projet.idprojet = :idprojet", { idprojet })
-      .getRawMany();
+      .getMany();
   
-    return results; // Extraire la bonne clé
+    return   results.map(graph => formatGraphResponse(graph));
   }
 
 
@@ -534,8 +534,8 @@ async update(idgraph: string, updateGraphDto: UpdateGraphDto): Promise<any> { //
       .leftJoin("enquete.projet", "projet")
       .where("projet.idprojet = :idprojet", { idprojet })
       .andWhere("graph.inStudio=true")
-      .getRawMany();
-    return results; // Extraire la bonne clé
+      .getMany();
+    return results.map(graph => formatGraphResponse(graph));
   }
 
 

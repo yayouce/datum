@@ -127,7 +127,7 @@ export function extractColumnValues(colonnes: any[], fichier: any): any[] {
   export function formatGraphResponse(graph: Graph): any {
     // --- Vérifications initiales (sources, fichier) ---
     if (!graph || !graph.sources || !graph.sources.fichier) {
-      console.error(`Pas de fichier ou source pour le graph ${graph?.idgraph}. Formatage partiel.`);
+      // console.error(`Pas de fichier ou source pour le graph ${graph?.idgraph}. Formatage partiel.`);
       // Retourner une structure de base si possible
       return {
 
