@@ -89,14 +89,8 @@ metaDonnees: {
    */
   sensEtiquette?: string;
 
-  /**
-   * Position des étiquettes (attendu : "interieure" ou "exterieure")
-   */
   positionEtiquette?: string;
 
-  /**
-   * Position de la légende (attendu : "haut", "bas", "gauche", "droite")
-   */
   positionLegende?: string;
 
   axesSpecifies?: { x?: boolean; y?: boolean; };
@@ -109,6 +103,11 @@ metaDonnees: {
   colonneXOriginale?: string;
 } | null;
 
+@Column(
+  { nullable: true }
+)
+ordre:number
 }
+
 
 export { TypeGeometrieMap };

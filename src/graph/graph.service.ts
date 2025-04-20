@@ -48,6 +48,11 @@ async create2(createGraphDto: CreateGraphDto, idsource: string): Promise<any> { 
     throw new HttpException("Données traitées (bd_normales) introuvables ou invalides dans la source.", HttpStatus.INTERNAL_SERVER_ERROR);
   }
 
+  const existingGraphCount = await this.graphRepository.countBy({
+    sourcesIdsourceDonnes: idsource 
+    });
+    const nextOrder = existingGraphCount + 1; 
+
   let graphDataToSave: Partial<Graph>;
   let finalMetaDonnees: any = null; // Initialisation (restera null pour Géo par défaut)
 
@@ -87,7 +92,9 @@ async create2(createGraphDto: CreateGraphDto, idsource: string): Promise<any> { 
       colonneX: null,
       colonneY: null,
       metaDonnees: finalMetaDonnees, // Reste null ou défaut Géo
-      titremetaDonnees: null, // Toujours null à la création
+      titremetaDonnees: null, // Toujours null à la création,
+      ordre:nextOrder,
+      
     };
   }
 
@@ -153,7 +160,8 @@ async create2(createGraphDto: CreateGraphDto, idsource: string): Promise<any> { 
       configGeographique: null,
       colonnesEtiquettes: null,
       metaDonnees: finalMetaDonnees, // ✨ METADONNEES GÉNÉRÉES PAR DÉFAUT ✨
-      titremetaDonnees: null,       // ✨ TOUJOURS NULL À LA CRÉATION ✨
+      titremetaDonnees: null,       // ✨ TOUJOURS NULL À LA CRÉATION ✨,
+      ordre:nextOrder,
     };
   }
   // --- Sauvegarde ---
@@ -527,7 +535,6 @@ async update(idgraph: string, updateGraphDto: UpdateGraphDto): Promise<any> { //
       .where("projet.idprojet = :idprojet", { idprojet })
       .andWhere("graph.inStudio=true")
       .getRawMany();
-  
     return results; // Extraire la bonne clé
   }
 
