@@ -43,10 +43,12 @@ export class UpdateGraphDto extends PartialType(CreateGraphDto) {
   @Type(() => TitreMetaDonneesDto)
   titremetaDonnees?: TitreMetaDonneesDto | null;
 
-  // Le champ spécifique à l'update
+ 
   @IsOptional()
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => YSerieAppearanceUpdateDto)
   couleurY?: YSerieAppearanceUpdateDto[];
+
+  
 }

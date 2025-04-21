@@ -179,7 +179,7 @@ export function extractColumnValues(colonnes: any[], fichier: any): any[] {
        formule: col.formule,
         valeurs: (col as any).valeurs || [],
         legende: `${col.formule || ''} ${entetes[col.colonne] || col.colonne}`.trim(),
-            couleur: specificColor || genericColor // Priorité: Spécifique BDD > Générique BDD > Secours
+        couleur: specificColor || genericColor // Priorité: Spécifique BDD > Générique BDD > Secours
           };
       }) : [],
 

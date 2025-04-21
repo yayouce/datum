@@ -17,6 +17,10 @@ export class GraphController {
   ) {
     return this.graphService.create2(createGraphDto,idsource);
   }
+  @Post("update/:id")
+  async update(@Param("id") id: string, @Body() updateGraphDto: UpdateGraphDto) {
+    return await this.graphService.update(id, updateGraphDto);
+  }
 
   @Post("add2/:idsource")
   create2(
@@ -55,10 +59,7 @@ async addInOutstudio(
   return await this.graphService.InOutstudio(idgrpah)
 }
 
-  @Post("update/:id")
-  async update(@Param("id") id: string, @Body() updateGraphDto: UpdateGraphDto) {
-    return await this.graphService.update(id, updateGraphDto);
-  }
+ 
 
   @Delete("delete/:id")
   remove(@Param("id") id: string) {
