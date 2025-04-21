@@ -101,6 +101,7 @@ metaDonnees: {
   };
 
   colonneXOriginale?: string;
+  couleursParElementX?: { [labelX: string]: string };
 } | null;
 
 @Column(

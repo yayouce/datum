@@ -36,8 +36,14 @@ export class MetaDonneesDto {
 
 
   @IsOptional()
+  @IsObject() 
+  couleursParElementX?: { [labelX: string]: string };
+
+  @IsOptional()
   @IsString()
   proprieteColoration?: string; // Le nom de la propriété GeoJSON à utiliser pour la couleur (ex: "ID Parcelle")
+
+  
 }
 
 // DTO pour TitreMetaDonnees
