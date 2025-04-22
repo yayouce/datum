@@ -203,11 +203,11 @@ export class GeoService {
                 // B. Si une géométrie valide a été créée, extraire les propriétés
                 if (geometry) {
                      // Extraire les propriétés définies dans etiquettesConfig
-                    // for (const etq of mappedEtiquettes) {
-                    //     // etq.letter est garanti d'être défini ici grâce au .filter() préalable
-                    //     const propValue = currentRow[etq.letter! + rowNum];
-                    //     properties[etq.libelleAffichage] = propValue ?? null; // Utilise le libellé comme clé, gère null/undefined
-                    // }
+                    for (const etq of mappedEtiquettes) {
+                        // etq.letter est garanti d'être défini ici grâce au .filter() préalable
+                        const propValue = currentRow[etq.letter! + rowNum];
+                        properties[etq.colonne] = propValue ?? null; // Utilise le libellé comme clé, gère null/undefined
+                    }
 
                     // C. Ajouter la Feature (Géométrie + Propriétés) au tableau
                     features.push({
