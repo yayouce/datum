@@ -602,18 +602,59 @@ async update(idgraph: string, updateGraphDto: UpdateGraphDto): Promise<any> { //
 
 
 
-  async getGraphByProjectInStudio(idprojet: string): Promise<string[]> {
-    const results = await this.graphRepository
-      .createQueryBuilder("graph")
-      .leftJoin("graph.sources", "source")
-      .leftJoin("source.enquete", "enquete")
-      .leftJoin("enquete.projet", "projet")
-      .where("projet.idprojet = :idprojet", { idprojet })
-      .andWhere("graph.inStudio=true")
-      .getMany();
-    return results.map(graph => formatGraphResponse(graph));
-  }
+  // async getGraphByProjectInStudio(idprojet: string): Promise<string[]> {
+  //   const results = await this.graphRepository
+  //     .createQueryBuilder("graph")
+  //     .leftJoin("graph.sources", "source")
+  //     .leftJoin("source.enquete", "enquete")
+  //     .leftJoin("enquete.projet", "projet")
+  //     .where("projet.idprojet = :idprojet", { idprojet })
+  //     .andWhere("graph.inStudio=true")
+  //     .getMany();
+  //   return results.map(graph => formatGraphResponse(graph));
+  // }
 
+  async getGraphByProjectInStudio(idprojet: string): Promise<FormattedGraphResponse[]> { // Type de retour corrigé
+    let graphs: Graph[];
+    try {
+        graphs = await this.graphRepository
+            .createQueryBuilder("graph")
+            // ESSENTIEL: Charger la relation 'sources' pour que le formateur fonctionne
+            .leftJoinAndSelect("graph.sources", "source") // <--- CORRIGÉ
+            // Jointures pour le filtre
+            .leftJoin("source.enquete", "enquete")
+            .leftJoin("enquete.projet", "projet")
+            // Filtres
+            .where("projet.idprojet = :idprojet", { idprojet })
+            .andWhere("graph.inStudio = true") // Filtre spécifique à cette fonction
+             // Optionnel: Ajouter un tri
+             // .orderBy("graph.ordre", "ASC")
+            .getMany();
+
+    } catch (error) {
+        // Gérer les erreurs BDD
+        throw new HttpException(`Erreur BDD récupération graphiques InStudio pour projet ${idprojet}: ${error.message}`, HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+
+    // Bloc try...catch séparé pour l'étape de formatage
+    try {
+        // Appliquer le formatage à chaque graphique récupéré
+        return graphs.map(graph => {
+            const formatted = formatGraphResponse(graph);
+            // Vérifier si le formatage a explicitement retourné une erreur
+            if (formatted && typeof formatted === 'object' && 'error' in formatted) {
+                console.error(`Échec formatage InStudio pour ${graph.idgraph} (projet ${idprojet}): ${formatted.error} / ${formatted.errorNote}`);
+                // Gérer l'erreur de formatage (lancer, retourner null, retourner partiel)
+                // Ici, on lance une exception pour l'exemple
+                throw new Error(`Échec du formatage pour le graphique InStudio ${graph.idgraph}`);
+            }
+            return formatted as FormattedGraphResponse;
+        });
+    } catch (formatError) {
+        // Attraper les erreurs pendant le map ou une erreur lancée ci-dessus
+         throw new HttpException(`Erreur lors du formatage des graphiques InStudio: ${formatError.message}`, HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+}
 
 
 
