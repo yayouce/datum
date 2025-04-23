@@ -141,7 +141,7 @@ interface InputColonneYItem {
 }
 
 // Définir une interface pour la structure de retour (facultatif mais recommandé)
-interface FormattedGraphResponse {
+export interface FormattedGraphResponse {
     idgraph: string;
     typeGraphique: string; // Utiliser l'enum si possible typegraphiqueEnum
     titreGraphique: string;

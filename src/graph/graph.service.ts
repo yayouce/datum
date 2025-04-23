@@ -3,9 +3,9 @@ import { CreateGraphDto } from './dto/create-graph.dto';
 import { UpdateGraphDto } from './dto/update-graph.dto';
 import { InjectRepository } from '@nestjs/typeorm';
 import { ColonneEtiquetteConfig, ConfigGeographique, Graph, TypeGeometrieMap } from './entities/graph.entity';
-import { Repository } from 'typeorm';
+import { EntityNotFoundError, Repository } from 'typeorm';
 import { SourceDonneesService } from 'src/source_donnees/source_donnees.service';
-import { extractColumnValues, extractColumnValuesWithFormula, formatGraphResponse } from 'src/utils/Fonctions_utils';
+import { extractColumnValues, extractColumnValuesWithFormula, formatGraphResponse, FormattedGraphResponse } from 'src/utils/Fonctions_utils';
 import { typegraphiqueEnum } from '@/generique/cartes.enum';
 import { GeoService } from './geospatiale.service';
 import { FeatureCollection, FeatureCollection as GeoJsonFeatureCollection } from 'geojson';
@@ -29,7 +29,7 @@ private isGeospatialType(graphType: typegraphiqueEnum): boolean {
       typegraphiqueEnum.CARTE_POINTS,
       typegraphiqueEnum.CARTE_POLYGONE,
       typegraphiqueEnum.CARTE_LIGNE,
-      typegraphiqueEnum.CARTE_CHOROPLETHE,
+    
       // typegraphiqueEnum.CARTE_DE_CHALEUR, // Si ajouté
   ];
   return geospatialTypes.includes(graphType);
@@ -259,7 +259,7 @@ async findOne(id: string): Promise<any> {
 
   if (!graph) throw new HttpException(`Graphique avec l'ID ${id} introuvable.`, 705);
 
-  return formatGraphResponse(graph);
+  return formatGraphResponse(graph) as FormattedGraphResponse;
 }
 
 async findBySource(idsource: string): Promise<any[]> {
@@ -271,37 +271,71 @@ async findBySource(idsource: string): Promise<any[]> {
   return graphs.map(graph => formatGraphResponse(graph));
 }
 
-async findOneGraphiqebyID(idgraph:string):Promise<Graph>{
-try{
 
-  const graph=await this.graphRepository.findOneBy({idgraph})
-  
-
-    return formatGraphResponse(graph)
-  
+async findOneGraphiqebyID(idgraph: string): Promise<FormattedGraphResponse> { 
+  let graph: Graph;
+  try {
+      graph = await this.graphRepository.findOneOrFail({
+          where: { idgraph },
+          relations: ["sources"], // <--- ESSENTIEL pour charger les sources
+      });
+  } catch (error) {
+       // Gestion spécifique de l'erreur si findOneOrFail ne trouve rien
+       if (error instanceof EntityNotFoundError) {
+           throw new NotFoundException(`Graphique avec l'ID "${idgraph}" non trouvé.`); 
+       }
+  }
+      const formattedResponse = await formatGraphResponse(graph);
+      return formattedResponse;
 }
-catch(err){
-  throw new HttpException(err.message,802)
+
+
+
+
+
+
+
+
+async InOutstudio(idgraph: string): Promise<boolean> { // Retourne le nouveau statut boolean
+  let graphEntity: Graph;
+  try {
+      
+      graphEntity = await this.graphRepository.findOneByOrFail({ idgraph });
+
+  } catch (error) {
+      if (error instanceof EntityNotFoundError) {
+          throw new NotFoundException(`Graphique avec l'ID "${idgraph}" non trouvé.`);
+      }
+      // Gérer d'autres erreurs de base de données lors de la récupération
+      throw new HttpException(`Erreur BDD lors de la recherche de ${idgraph}: ${error.message}`, 800);
+  }
+  graphEntity.inStudio = !graphEntity.inStudio;
+
+  try {
+      await this.graphRepository.save(graphEntity);
+      return graphEntity.inStudio;
+
+  } catch (saveError) {
+      throw new HttpException(`Erreur BDD lors de la sauvegarde du statut pour ${idgraph}: ${saveError.message}`, 800);
+  }
 }
 
 
-}
-
-async InOutstudio(idgraph:string){
-  try{
-    const graph = await this.findOneGraphiqebyID(idgraph)
+// async InOutstudio(idgraph:string):Promise<any>{
+//   try{
+//     const graph = await this.findOneGraphiqebyID(idgraph)
  
-    if(!graph){
-      throw new HttpException("graph non trouvée",705)
-    }
-  graph.inStudio=!graph.inStudio
-  await this.graphRepository.save(graph)
-  return graph.inStudio
-  }
-  catch(err){
-    throw new HttpException(err.message,705)
-  }
-}
+//     if(!graph){
+//       throw new HttpException("graph non trouvée",705)
+//     }
+//   graph.inStudio=!graph.inStudio
+//   await this.graphRepository.save(graph)
+//   return graph.inStudio
+//   }
+//   catch(err){
+//     throw new HttpException(err.message,705)
+//   }
+// }
 
 
 
@@ -335,7 +369,7 @@ async findByNameAndProject(name: string, projectId: string): Promise<any[]> {
     );
   }
 
-  return graphs.map(graph => formatGraphResponse(graph));
+  return graphs.map(graph => formatGraphResponse(graph) as FormattedGraphResponse);
 }
 
 
@@ -490,9 +524,7 @@ async update(idgraph: string, updateGraphDto: UpdateGraphDto): Promise<any> { //
 
        // Utiliser l'entité retournée par save() pour le formatage
        if (!savedGraph.sources?.fichier) {
-            // Si la relation 'sources' n'est pas automatiquement retournée par save (selon config TypeORM),
-            // recharger PEUT être nécessaire SI formatGraphResponse a besoin des données du fichier.
-            // Sinon, il vaut mieux éviter.
+          
             this.logger.warn(`Relation 'sources' non chargée après sauvegarde pour ${idgraph}. Rechargement peut être nécessaire pour formatage.`);
            const reloadedGraph = await this.findOne(idgraph); // Recharger SEULEMENT SI NÉCESSAIRE
            return formatGraphResponse(reloadedGraph);
@@ -519,17 +551,54 @@ async update(idgraph: string, updateGraphDto: UpdateGraphDto): Promise<any> { //
 
 
 
-  async getGraphByProject(idprojet: string): Promise<string[]> {
-    const results = await this.graphRepository
-      .createQueryBuilder("graph")
-      .leftJoin("graph.sources", "source")
-      .leftJoin("source.enquete", "enquete")
-      .leftJoin("enquete.projet", "projet")
-      .where("projet.idprojet = :idprojet", { idprojet })
-      .getMany();
+  // async getGraphByProject1(idprojet: string): Promise<string[]> {
+  //   const results = await this.graphRepository
+  //     .createQueryBuilder("graph")
+  //     .leftJoin("graph.sources", "source")
+  //     .leftJoin("source.enquete", "enquete")
+  //     .leftJoin("enquete.projet", "projet")
+  //     .where("projet.idprojet = :idprojet", { idprojet })
+  //     .getMany();
   
-    return   results.map(graph => formatGraphResponse(graph));
-  }
+  //   return   results.map(graph => formatGraphResponse(graph));
+  // }
+
+
+
+  async getGraphByProject(idprojet: string): Promise<FormattedGraphResponse[]> { // Type de retour corrigé
+    let graphs: Graph[];
+    try {
+        graphs = await this.graphRepository
+            .createQueryBuilder("graph")
+            .leftJoinAndSelect("graph.sources", "source")
+            .leftJoin("source.enquete", "enquete")
+            .leftJoin("enquete.projet", "projet")
+            .where("projet.idprojet = :idprojet", { idprojet })
+            .getMany(); 
+
+    } catch (error) {
+
+        throw new HttpException(`Erreur BDD lors de la récupération des graphiques du projet ${idprojet}: ${error.message}`, HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+
+    try {
+        // Appliquer le formatage à chaque graphique récupéré
+        return graphs.map(graph => {
+            const formatted = formatGraphResponse(graph);
+            if (formatted && typeof formatted === 'object' && 'error' in formatted) {
+                console.error(`Échec du formatage pour ${graph.idgraph} (projet ${idprojet}): ${formatted.error}`);
+                throw new Error(`Échec du formatage pour le graphique ${graph.idgraph}`);
+            }
+            // Il est raisonnable d'utiliser 'as' ici si on a géré l'erreur
+            return formatted as FormattedGraphResponse;
+        });
+        // Si on retournait null en cas d'erreur : .filter(g => g !== null);
+
+    } catch(formatError) {
+         // Attraper les erreurs inattendues pendant le map/formatGraphResponse
+         throw new HttpException(`Erreur lors du formatage des graphiques: ${formatError.message}`, HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+}
 
 
 
