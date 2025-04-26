@@ -619,16 +619,12 @@ async update(idgraph: string, updateGraphDto: UpdateGraphDto): Promise<any> { //
     try {
         graphs = await this.graphRepository
             .createQueryBuilder("graph")
-            // ESSENTIEL: Charger la relation 'sources' pour que le formateur fonctionne
-            .leftJoinAndSelect("graph.sources", "source") // <--- CORRIGÉ
-            // Jointures pour le filtre
+            .leftJoinAndSelect("graph.sources", "source") 
             .leftJoin("source.enquete", "enquete")
             .leftJoin("enquete.projet", "projet")
-            // Filtres
             .where("projet.idprojet = :idprojet", { idprojet })
-            .andWhere("graph.inStudio = true") // Filtre spécifique à cette fonction
-             // Optionnel: Ajouter un tri
-             // .orderBy("graph.ordre", "ASC")
+            .andWhere("graph.inStudio = true") 
+        
             .getMany();
 
     } catch (error) {

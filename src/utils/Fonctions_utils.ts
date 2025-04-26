@@ -99,7 +99,7 @@ export function extractColumnValues(colonnes: any[], fichier: any): any[] {
     positionLegende: "haut",
     couleurs: {
       generiques: ["#4CAF50", "#8BC34A", "#FF9800"],
-      specifiques: []
+      specifiques: ["#4CAF50", "#8BC34A", "#FF9800"]
     }
   };
   
