@@ -1,7 +1,7 @@
 // src/graph/dto/update-graph.dto.ts (Version finale et correcte)
 import { PartialType } from '@nestjs/mapped-types';
 import { CreateGraphDto } from './create-graph.dto'; // Hérite de la version MISE À JOUR
-import { IsOptional, ValidateNested, IsArray, IsObject } from "class-validator";
+import { IsOptional, ValidateNested, IsArray, IsObject, IsNumber } from "class-validator";
 import { Type } from 'class-transformer';
 
 // Importe TOUS les DTOs communs nécessaires
@@ -49,6 +49,10 @@ export class UpdateGraphDto extends PartialType(CreateGraphDto) {
   @ValidateNested({ each: true })
   @Type(() => YSerieAppearanceUpdateDto)
   couleurY?: YSerieAppearanceUpdateDto[];
+
+  @IsOptional()
+  @IsNumber()
+  ordre:number
 
   
 }

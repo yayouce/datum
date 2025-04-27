@@ -102,7 +102,7 @@ async create2(createGraphDto: CreateGraphDto, idsource: string): Promise<any> { 
   else {
     // --- Validation pour Classique ---
     if (!createGraphDto.colonneX || !Array.isArray(createGraphDto.colonneX) || createGraphDto.colonneX.length === 0) {
-      throw new HttpException("La définition pour colonneX est requise.", 800);
+      throw new HttpException("La défiknition pour colonneX est requise.", 800);
     }
     if (!createGraphDto.colonneY || !Array.isArray(createGraphDto.colonneY) || createGraphDto.colonneY.length === 0) {
        throw new HttpException("La définition pour colonneY est requise.", 800);
