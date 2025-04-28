@@ -1,4 +1,4 @@
-import { HttpException, Injectable } from '@nestjs/common';
+import { ForbiddenException, HttpException, Injectable, NotFoundException } from '@nestjs/common';
 import { CreateSourceDonneeDto } from './dto/create-source_donnee.dto';
 import { InjectRepository } from '@nestjs/typeorm';
 import { SourceDonnee } from './entities/source_donnee.entity';
@@ -36,8 +36,10 @@ import { MasqueColumnToggleDto } from './dto/masquercolonne.dto';
 
 
 
+
 @Injectable()
 export class SourceDonneesService implements OnModuleInit {
+  membreStructRepository: any;
   constructor(
     @InjectRepository(SourceDonnee)
     private sourcededonneesrepo: Repository<SourceDonnee>,
@@ -1412,6 +1414,212 @@ async autoSync() {
 }
 
 
+
+
+
+// //permission et autorisation
+
+// private async getStructureIdForSource_ViaProjetMembre(idsourceDonnes: string): Promise<string | null> {
+//   try {
+//       const sourceDonnee = await this.sourcededonneesrepo.findOne({
+//           where: { idsourceDonnes },
+//           relations: [
+//               'enquete',
+//               'enquete.projet',
+//               'enquete.projet.structure', // MembreStruct lié au projet
+//               'enquete.projet.structure.structure' // Structure Org. de ce MembreStruct
+//           ],
+//       });
+//       // !! Vérifiez que les noms des relations sont corrects dans vos entités !!
+//       const structureId = sourceDonnee?.enquete?.projet?.structure?.structure?.idStruct;
+//       return structureId || null;
+//   } catch (error) {
+//       console.error(`Erreur getStructureId pour SourceDonnee ${idsourceDonnes}:`, error);
+//       return null;
+//   }
+// }
+
+// // --- HELPER : Qui peut modifier les permissions ? ---
+// private checkUserCanModifyPermissions(user: UserEntity /*, structureId?: string */): boolean {
+//   // Admins plateforme peuvent toujours
+//   if (user.role === Role.ADMIN || user.role === Role.SUPERADMIN) {
+//       return true;
+//   }
+ 
+//   return false;
+// }
+
+// // --- GESTION PERMISSIONS PAR RÔLE ---
+
+// async getRoleAutorisations(idsourceDonnes: string): Promise<SourceDonneeAutorisationsRolesResponse> {
+//   const sourceDonnee = await this.sourcededonneesrepo.findOne({
+//       where: { idsourceDonnes },
+//       select: ['idsourceDonnes', 'autorisations']
+//   });
+//   if (!sourceDonnee) throw new NotFoundException();
+
+//   const storedAutorisations = sourceDonnee.autorisations || {};
+//   const response: SourceDonneeAutorisationsRolesResponse = { ...storedAutorisations };
+
+//   // Ajouter l'entrée virtuelle pour l'admin (non stockée)
+//   response['Administrateur'] = { // Clé textuelle pour correspondre à l'UI
+//       [SourceDonneeAction.CONSULTER]: true,
+//       [SourceDonneeAction.MODIFIER]: true,
+//       [SourceDonneeAction.EXPORTER]: true,
+//   };
+//   return response;
+// }
+
+// async updateRoleAutorisations(idsourceDonnes: string, dto: UpdateAutorisationsRolesDto, currentUser: UserEntity): Promise<SourceDonnee> {
+//   // const structureId = await this.getStructureIdForSource_ViaProjetMembre(idsourceDonnes); // Utile pour checkUserCanModifyPermissions
+//   if (!this.checkUserCanModifyPermissions(currentUser /*, structureId */)) {
+//      throw new ForbiddenException("Droits insuffisants.");
+//   }
+
+//   const sourceDonnee = await this.sourcededonneesrepo.findOneBy({ idsourceDonnes });
+//   if (!sourceDonnee) throw new NotFoundException();
+
+//   // Filtrer pour ne garder que les rôles valides (TM, M, C)
+//   const permissionsToSave: any = {};
+//   for (const role of Object.values(SourceDonneeRole)) {
+//        if (dto.autorisations[role]) {
+//            permissionsToSave[role] = dto.autorisations[role];
+//        } else if (sourceDonnee.autorisations && sourceDonnee.autorisations[role]) {
+//            // Conserver l'ancienne valeur si non fournie dans le DTO ? Ou supprimer ? À décider.
+//            // Ici on conserve :
+//            permissionsToSave[role] = sourceDonnee.autorisations[role];
+//        }
+//   }
+//   sourceDonnee.autorisations = permissionsToSave;
+//   return this.sourcededonneesrepo.save(sourceDonnee);
+// }
+
+// // --- GESTION PERMISSIONS SPÉCIFIQUES UTILISATEURS ---
+
+// // async getUsersWithSpecificPermissions(idsourceDonnes: string, roleToFilter: SourceDonneeRole, currentUser: UserEntity): Promise<UserPermissionInfoDto[]> {
+// //   // if (!this.checkUserCanViewUserPermissions(currentUser)) throw new ForbiddenException(); // Qui peut voir la liste ?
+
+// //   const structureId = await this.getStructureIdForSource_ViaProjetMembre(idsourceDonnes);
+// //   if (!structureId) throw new NotFoundException("Structure associée non trouvée.");
+
+// //   const sourceDonnee = await this.sourcededonneesrepo.findOne({
+// //        where: { idsourceDonnes },
+// //        select: ['idsourceDonnes', 'autorisations', 'autorisationsUtilisateursSpecifiques']
+// //   });
+// //   if (!sourceDonnee) throw new NotFoundException();
+
+// //   const membres = await this.membreStructRepository.find({
+// //       where: { structure: { idStruct: structureId }, roleMembre: roleToFilter },
+// //       select: ['id', 'nom', 'prenom', 'email', 'roleMembre']
+// //   });
+
+// //   const result: UserPermissionInfoDto[] = [];
+// //   const rolePermissions = sourceDonnee.autorisations?.[roleToFilter] || {};
+
+// //   for (const membre of membres) {
+// //       const userId = membre.id;
+// //       const specificOverrides = sourceDonnee.autorisationsUtilisateursSpecifiques?.[userId] || {};
+// //       const nomComplet = `${membre.prenom || ''} ${membre.nom || ''}`.trim();
+
+// //       // Calculer permissions effectives
+// //       const effectivePermissions: Partial<Record<SourceDonneeAction, boolean>> = {};
+// //       for (const action of Object.values(SourceDonneeAction)) {
+// //           if (typeof specificOverrides[action] === 'boolean') {
+// //                effectivePermissions[action] = specificOverrides[action]; // L'override prime
+// //           } else {
+// //                effectivePermissions[action] = rolePermissions[action] ?? false; // Sinon, prendre le rôle (ou false par défaut)
+// //           }
+// //       }
+
+// //       result.push({
+// //           userId: userId,
+// //           userName: nomComplet || 'Nom inconnu',
+// //           userEmail: membre.email || 'Email inconnu',
+// //           permissionsEffectives: effectivePermissions,
+// //           permissionsRole: rolePermissions,
+// //           permissionsSpecifiquesBrutes: specificOverrides
+// //       });
+// //   }
+// //   return result;
+// // }
+
+// // async updateUserSpecificPermissions(idsourceDonnes: string, dto: UpdateUserPermissionsDto, currentUser: UserEntity): Promise<SourceDonnee> {
+// //  // const structureId = await this.getStructureIdForSource_ViaProjetMembre(idsourceDonnes);
+// //   if (!this.checkUserCanModifyPermissions(currentUser /*, structureId */)) {
+// //      throw new ForbiddenException("Droits insuffisants.");
+// //   }
+
+// //   const sourceDonnee = await this.sourcededonneesrepo.findOneBy({ idsourceDonnes });
+// //   if (!sourceDonnee) throw new NotFoundException();
+
+// //   let currentOverrides = sourceDonnee.autorisationsUtilisateursSpecifiques || {};
+
+// //   for (const userId in dto.userOverrides) {
+// //       const userNewPermissions = dto.userOverrides[userId];
+// //       let userCurrentOverrides = currentOverrides[userId] || {};
+
+// //       for (const action in userNewPermissions) {
+// //            const value = userNewPermissions[action as SourceDonneeAction];
+// //            if (value === null) {
+// //                delete userCurrentOverrides[action as SourceDonneeAction]; // Supprimer l'override
+// //            } else if (typeof value === 'boolean') {
+// //                userCurrentOverrides[action as SourceDonneeAction] = value; // Définir l'override
+// //            }
+// //       }
+
+// //       if (Object.keys(userCurrentOverrides).length === 0) {
+// //           delete currentOverrides[userId]; // Nettoyer si plus d'overrides pour cet user
+// //       } else {
+// //           currentOverrides[userId] = userCurrentOverrides;
+// //       }
+// //   }
+
+// //   sourceDonnee.autorisationsUtilisateursSpecifiques = currentOverrides;
+// //   return this.sourcededonneesrepo.save(sourceDonnee);
+// // }
+
+// // --- VÉRIFICATION DE PERMISSION FINALE ---
+// // async checkPermission(idsourceDonnes: string, user: UserEntity, action: SourceDonneeAction): Promise<boolean> {
+// //   if (!user) return false; // Sécurité
+
+// //   // 1. Admin plateforme ?
+// //   if (user.role === Role.ADMIN || user.role === Role.SUPERADMIN) return true;
+
+// //   // 2. Récupérer la source et vérifier si l'utilisateur est MembreStruct
+// //   const sourceDonnee = await this.sourcededonneesrepo.findOne({
+// //       where: { idsourceDonnes },
+// //       select: ['idsourceDonnes', 'autorisations', 'autorisationsUtilisateursSpecifiques' /* autres pour lien structure */ ]
+// //       // relations: [...] // Peut-être pas nécessaire si on utilise getStructureIdForSource
+// //   });
+// //   if (!sourceDonnee) return false; // Ou lancer une exception
+
+// //   if (user instanceof MembreStruct) {
+// //       const membre = user as MembreStruct;
+// //       const userId = membre.iduser;
+
+// //       // 3a. Vérifier l'appartenance à la bonne structure organisationnelle
+// //       const structureIdSource = await this.getStructureIdForSource_ViaProjetMembre(idsourceDonnes);
+// //       // Assurez-vous que membre.structure est chargé (via {eager: true} ou relations)
+// //       if (!structureIdSource || !membre.structure || membre.structure.idStruct !== structureIdSource) {
+// //           return false; // Pas dans la bonne structure
+// //       }
+
+// //       // 3b. Vérifier l'override spécifique
+// //       const userOverrides = sourceDonnee.autorisationsUtilisateursSpecifiques?.[userId];
+// //       if (userOverrides && typeof userOverrides[action] === 'boolean') {
+// //           return userOverrides[action]; // L'override spécifique (true ou false) s'applique
+// //       }
+
+// //       // 3c. Vérifier la permission du rôle
+// //       const userRole = membre.roleMembre as SourceDonneeRole;
+// //       const rolePermissions = sourceDonnee.autorisations?.[userRole];
+// //       if (rolePermissions && rolePermissions[action] === true) {
+// //           return true; // Le rôle a la permission
+// //       }
+// //   }
+// //   // 4. Refuser par défaut
+// //   return false;
+// // }
 
 
 

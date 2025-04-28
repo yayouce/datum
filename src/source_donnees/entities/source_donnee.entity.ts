@@ -1,3 +1,4 @@
+import { SourceDonneeAction, SourceDonneeRole } from "@/generique/autorisation.enum";
 import { TimestampEntites } from "@/generique/timestamp";
 import { DataType } from "src/data_type/entities/data_type.entity";
 import { Enquete } from "src/enquete/entities/enquete.entity";
@@ -69,4 +70,13 @@ export class SourceDonnee extends TimestampEntites {
     @OneToMany(()=>Graph,(graph)=>graph.sources)
     graphique:Graph[]
 
+
+
+    @Column({ type: 'json', nullable: true })
+    autorisations: Record<SourceDonneeRole, Partial<Record<SourceDonneeAction, boolean>>> | null;
+
+
+    @Column({ type: 'json', nullable: true })
+    autorisationsUtilisateursSpecifiques: Record<string, Partial<Record<SourceDonneeAction, boolean | null>>> | null;
 }
+

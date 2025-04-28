@@ -53,6 +53,7 @@ async createMembreStruct(createmembre:CreateMembreStructDto){
 
 
 async rejoindreStructure(rejoindrestructures: rejoindrestructureDto) {
+  let roleMembre="";
   try {
     const { emailSuperieur, password, ...data } = rejoindrestructures;
     const sup = await this.findOnemembreByemail(emailSuperieur);
@@ -78,13 +79,19 @@ async rejoindreStructure(rejoindrestructures: rejoindrestructureDto) {
     // Mise à jour du rôle du supérieur si nécessaire
     if (sup.roleMembre === roleMembreEnum.COORDINATEUR) {
       sup.roleMembre = roleMembreEnum.MANAGER;
-      await this.membreRepository.save(sup); // Sauvegarde des modifications du supérieur
+      this.moficationinformationsup(sup.email,sup); 
     }
-
     return nouveauMembre;
   } catch (err) {
     throw new HttpException(err.message, 900);
   }
+}
+
+async moficationinformationsup(emailSuperieur,supdata){
+   await this.findOnemembreByemail(emailSuperieur);
+ 
+  return await this.membreRepository.save(supdata)
+
 }
 
 async findOnemembreByemail(email){

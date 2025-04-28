@@ -1,4 +1,4 @@
-import { HttpCode, HttpException, HttpStatus, Injectable, InternalServerErrorException, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, HttpCode, HttpException, HttpStatus, Injectable, InternalServerErrorException, Logger, NotFoundException } from '@nestjs/common';
 import { CreateGraphDto } from './dto/create-graph.dto';
 import { UpdateGraphDto } from './dto/update-graph.dto';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -9,8 +9,10 @@ import { extractColumnValues, extractColumnValuesWithFormula, formatGraphRespons
 import { typegraphiqueEnum } from '@/generique/cartes.enum';
 import { GeoService } from './geospatiale.service';
 import { FeatureCollection, FeatureCollection as GeoJsonFeatureCollection } from 'geojson';
-import { HttpStatusCode } from 'axios';
-import { and } from 'mathjs';
+import { DOMParser } from '@xmldom/xmldom'; // Fonctionne bien en statique
+import * as AdmZip from 'adm-zip';   
+import * as shapefile from 'shapefile'; 
+import { ImportMapFileDto } from './dto/importMapFile.dto';
 
 @Injectable()
 export class GraphService {
@@ -36,7 +38,7 @@ private isGeospatialType(graphType: typegraphiqueEnum): boolean {
 }
 
 
-// --- Méthode CREATE modifiée ---
+// --- Méthode CREATE---
 async create2(createGraphDto: CreateGraphDto, idsource: string): Promise<any> { // Retourne la réponse formatée
   const source = await this.sourceDonneesservice.getSourceById(idsource);
   if (!source) {
@@ -74,11 +76,6 @@ async create2(createGraphDto: CreateGraphDto, idsource: string): Promise<any> { 
            }
        }
     }
-
-    // Les metaDonnees ne sont pas fournies via DTO à la création.
-    // Si les graphiques Géo ont des metaDonnees par défaut spécifiques, définissez-les ici.
-    // Exemple: finalMetaDonnees = { mapStyle: 'default', zoomLevel: 5 };
-    // Sinon, elles restent null.
 
     // --- Préparation des données Géo ---
     graphDataToSave = {
@@ -200,51 +197,6 @@ console.log('Valeur de newGraph.metaDonnees:', JSON.stringify(newGraph.metaDonne
 
 
 // ... autres méthodes du service ...
-
-
-
-
-
-
-
-
-
-  
-//   async create(createGraphDto: CreateGraphDto, idsource: string): Promise<Graph> {
-//     const source = await this.sourceDonneesservice.getSourceById(idsource);
-//     if (!source) throw new HttpException("Source de données introuvable.", 700);
-
-//     const fichier = source.fichier;
-
-//     // Extraction de colonneX (élèves uniques)
-//     const colonneXData = extractColumnValues(createGraphDto.colonneX, fichier);
-//     const colonneX = colonneXData.length > 0 ? colonneXData[0].tabColonne : [];
-//     const colonneXColonneId = colonneXData[0].colonne ;
-
-//     if (!colonneX || colonneX.length === 0) {
-//         throw new HttpException("La colonne X est invalide ou introuvable.", 701);
-//     }
-
-
-//     const colonneY = extractColumnValuesWithFormula(createGraphDto.colonneY, fichier, colonneX,colonneXColonneId);
-
-//     if (colonneY.some(col => col.valeurs.length === 0 || col.valeurs.every(val => val === 0))) {
-//         throw new HttpException("Les colonnes Y n'ont pas été bien calculées.", 702);
-//     }
-
-//     const newGraph = this.graphRepository.create({
-//         ...createGraphDto,
-//         colonneX,
-//         colonneY,
-//         nomsourceDonnees: source.nomSource,
-//         sources: source,
-//     });
-
-//     return await this.graphRepository.save(newGraph);
-// }
-
-
-
 
 async findAll(): Promise<any[]> {
   const graphs = await this.graphRepository.find({ relations: ["sources"] });
@@ -548,23 +500,6 @@ async update(idgraph: string, updateGraphDto: UpdateGraphDto): Promise<any> { //
     await this.graphRepository.softRemove(graph);
   }
 
-
-
-
-  // async getGraphByProject1(idprojet: string): Promise<string[]> {
-  //   const results = await this.graphRepository
-  //     .createQueryBuilder("graph")
-  //     .leftJoin("graph.sources", "source")
-  //     .leftJoin("source.enquete", "enquete")
-  //     .leftJoin("enquete.projet", "projet")
-  //     .where("projet.idprojet = :idprojet", { idprojet })
-  //     .getMany();
-  
-  //   return   results.map(graph => formatGraphResponse(graph));
-  // }
-
-
-
   async getGraphByProject(idprojet: string): Promise<FormattedGraphResponse[]> { // Type de retour corrigé
     let graphs: Graph[];
     try {
@@ -600,19 +535,6 @@ async update(idgraph: string, updateGraphDto: UpdateGraphDto): Promise<any> { //
     }
 }
 
-
-
-  // async getGraphByProjectInStudio(idprojet: string): Promise<string[]> {
-  //   const results = await this.graphRepository
-  //     .createQueryBuilder("graph")
-  //     .leftJoin("graph.sources", "source")
-  //     .leftJoin("source.enquete", "enquete")
-  //     .leftJoin("enquete.projet", "projet")
-  //     .where("projet.idprojet = :idprojet", { idprojet })
-  //     .andWhere("graph.inStudio=true")
-  //     .getMany();
-  //   return results.map(graph => formatGraphResponse(graph));
-  // }
 
   async getGraphByProjectInStudio(idprojet: string): Promise<FormattedGraphResponse[]> { // Type de retour corrigé
     let graphs: Graph[];
@@ -679,73 +601,271 @@ async findOneById(id: string): Promise<Graph | null> {
 }
 
 
-async generateGeoJsonForGraph(graphId: string): Promise<FeatureCollection> { // <-- Le type FeatureCollection vient de l'import 'geojson'
-  // this.logger.log(`Début génération GeoJSON orchestrée pour graph ID: ${graphId}`);
-
-    // Étape 1: Récupérer config Graphique
-    const graph = await this.findOneById(graphId);
-    if (!graph) {
-        throw new NotFoundException(`Graphique avec l'ID ${graphId} introuvable.`);
-    }
-
-    // Étape 2: Valider type
-    // Remplissez les types géo réels de votre enum ici
-    const geoGraphTypes = [ typegraphiqueEnum.CARTE_POLYGONE , typegraphiqueEnum.CARTE_POINTS,typegraphiqueEnum.CARTE_LIGNE ];
-    if (!geoGraphTypes.includes(graph.typeGraphique)) {
-     
-        throw new HttpException(`Graphique ${graphId} (type: ${graph.typeGraphique}) n'est pas un type cartographique valide pour cette opération.`,802);
-    
-    }
-
-    // Étape 3: Valider config géo
-    if ( !graph.configGeographique.typeGeometrie || !graph.configGeographique.feuille) {
-         // Idem, BadRequestException est standard pour une configuration manquante/invalide
-         throw new HttpException(`configGeographique,typeGeometrie ou feuille manquante  pour le graphique ${graphId}.`,800);
-      
-    }
-
-    // Étape 4: Obtenir ID Source
-    const sourceDonneeId = graph.sourcesIdsourceDonnes;
-    if (!sourceDonneeId) {
-        throw new NotFoundException(`Aucun ID de source de données associé au graphique ${graphId}.`); // Logique : sans ID, la ressource data est introuvable
-    }
-
-    // Étape 5: Récupérer entité Source
-    const sourceDonnee = await this.sourceDonneesservice.findOneById(sourceDonneeId);
-    if (!sourceDonnee) {
-        throw new NotFoundException(`Source de données (ID: ${sourceDonneeId}) associée au graphique ${graphId} introuvable.`);
-    }
-
-    // Étape 6: Accéder et valider données brutes
-    const rawData: any = sourceDonnee.fichier||sourceDonnee.bd_normales; // Ajustez si nécessaire
-    const nomGroupe = graph.configGeographique.feuille;
-    if (!rawData || typeof rawData !== 'object' || !rawData[nomGroupe]) {
-     
-        throw new NotFoundException(`Données brutes requises (groupe '${nomGroupe}') manquantes ou invalides dans la source ID ${sourceDonneeId}.`);
-    }
-
-    // Étape 7: Appeler GeoService
-    try {
-
-        const geoJsonResult: FeatureCollection = this.geoService.createGeoJsonData(
-            rawData,
-            graph.configGeographique,
-            graph.colonnesEtiquettes || [],
-            graph.idgraph
-        );
-        return geoJsonResult;
-
-    } catch (error) {
-        if (error instanceof HttpException) {
-  
-            throw new HttpException(error.message,800);
-        }
-        // Pour les erreurs inattendues de GeoService,
-         throw new HttpException(`Erreur interne lors de la transformation des données pour le graphique ${graphId}.`,800);
-   
-    }
-} 
 
 
+
+// --- Méthode mise à jour ---
+async generateGeoJsonForGraph(graphId: string): Promise<FeatureCollection> {
+// this.logger.log(`Début génération GeoJSON pour graph ID: ${graphId}`);
+
+// Étape 1: Récupérer l'entité Graphique complète
+const graph = await this.findOneById(graphId); // Utilise votre méthode interne
+if (!graph) {
+    // Si le graphique lui-même n'existe pas -> 404 Not Found
+    throw new NotFoundException(`Graphique avec l'ID ${graphId} introuvable.`);
+}
+
+// --- Branchement logique basé sur le type de graphique ---
+
+// CAS 1: Carte importée (données dans graph.geoJsonData)
+if (graph.typeGraphique === typegraphiqueEnum.CARTE_IMPORTEE) {
+
+  if (graph.geoJsonData && typeof graph.geoJsonData === 'object' && graph.geoJsonData.type) {
+      return graph.geoJsonData as FeatureCollection; 
+  } else {
+      // Si les données attendues pour ce type sont manquantes ou invalides -> Erreur
+      console.error(`Données GeoJSON manquantes ou invalides pour CARTE_IMPORTEE ${graphId}.`);
+      // Une ressource essentielle (les données GeoJSON) est manquante pour ce graphique spécifique
+      throw new NotFoundException(`Données GeoJSON essentielles introuvables ou invalides pour le graphique importé ${graphId}.`);
+  }
+}
+
+// CAS 2: Cartes basées sur l'extraction (Points, Lignes, Polygones)
+const extractionMapTypes = [
+    typegraphiqueEnum.CARTE_POINTS,
+    typegraphiqueEnum.CARTE_POLYGONE,
+    typegraphiqueEnum.CARTE_LIGNE
+];
+
+if (extractionMapTypes.includes(graph.typeGraphique)) {
+  // this.logger.log(`Graphique ${graphId} est de type extraction (${graph.typeGraphique}). Validation de la configuration.`);
+
+  // Étape 3: Valider config géo (spécifique à l'extraction)
+  if (!graph.configGeographique || !graph.configGeographique.typeGeometrie || !graph.configGeographique.feuille) {
+      // Configuration invalide ou manquante fournie par l'utilisateur/config -> 400 Bad Request
+      throw new BadRequestException(`Configuration géographique (configGeographique) invalide ou incomplète pour le graphique ${graphId}. Champs 'typeGeometrie' et 'feuille' requis.`);
+  }
+
+  // Étape 4: Obtenir ID Source
+  const sourceDonneeId = graph.sourcesIdsourceDonnes;
+  if (!sourceDonneeId) {
+      // Le lien vers la source est manquant dans le graphique -> Peut être considéré comme 404 ou 500 (intégrité data)
+      throw new NotFoundException(`Aucun ID de source de données associé au graphique ${graphId}.`);
+  }
+
+  // Étape 5: Récupérer entité Source (via le service injecté)
+  const sourceDonnee = await this.sourceDonneesservice.findOneById(sourceDonneeId);
+  if (!sourceDonnee) {
+      // La source liée n'existe plus -> 404 Not Found
+      throw new NotFoundException(`Source de données (ID: ${sourceDonneeId}) associée au graphique ${graphId} introuvable.`);
+  }
+
+  // Étape 6: Accéder et valider données brutes dans la source
+  const sourceDataContainer = graph.sources?.fichier ?? sourceDonnee.fichier ?? sourceDonnee.bd_normales;
+  const nomGroupe = graph.configGeographique.feuille;
+
+  if (!sourceDataContainer || typeof sourceDataContainer !== 'object' || !sourceDataContainer[nomGroupe]) {
+      // Les données brutes spécifiques nécessaires (la "feuille") sont manquantes dans la source -> 404 Not Found
+       throw new NotFoundException(`Données sources (groupe/feuille '${nomGroupe}') introuvables ou invalides dans la source ID ${sourceDonneeId} pour le graphique ${graphId}.`);
+  }
+
+  const rawDataForSheet = sourceDataContainer[nomGroupe]; // Données spécifiques à traiter
+
+  // Étape 7: Appeler GeoService pour générer le GeoJSON
+  try {
+      // this.logger.log(`Appel de GeoService.createGeoJsonData pour ${graphId}`);
+      const geoJsonResult: FeatureCollection = this.geoService.createGeoJsonData(
+          rawDataForSheet, // Passe uniquement les données de la feuille concernée
+          graph.configGeographique,
+          graph.colonnesEtiquettes || [],
+          graph.idgraph // Passe l'ID du graph si geoService en a besoin pour le logging/contexte
+      );
+      // this.logger.log(`Génération GeoJSON réussie pour ${graphId}`);
+      return geoJsonResult;
+
+  } catch (error) {
+      console.error(`Erreur lors de l'appel à GeoService pour ${graphId}:`, error);
+      if (error instanceof HttpException) {
+          // Si GeoService lance une HttpException (ex: Bad Request pour config invalide), la propager
+          throw error;
+      }
+      // Pour les erreurs inattendues de GeoService -> 500 Internal Server Error
+      throw new InternalServerErrorException(`Erreur interne lors de la transformation des données géospatiales pour le graphique ${graphId}.`);
+  }
+}
+
+throw new BadRequestException(`Le type de graphique '${graph.typeGraphique}' (ID: ${graphId}) ne supporte pas la génération de données GeoJSON via cette route.`);
 
 }
+
+
+
+
+
+
+async createMapFromFile(idsource: string, dto: ImportMapFileDto, file: Express.Multer.File): Promise<any> {
+  const source = await this.sourceDonneesservice.getSourceById(idsource);
+  if (!source) {
+      throw new NotFoundException(`Source de données avec ID "${idsource}" introuvable.`);
+  }
+
+  let geoJsonData: any;
+  const fileExt = '.' + file.originalname.split('.').pop()?.toLowerCase();
+
+  try {
+    switch (fileExt) {
+      case '.json':
+      case '.geojson':
+        geoJsonData = JSON.parse(file.buffer.toString('utf-8'));
+        break;
+
+      case '.kml':
+        console.log(`Traitement du fichier ${fileExt}...`);
+        // Import dynamique de togeojson
+        const togeojsonKml = await import('@tmcw/togeojson');
+        const kmlDom = new DOMParser().parseFromString(file.buffer.toString('utf-8'), 'text/xml');
+        // Utilisation de la fonction kml du module importé
+        geoJsonData = togeojsonKml.kml(kmlDom);
+        break;
+
+      case '.kmz':
+         console.log(`Traitement du fichier ${fileExt}...`);
+         // Import dynamique de togeojson
+         const togeojsonKmz = await import('@tmcw/togeojson');
+         const zipKmz = new AdmZip(file.buffer); // AdmZip est importé statiquement
+         const kmlEntry = zipKmz.getEntries().find(entry => entry.entryName.toLowerCase().endsWith('.kml'));
+         if (!kmlEntry) throw new Error("Aucun fichier .kml trouvé dans l'archive KMZ.");
+         const kmlContent = kmlEntry.getData().toString('utf-8');
+         const kmzDom = new DOMParser().parseFromString(kmlContent, 'text/xml'); // DOMParser est statique
+         // Utilisation de la fonction kml du module importé
+         geoJsonData = togeojsonKmz.kml(kmzDom);
+         break;
+
+         case '.zip': // Assume Shapefile - Nouvelle logique avec le package 'shapefile'
+           console.log(`Traitement du fichier ${fileExt} avec le package 'shapefile'...`);
+
+           let shpBuffer: Buffer | null = null;
+           let dbfBuffer: Buffer | null = null;
+           let prjBuffer: Buffer | null = null; // Optionnel mais utile pour la projection
+
+           try {
+               const receivedZip = new AdmZip(file.buffer);
+               const zipEntries = receivedZip.getEntries();
+
+               // Chercher les fichiers nécessaires (à la racine ou dans un sous-dossier)
+               const findFileEntry = (extension: string): AdmZip.IZipEntry | undefined => {
+                    const extLower = extension.toLowerCase();
+                    // Priorité à la racine
+                    let entry = zipEntries.find(e => !e.isDirectory && e.entryName.toLowerCase().endsWith(extLower) && !e.entryName.includes('/'));
+                    if (entry) return entry;
+                    // Sinon, chercher dans le premier sous-dossier trouvé contenant un .shp
+                    const nestedShpEntry = zipEntries.find(e => !e.isDirectory && e.entryName.toLowerCase().endsWith('.shp') && e.entryName.includes('/'));
+                    if (nestedShpEntry) {
+                        const directoryPath = nestedShpEntry.entryName.substring(0, nestedShpEntry.entryName.lastIndexOf('/') + 1);
+                         entry = zipEntries.find(e => !e.isDirectory && e.entryName.toLowerCase().endsWith(extLower) && e.entryName.startsWith(directoryPath));
+                         if (entry) return entry;
+                    }
+                    return undefined; // Non trouvé
+               };
+
+               const shpEntry = findFileEntry('.shp');
+               const dbfEntry = findFileEntry('.dbf');
+               const prjEntry = findFileEntry('.prj'); // Recherche du .prj
+
+               if (!shpEntry) throw new Error("Fichier .shp manquant dans l'archive ZIP.");
+               if (!dbfEntry) throw new Error("Fichier .dbf manquant dans l'archive ZIP (requis pour les attributs).");
+
+               shpBuffer = shpEntry.getData();
+               dbfBuffer = dbfEntry.getData();
+               if (prjEntry) {
+                   prjBuffer = prjEntry.getData();
+                   console.log("Fichier .prj trouvé, la projection pourrait être lue.");
+               } else {
+                   console.warn("Fichier .prj non trouvé. La projection par défaut (WGS84) sera assumée ou devra être gérée manuellement.");
+               }
+
+               console.log("Buffers .shp et .dbf extraits de l'archive ZIP.");
+
+           } catch (zipError) {
+               console.error("Erreur lors de l'extraction des composants Shapefile du ZIP:", zipError);
+               throw new Error(`Erreur lors de l'extraction du Shapefile: ${zipError.message}`);
+           }
+
+           // Utiliser le package 'shapefile' avec les buffers extraits
+           if (shpBuffer && dbfBuffer) {
+               try {
+                   // L'API shapefile.read attend le nom du fichier .shp et .dbf, mais accepte aussi les buffers
+                   // La conversion en GeoJSON est implicite
+                   console.log("Lecture des buffers avec shapefile.read...");
+                   geoJsonData = await shapefile.read(shpBuffer, dbfBuffer /*, prjBuffer */); // Passer prjBuffer si disponible et supporté par l'API pour lire la projection
+                   console.log("Lecture Shapefile et conversion GeoJSON réussies.");
+               } catch (readError) {
+                   console.error("Erreur lors de la lecture des buffers par le package 'shapefile':", readError);
+                   throw new Error(`Erreur lors de la lecture du Shapefile: ${readError.message}`);
+               }
+           } else {
+              // Ne devrait pas arriver si les erreurs précédentes sont bien gérées
+              throw new Error("Les buffers SHP ou DBF n'ont pas pu être extraits correctement.");
+           }
+           break;
+
+      default:
+        throw new BadRequestException(`Extension de fichier non supportée: ${fileExt}`);
+    }
+
+    // ... (Validation GeoJSON) ...
+    if (!geoJsonData /* ... conditions ... */) {
+       throw new Error("Le fichier converti n'est pas un GeoJSON valide ou est vide.");
+    }
+    console.log(`Conversion en GeoJSON réussie. Type: ${geoJsonData.type}`);
+
+    // ... (Validation colonnesEtiquettes) ...
+
+  } catch (error) {
+      console.error(`Erreur pendant la conversion/validation (${fileExt}):`, error);
+      if (error instanceof HttpException) throw error;
+      throw new BadRequestException(`Échec du traitement du fichier ${file.originalname}: ${error.message}`);
+  }
+
+  // ... (Calcul de l'ordre) ...
+  const existingGraphCount = await this.graphRepository.countBy({ sourcesIdsourceDonnes: idsource });
+  const nextOrder = existingGraphCount + 1;
+
+  // ... (Création de graphDataToSave) ...
+  const graphDataToSave: Partial<Graph> = {
+      titreGraphique: dto.titreGraphique,
+      typeGraphique: typegraphiqueEnum.CARTE_IMPORTEE,
+      inStudio: false,
+      colonneX: null,
+      colonneY: null,
+      configGeographique: null,
+      geoJsonData: geoJsonData, // Stocker le GeoJSON
+      colonnesEtiquettes: dto.colonnesEtiquettes || null,
+      nomsourceDonnees: source.nomSource,
+      sources: source,
+      sourcesIdsourceDonnes: source.idsourceDonnes,
+      metaDonnees: null,
+      titremetaDonnees: null,
+      ordre: nextOrder,
+  };
+
+  const newGraph = this.graphRepository.create(graphDataToSave);
+
+  // ... (Sauvegarde et formatage) ...
+  try {
+      const savedGraph = await this.graphRepository.save(newGraph);
+      // ... (Fetch pour formatage) ...
+      const graphToFormat = await this.graphRepository.findOne({ where: { idgraph: savedGraph.idgraph }, relations: ['sources'] });
+      if (!graphToFormat) throw new NotFoundException("Graphique importé créé mais non retrouvé.");
+
+      return formatGraphResponse(graphToFormat);
+  } catch (dbError) {
+       console.error("Erreur DB (Graph) ou formatage:", dbError);
+       throw new InternalServerErrorException("Impossible de sauvegarder ou formater le graphique importé.");
+  }
+}
+
+}
+
+
+

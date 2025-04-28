@@ -108,7 +108,18 @@ metaDonnees: {
   { nullable: true }
 )
 ordre:number
+
+
+
+
+ // --- importation en enregistrement en geojson ---
+ @Column({ type: 'json', nullable: true })
+ geoJsonData: any | null; 
+
 }
+
+
+
 
 
 export { TypeGeometrieMap };

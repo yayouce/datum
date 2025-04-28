@@ -1,5 +1,6 @@
-import { Controller, Get, Param, Patch, Post} from '@nestjs/common';
+import { Controller, Get, InternalServerErrorException, NotFoundException, Param, ParseUUIDPipe, Patch, Post} from '@nestjs/common';
 import { StructureService } from './structure.service';
+import { OrgChartNodeDto } from './dto/organigramme.dto';
 
 
 @Controller('structure')
@@ -84,6 +85,30 @@ export class StructureController {
   async RestoreAdhesion(@Param('id') idStruct: string) {
     return await this.structureService.RestoreAdhesion(idStruct);
   }
+
+
+
+
+  @Get('organigramme/:idStruct')
+  async getOrganigramme(
+    @Param('idStruct', ParseUUIDPipe) idStruct: string // Valide que idStruct est un UUID
+): Promise<OrgChartNodeDto[]> {
+    try {
+        // Le service effectue la recherche et le formatage
+        const data = await this.structureService.getOrganigrammeData(idStruct);
+        return data;
+    } catch (error) {
+        // Gérer l'erreur si la structure n'est pas trouvée
+        if (error instanceof NotFoundException) {
+            // Re-lancer l'erreur pour que NestJS renvoie une réponse 404
+            throw error;
+        }
+        // Logguer l'erreur pour le débogage côté serveur
+        console.error(`Erreur lors de la récupération de l'organigramme pour la structure ${idStruct}:`, error);
+        // Pour toute autre erreur, renvoyer une erreur 500 générique
+        throw new InternalServerErrorException("Une erreur interne est survenue lors de la récupération des données de l'organigramme.");
+    }
+}
 
 
 }

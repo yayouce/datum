@@ -1,8 +1,10 @@
-import { Controller, Get, Post, Body, Param, Patch, Delete, NotFoundException, BadRequestException, ParseUUIDPipe, HttpException, InternalServerErrorException } from "@nestjs/common";
+import { Controller, Get, Post, Body, Param, Patch, Delete, NotFoundException, BadRequestException, ParseUUIDPipe, HttpException, InternalServerErrorException, UseInterceptors, UploadedFile } from "@nestjs/common";
 import { GraphService } from "./graph.service";
 import { CreateGraphDto } from "./dto/create-graph.dto";
 import { UpdateGraphDto } from "./dto/update-graph.dto";
 import { FeatureCollection, FeatureCollection as GeoJsonFeatureCollection } from 'geojson';
+import { FileInterceptor } from "@nestjs/platform-express";
+import { ImportMapFileDto } from "./dto/importMapFile.dto";
 
 
 @Controller("graph")
@@ -95,7 +97,7 @@ async getGraphByNameAndProject(@Param('name') name: string, @Param('projectId') 
   }
 
 
-  @Get('/data/geojson/:idgraphique') 
+@Get('/data/geojson/:idgraphique') 
     async getgeojson(
 
         @Param('idgraphique', ParseUUIDPipe) idgraphique: string
@@ -114,4 +116,36 @@ async getGraphByNameAndProject(@Param('name') name: string, @Param('projectId') 
             throw new InternalServerErrorException(`Une erreur serveur inattendue est survenue lors de la récupération des données pour le graphique ${idgraphique}.`);
         }
     }
+
+
+
+
+    @Post('import-map/:idsource')
+  @UseInterceptors(FileInterceptor('fichier'))
+  async importMapFile(
+    @Param('idsource') idsource: string, // <<< Get idsource from URL
+    @Body() importMapFileDto: ImportMapFileDto,
+    @UploadedFile(/*... ParseFilePipe etc. remain the same ...*/) file: Express.Multer.File,
+  ) {
+    // File validation (extension, etc.) remains the same
+    const allowedExtensions = ['.geojson', '.json', '.kml', '.kmz', '.zip'];
+    const fileExt = '.' + file.originalname.split('.').pop()?.toLowerCase();
+    if (!allowedExtensions.includes(fileExt)) {
+        throw new BadRequestException(`Type de fichier non supporté : ${fileExt}. Attendus : ${allowedExtensions.join(', ')}`);
+    }
+     if (fileExt === '.zip' && file.mimetype !== 'application/zip') {
+       console.warn(`Fichier .zip avec mimetype ${file.mimetype} reçu. Attendu application/zip. Traitement tenté.`);
+     }
+
+    try {
+      // Call the service method, now passing idsource
+      return await this.graphService.createMapFromFile(idsource, importMapFileDto, file); // <<< Pass idsource
+    } catch (error) {
+       console.error("Erreur contrôleur import-map:", error);
+       if (error instanceof HttpException) {
+           throw error;
+       }
+       throw new InternalServerErrorException("Erreur serveur lors de l'importation de la carte.");
+    }
+  }
 }

@@ -12,11 +12,15 @@ export enum typegraphiqueEnum {
     CHANDELIER = "Graphique_en_chandelier",
 
 
+
+    
     // --- Graphiques Géospatiaux ---
     CARTE_POINTS = "Carte_de_points",               //juste besoin de longitude et lattitude
     CARTE_POLYGONE = "Carte_de_polygones",           
     CARTE_LIGNE = "Carte_de_lignes",                 
-       
+    
+    //carte importé
+    CARTE_IMPORTEE = "Carte_importee",
 }
 
 

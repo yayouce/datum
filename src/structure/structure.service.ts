@@ -1,9 +1,11 @@
-import { HttpException, HttpStatus, Injectable } from '@nestjs/common';
+import { HttpException, HttpStatus, Injectable, NotFoundException } from '@nestjs/common';
 import { CreateStructureDto } from './dto/create-structure.dto';
 
 import { InjectRepository } from '@nestjs/typeorm';
 import { Structure } from './entities/structure.entity';
 import { Repository } from 'typeorm';
+import { OrgChartNodeDto } from './dto/organigramme.dto';
+import { MembreStruct } from '@/membre-struct/entities/membre-struct.entity';
 
 
 @Injectable()
@@ -11,6 +13,8 @@ export class StructureService {
   constructor(
     @InjectRepository(Structure)
     private structureRepo:Repository<Structure>,
+    @InjectRepository(MembreStruct)
+    private membreStructRepository: Repository<MembreStruct>,
    
   ){}
 
@@ -190,21 +194,43 @@ export class StructureService {
         return new HttpException(err.message,805)
       }
       
+
+
+
+
     }
 
 
-  
 
 
+    async getOrganigrammeData(idStruct: string): Promise<OrgChartNodeDto[]> {
+      const structureExists = await this.structureRepo.count({ where: { idStruct } });
+      if (!structureExists) {
+          throw new NotFoundException(`Structure avec l'ID ${idStruct} non trouvée.`);
+      }
 
+      const membres = await this.membreStructRepository.find({
+          where: { structure: { idStruct: idStruct } },
+          relations: ['superieur'], // Charger l'entité 'superieur'
+      });
 
+      if (!membres || membres.length === 0) {
+          return []; // Pas de membres, retourne un tableau vide
+      }
 
-   
+      const organigrammeNodes: OrgChartNodeDto[] = membres.map(membre => {
+          const nomComplet = `${membre.name || ''} ${membre.firstname || ''}`.trim();
 
+          return {
+              id: membre.iduser,
+              superieur: membre.superieur ? membre.superieur.iduser : null,
+              nom_prenom: nomComplet || '',
+              roleMembre: membre.roleMembre,
+              email: membre.email || '',
+          };
+      });
 
-
-
- 
-
+      return organigrammeNodes;
+  }
 
 }
