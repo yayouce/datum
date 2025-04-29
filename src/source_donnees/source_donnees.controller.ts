@@ -262,7 +262,7 @@ async getAllFeuillesFiltrees(
   }
 
   @UseGuards(JwtAuthGuard)
-  @Get(':id')
+  @Get('autorisation/:id')
   async findOne(
       @Param('id') id: string,
       @User() currentUser: AuthenticatedUser // <--- Utiliser le décorateur ici
