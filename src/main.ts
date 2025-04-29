@@ -12,7 +12,6 @@ async function bootstrap() {
 
   // CORS : j'accepte toutes les origines
   app.enableCors({
-    // true for all origins
     origin: '*',
   });
   
