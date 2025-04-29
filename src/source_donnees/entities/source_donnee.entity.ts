@@ -1,5 +1,6 @@
-import { SourceDonneeAction, SourceDonneeRole } from "@/generique/autorisation.enum";
+import { SourceAutorisationsParRole, SourceAutorisationsSpecifiquesUser, SourceDonneeAction, SourceDonneeRole } from "@/generique/permissions.types";
 import { TimestampEntites } from "@/generique/timestamp";
+import { AutorisationsSourceDonnee } from "@/utils/autorisation";
 import { DataType } from "src/data_type/entities/data_type.entity";
 import { Enquete } from "src/enquete/entities/enquete.entity";
 import { Formatfichier } from "src/formatfichier/entities/formatfichier.entity";
@@ -72,11 +73,11 @@ export class SourceDonnee extends TimestampEntites {
 
 
 
-    @Column({ type: 'json', nullable: true })
-    autorisations: Record<SourceDonneeRole, Partial<Record<SourceDonneeAction, boolean>>> | null;
-
-
-    @Column({ type: 'json', nullable: true })
-    autorisationsUtilisateursSpecifiques: Record<string, Partial<Record<SourceDonneeAction, boolean | null>>> | null;
+    @Column({
+        type: 'json', // ou 'jsonb' si PostgreSQL
+        nullable: true,
+        comment: 'Stocke les roles autorisés pour consulter, modifier, exporter'
+    })
+    autorisations: AutorisationsSourceDonnee | null; // Typ
 }
 

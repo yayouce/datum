@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, Query, HttpException } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Query, HttpException, ForbiddenException, UseGuards } from '@nestjs/common';
 import { SourceDonneesService } from './source_donnees.service';
 import { CreateSourceDonneeDto } from './dto/create-source_donnee.dto';
 import { SourceDonnee } from './entities/source_donnee.entity';
@@ -11,6 +11,10 @@ import { UpdateSourceDonneeDto } from './dto/update-source_donnee.dto';
 import { JoinSourcesDto } from './dto/jointure.dto';
 import { ApplyfunctionDto2 } from './dto/Applyfunction.dto';
 import { MasqueColumnToggleDto } from './dto/masquercolonne.dto';
+import { JwtAuthGuard } from '@/Auth/jwt-auth.guard';
+import { UpdateAutorisationsDto } from './dto/update-autorisations.dto';
+import { User } from '@/decorator/user.decorator';
+import { AuthenticatedUser } from '@/Auth/authenticated-user.type';
 
 
 @Controller('source-donnees')
@@ -237,6 +241,49 @@ async getAllFeuillesFiltrees(
     return await this.sourceDonneesService.applyFunctionAndSave2(idsource,applyFunctionDto);
   }
 
+
+
+
+
+
+
+  @UseGuards(JwtAuthGuard)
+  @Patch(':id/autorisations')
+  async updateAutorisations(
+      @Param('id') id: string,
+      @Body() updateAutorisationsDto: UpdateAutorisationsDto,
+      @User() currentUser: AuthenticatedUser // <--- Utiliser le décorateur ici
+  ): Promise<SourceDonnee> {
+      // Plus besoin de : const currentUser = req.user;
+      if (!currentUser) { // Garder cette vérification par sécurité
+          throw new ForbiddenException("Utilisateur non authentifié ou informations manquantes.");
+      }
+      return this.sourceDonneesService.updateAutorisations(id, updateAutorisationsDto, currentUser);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Get(':id')
+  async findOne(
+      @Param('id') id: string,
+      @User() currentUser: AuthenticatedUser // <--- Utiliser le décorateur ici
+  ): Promise<SourceDonnee> {
+      if (!currentUser) { // Garder cette vérification par sécurité
+           throw new ForbiddenException("Utilisateur non authentifié ou informations manquantes.");
+      }
+
+      const sourceDonnee = await this.sourceDonneesService.findById(id); // Récupère la source avec relations
+
+      const canView = await this.sourceDonneesService.checkPermission(currentUser, sourceDonnee, 'consulter');
+
+      if (!canView) {
+          throw new ForbiddenException("Vous n'avez pas les droits pour consulter cette source de données.");
+          // Ou NotFoundException pour masquer l'existence
+          // throw new NotFoundException(`Source de données avec l'ID ${id} non trouvée ou accès refusé.`);
+      }
+
+      return sourceDonnee;
+  }
+  
 
 
 }

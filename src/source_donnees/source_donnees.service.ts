@@ -35,7 +35,15 @@ import { ApplyfunctionDto2 } from './dto/Applyfunction.dto';
 import { MasqueColumnToggleDto } from './dto/masquercolonne.dto';
 
 
+import { UpdateAutorisationsDto } from './dto/update-autorisations.dto';
 
+
+type AuthenticatedUser = {
+  iduser: string;
+  role: 'admin' | 'client';
+  roleMembre?: string; // seulement si role === 'client'
+  structure?: { idStruct: string }; // seulement si role === 'client'
+};
 
 @Injectable()
 export class SourceDonneesService implements OnModuleInit {
@@ -1417,209 +1425,132 @@ async autoSync() {
 
 
 
-// //permission et autorisation
+async findById(id: string): Promise<SourceDonnee> {
+  const source = await this.sourcededonneesrepo.findOne({
+      where: { idsourceDonnes: id },
+      relations: ['enquete', 'enquete.projet', 'enquete.projet.structure'], // Charger les relations nécessaires pour la vérification
+  });
+  if (!source) {
+      throw new NotFoundException(`Source de données avec l'ID ${id} non trouvée.`);
+  }
+  return source;
+}
 
-// private async getStructureIdForSource_ViaProjetMembre(idsourceDonnes: string): Promise<string | null> {
-//   try {
-//       const sourceDonnee = await this.sourcededonneesrepo.findOne({
-//           where: { idsourceDonnes },
-//           relations: [
-//               'enquete',
-//               'enquete.projet',
-//               'enquete.projet.structure', // MembreStruct lié au projet
-//               'enquete.projet.structure.structure' // Structure Org. de ce MembreStruct
-//           ],
-//       });
-//       // !! Vérifiez que les noms des relations sont corrects dans vos entités !!
-//       const structureId = sourceDonnee?.enquete?.projet?.structure?.structure?.idStruct;
-//       return structureId || null;
-//   } catch (error) {
-//       console.error(`Erreur getStructureId pour SourceDonnee ${idsourceDonnes}:`, error);
-//       return null;
-//   }
-// }
 
-// // --- HELPER : Qui peut modifier les permissions ? ---
-// private checkUserCanModifyPermissions(user: UserEntity /*, structureId?: string */): boolean {
-//   // Admins plateforme peuvent toujours
-//   if (user.role === Role.ADMIN || user.role === Role.SUPERADMIN) {
-//       return true;
-//   }
+
+async updateAutorisations(
+  idSource: string,
+  updateAutorisationsDto: UpdateAutorisationsDto,
+  currentUser: AuthenticatedUser // <--- Utilise le type importé
+): Promise<SourceDonnee> {
+   const sourceDonnee = await this.findOneById(idSource);
+
+   const canCurrentUserModifyPermissions = await this.checkPermission(
+       currentUser,
+       sourceDonnee,
+       'modifier_permissions' // Action spéciale pour cette vérification
+   );
+
+   if (!canCurrentUserModifyPermissions) {
+        throw new ForbiddenException("Vous n'avez pas les droits pour modifier les permissions de cette source de données.");
+   }
+
+   sourceDonnee.autorisations = updateAutorisationsDto;
+   return this.sourcededonneesrepo.save(sourceDonnee);
+}
+
+/**
+* Vérifie si un utilisateur peut effectuer une action donnée sur une source de données.
+* @param user L'utilisateur authentifié (type AuthenticatedUser)
+* @param sourceDonnee L'entité SourceDonnee avec ses relations chargées ou son ID
+* @param action L'action à vérifier ('consulter', 'modifier', 'exporter', 'modifier_permissions')
+* @returns boolean Indique si l'action est autorisée
+*/
+async checkPermission(
+  user: AuthenticatedUser, // <--- Utilise le type importé
+  sourceDonnee: SourceDonnee | string,
+  action: 'consulter' | 'modifier' | 'exporter' | 'modifier_permissions'
+): Promise<boolean> {
+  // ... la logique interne de checkPermission reste la même ...
+
+  let sd: SourceDonnee;
+   if (typeof sourceDonnee === 'string') {
+       // ... gestion de la récupération par ID ...
+        try {
+           sd = await this.findOneById(sourceDonnee);
+        } catch (error) {
+            if (error instanceof NotFoundException) return false;
+            throw error;
+        }
+   } else {
+       sd = sourceDonnee;
+   }
+
+   // 0. Gérer la modification des permissions
+   if (action === 'modifier_permissions') {
+      if (user.role === 'admin') return true;
+      if (user.role === 'client' && user.roleMembre === 'Top manager') {
+           const structureSource = sd.enquete?.projet?.structure;
+           if (!structureSource) return false;
+           return user.structure?.idStruct === structureSource.structure.idStruct;
+      }
+      return false;
+  }
+
+   // 1. Vérifier les autorisations définies
+   const autorisations = sd.autorisations;
+   if (!autorisations || !autorisations[action] || autorisations[action]?.length === 0) {
+      // Politique stricte : si non défini = refusé.
+      return false;
+  }
+  const rolesAutorises = autorisations[action] ?? [];
+
+
+  // 2. Vérifier les Admins
+  if (user.role === 'admin') {
+      return rolesAutorises.includes('Administrateur');
+  }
+
+  // 3. Vérifier les Clients
+  if (user.role === 'client') {
+      if (!user.roleMembre || !user.structure?.idStruct) return false; // Infos manquantes
+
+      const structureSource = sd.enquete?.projet?.structure;
+      if (!structureSource || structureSource.structure.idStruct !== user.structure.idStruct) return false; // Mauvaise structure
+
+      return rolesAutorises.includes(user.roleMembre); // Rôle autorisé ?
+  }
+
+  // 4. Cas par défaut
+  return false;
+}
+
+// ...
+async findoneById(id: string): Promise<SourceDonnee> { // Assurez-vous que cette méthode charge bien les relations
+  const source = await this.sourcededonneesrepo.findOne({
+      where: { idsourceDonnes: id },
+      relations: [
+          'enquete',
+          'enquete.projet',
+          'enquete.projet.structure' // Essentiel pour la vérification des droits client
+      ],
+  });
+  if (!source) {
+      throw new NotFoundException(`Source de données avec l'ID ${id} non trouvée.`);
+  }
+
+   if (source.enquete && source.enquete.projet && !source.enquete.projet.structure) {
  
-//   return false;
-// }
+        console.warn(`Structure non chargée pour le projet de l'enquête de la source ${id}`);
+    }
 
-// // --- GESTION PERMISSIONS PAR RÔLE ---
+  return source;
+}
 
-// async getRoleAutorisations(idsourceDonnes: string): Promise<SourceDonneeAutorisationsRolesResponse> {
-//   const sourceDonnee = await this.sourcededonneesrepo.findOne({
-//       where: { idsourceDonnes },
-//       select: ['idsourceDonnes', 'autorisations']
-//   });
-//   if (!sourceDonnee) throw new NotFoundException();
 
-//   const storedAutorisations = sourceDonnee.autorisations || {};
-//   const response: SourceDonneeAutorisationsRolesResponse = { ...storedAutorisations };
 
-//   // Ajouter l'entrée virtuelle pour l'admin (non stockée)
-//   response['Administrateur'] = { // Clé textuelle pour correspondre à l'UI
-//       [SourceDonneeAction.CONSULTER]: true,
-//       [SourceDonneeAction.MODIFIER]: true,
-//       [SourceDonneeAction.EXPORTER]: true,
-//   };
-//   return response;
-// }
 
-// async updateRoleAutorisations(idsourceDonnes: string, dto: UpdateAutorisationsRolesDto, currentUser: UserEntity): Promise<SourceDonnee> {
-//   // const structureId = await this.getStructureIdForSource_ViaProjetMembre(idsourceDonnes); // Utile pour checkUserCanModifyPermissions
-//   if (!this.checkUserCanModifyPermissions(currentUser /*, structureId */)) {
-//      throw new ForbiddenException("Droits insuffisants.");
-//   }
 
-//   const sourceDonnee = await this.sourcededonneesrepo.findOneBy({ idsourceDonnes });
-//   if (!sourceDonnee) throw new NotFoundException();
-
-//   // Filtrer pour ne garder que les rôles valides (TM, M, C)
-//   const permissionsToSave: any = {};
-//   for (const role of Object.values(SourceDonneeRole)) {
-//        if (dto.autorisations[role]) {
-//            permissionsToSave[role] = dto.autorisations[role];
-//        } else if (sourceDonnee.autorisations && sourceDonnee.autorisations[role]) {
-//            // Conserver l'ancienne valeur si non fournie dans le DTO ? Ou supprimer ? À décider.
-//            // Ici on conserve :
-//            permissionsToSave[role] = sourceDonnee.autorisations[role];
-//        }
-//   }
-//   sourceDonnee.autorisations = permissionsToSave;
-//   return this.sourcededonneesrepo.save(sourceDonnee);
-// }
-
-// // --- GESTION PERMISSIONS SPÉCIFIQUES UTILISATEURS ---
-
-// // async getUsersWithSpecificPermissions(idsourceDonnes: string, roleToFilter: SourceDonneeRole, currentUser: UserEntity): Promise<UserPermissionInfoDto[]> {
-// //   // if (!this.checkUserCanViewUserPermissions(currentUser)) throw new ForbiddenException(); // Qui peut voir la liste ?
-
-// //   const structureId = await this.getStructureIdForSource_ViaProjetMembre(idsourceDonnes);
-// //   if (!structureId) throw new NotFoundException("Structure associée non trouvée.");
-
-// //   const sourceDonnee = await this.sourcededonneesrepo.findOne({
-// //        where: { idsourceDonnes },
-// //        select: ['idsourceDonnes', 'autorisations', 'autorisationsUtilisateursSpecifiques']
-// //   });
-// //   if (!sourceDonnee) throw new NotFoundException();
-
-// //   const membres = await this.membreStructRepository.find({
-// //       where: { structure: { idStruct: structureId }, roleMembre: roleToFilter },
-// //       select: ['id', 'nom', 'prenom', 'email', 'roleMembre']
-// //   });
-
-// //   const result: UserPermissionInfoDto[] = [];
-// //   const rolePermissions = sourceDonnee.autorisations?.[roleToFilter] || {};
-
-// //   for (const membre of membres) {
-// //       const userId = membre.id;
-// //       const specificOverrides = sourceDonnee.autorisationsUtilisateursSpecifiques?.[userId] || {};
-// //       const nomComplet = `${membre.prenom || ''} ${membre.nom || ''}`.trim();
-
-// //       // Calculer permissions effectives
-// //       const effectivePermissions: Partial<Record<SourceDonneeAction, boolean>> = {};
-// //       for (const action of Object.values(SourceDonneeAction)) {
-// //           if (typeof specificOverrides[action] === 'boolean') {
-// //                effectivePermissions[action] = specificOverrides[action]; // L'override prime
-// //           } else {
-// //                effectivePermissions[action] = rolePermissions[action] ?? false; // Sinon, prendre le rôle (ou false par défaut)
-// //           }
-// //       }
-
-// //       result.push({
-// //           userId: userId,
-// //           userName: nomComplet || 'Nom inconnu',
-// //           userEmail: membre.email || 'Email inconnu',
-// //           permissionsEffectives: effectivePermissions,
-// //           permissionsRole: rolePermissions,
-// //           permissionsSpecifiquesBrutes: specificOverrides
-// //       });
-// //   }
-// //   return result;
-// // }
-
-// // async updateUserSpecificPermissions(idsourceDonnes: string, dto: UpdateUserPermissionsDto, currentUser: UserEntity): Promise<SourceDonnee> {
-// //  // const structureId = await this.getStructureIdForSource_ViaProjetMembre(idsourceDonnes);
-// //   if (!this.checkUserCanModifyPermissions(currentUser /*, structureId */)) {
-// //      throw new ForbiddenException("Droits insuffisants.");
-// //   }
-
-// //   const sourceDonnee = await this.sourcededonneesrepo.findOneBy({ idsourceDonnes });
-// //   if (!sourceDonnee) throw new NotFoundException();
-
-// //   let currentOverrides = sourceDonnee.autorisationsUtilisateursSpecifiques || {};
-
-// //   for (const userId in dto.userOverrides) {
-// //       const userNewPermissions = dto.userOverrides[userId];
-// //       let userCurrentOverrides = currentOverrides[userId] || {};
-
-// //       for (const action in userNewPermissions) {
-// //            const value = userNewPermissions[action as SourceDonneeAction];
-// //            if (value === null) {
-// //                delete userCurrentOverrides[action as SourceDonneeAction]; // Supprimer l'override
-// //            } else if (typeof value === 'boolean') {
-// //                userCurrentOverrides[action as SourceDonneeAction] = value; // Définir l'override
-// //            }
-// //       }
-
-// //       if (Object.keys(userCurrentOverrides).length === 0) {
-// //           delete currentOverrides[userId]; // Nettoyer si plus d'overrides pour cet user
-// //       } else {
-// //           currentOverrides[userId] = userCurrentOverrides;
-// //       }
-// //   }
-
-// //   sourceDonnee.autorisationsUtilisateursSpecifiques = currentOverrides;
-// //   return this.sourcededonneesrepo.save(sourceDonnee);
-// // }
-
-// // --- VÉRIFICATION DE PERMISSION FINALE ---
-// // async checkPermission(idsourceDonnes: string, user: UserEntity, action: SourceDonneeAction): Promise<boolean> {
-// //   if (!user) return false; // Sécurité
-
-// //   // 1. Admin plateforme ?
-// //   if (user.role === Role.ADMIN || user.role === Role.SUPERADMIN) return true;
-
-// //   // 2. Récupérer la source et vérifier si l'utilisateur est MembreStruct
-// //   const sourceDonnee = await this.sourcededonneesrepo.findOne({
-// //       where: { idsourceDonnes },
-// //       select: ['idsourceDonnes', 'autorisations', 'autorisationsUtilisateursSpecifiques' /* autres pour lien structure */ ]
-// //       // relations: [...] // Peut-être pas nécessaire si on utilise getStructureIdForSource
-// //   });
-// //   if (!sourceDonnee) return false; // Ou lancer une exception
-
-// //   if (user instanceof MembreStruct) {
-// //       const membre = user as MembreStruct;
-// //       const userId = membre.iduser;
-
-// //       // 3a. Vérifier l'appartenance à la bonne structure organisationnelle
-// //       const structureIdSource = await this.getStructureIdForSource_ViaProjetMembre(idsourceDonnes);
-// //       // Assurez-vous que membre.structure est chargé (via {eager: true} ou relations)
-// //       if (!structureIdSource || !membre.structure || membre.structure.idStruct !== structureIdSource) {
-// //           return false; // Pas dans la bonne structure
-// //       }
-
-// //       // 3b. Vérifier l'override spécifique
-// //       const userOverrides = sourceDonnee.autorisationsUtilisateursSpecifiques?.[userId];
-// //       if (userOverrides && typeof userOverrides[action] === 'boolean') {
-// //           return userOverrides[action]; // L'override spécifique (true ou false) s'applique
-// //       }
-
-// //       // 3c. Vérifier la permission du rôle
-// //       const userRole = membre.roleMembre as SourceDonneeRole;
-// //       const rolePermissions = sourceDonnee.autorisations?.[userRole];
-// //       if (rolePermissions && rolePermissions[action] === true) {
-// //           return true; // Le rôle a la permission
-// //       }
-// //   }
-// //   // 4. Refuser par défaut
-// //   return false;
-// // }
 
 
 

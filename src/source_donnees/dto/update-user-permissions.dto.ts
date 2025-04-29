@@ -1,4 +1,4 @@
-import { SourceDonneeAction } from '@/generique/autorisation.enum';
+import { SourceDonneeAction } from '@/generique/permissions.types';
 import { Type } from 'class-transformer';
 import { IsBoolean, IsDefined, IsObject, IsOptional, IsString, ValidateNested, Allow } from 'class-validator';
 
@@ -23,3 +23,7 @@ export class UpdateUserPermissionsDto {
     @IsDefined()
     userOverrides: Record<string, UserSpecificPermissionDto>;
 }
+
+
+
+

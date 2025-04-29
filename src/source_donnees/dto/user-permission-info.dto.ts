@@ -1,4 +1,4 @@
-import { SourceDonneeAction } from "@/generique/autorisation.enum";
+import { SourceDonneeAction } from "@/generique/permissions.types";
 
 
 export class UserPermissionInfoDto {
