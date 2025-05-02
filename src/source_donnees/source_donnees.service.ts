@@ -1508,7 +1508,7 @@ async checkPermission(
 
   // 2. Vérifier les Admins
   if (user.role === 'admin') {
-      return rolesAutorises.includes('Administrateur');
+      return rolesAutorises.includes('admin');
   }
 
   // 3. Vérifier les Clients

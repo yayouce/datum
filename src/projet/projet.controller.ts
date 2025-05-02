@@ -19,16 +19,17 @@ export class ProjetController {
   // }
 
 
+  @UseGuards(JwtAuthGuard)
   @Get('getAll')
   async getAll(
     @User() user,
   ){
 
-    return this.projetService.getAll()
+    return this.projetService.getAll(user)
   }
 
 
-  // @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard)
   @Post('add')
   async creationProjet(
     @Body() data : CreateProjetDto,

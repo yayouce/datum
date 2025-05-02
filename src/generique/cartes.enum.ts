@@ -12,8 +12,6 @@ export enum typegraphiqueEnum {
     CHANDELIER = "Graphique_en_chandelier",
 
 
-
-    
     // --- Graphiques Géospatiaux ---
     CARTE_POINTS = "Carte_de_points",               //juste besoin de longitude et lattitude
     CARTE_POLYGONE = "Carte_de_polygones",           
@@ -22,9 +20,6 @@ export enum typegraphiqueEnum {
     //carte importé
     CARTE_IMPORTEE = "Carte_importee",
 }
-
-
-
 
 // --- Enum pour les types de géométrie ---
 export enum TypeGeometrieMap {
