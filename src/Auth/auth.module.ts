@@ -11,12 +11,14 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { UserModule } from 'src/user/user.module';
 
 import { MembreStruct } from 'src/membre-struct/entities/membre-struct.entity';
+import { UserEntity } from '@/user/entities/user.entity';
 
 @Module({
   imports: [UserModule,
     PassportModule,
     JwtCustomModule,
-    TypeOrmModule.forFeature([MembreStruct])
+    TypeOrmModule.forFeature([MembreStruct,UserEntity]),
+
   ],
  
   providers: [

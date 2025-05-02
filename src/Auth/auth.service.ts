@@ -34,7 +34,7 @@ export class AuthService {
       
         throw new HttpException("email ou mot de passe incorecte",700);
       }
-      const payload:any = { phonePers:  user.email,rolePers:user.contact };
+      const payload:any = { email:  user.email,role:user.role,contact:user.contact }
       if (user instanceof MembreStruct) {
         payload.roleMembre = user.roleMembre;
     }

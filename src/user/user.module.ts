@@ -12,6 +12,7 @@ import { MembreStruct } from 'src/membre-struct/entities/membre-struct.entity';
 @Module({
   imports:[
     MembreStructModule,
+
     JwtCustomModule,
         TypeOrmModule.forFeature([ UserEntity,MembreStruct  ]),
         PassportModule.register({

@@ -7,6 +7,8 @@ import { Repository } from 'typeorm';
 import { roleMembreEnum } from 'src/generique/rolemembre.enum';
 import { StructureService } from '@/structure/structure.service';
 import { etatprojetEnum } from '@/generique/etatprojetEnum.enum';
+import { UserEntity } from '@/user/entities/user.entity';
+import { MembreStruct } from '@/membre-struct/entities/membre-struct.entity';
 
 @Injectable()
 export class ProjetService {
@@ -19,12 +21,34 @@ export class ProjetService {
 
 
 
-  async getAll() {
+  // async getAll() {
+  //   try {
+  //     const projet = await this.projetRepo.find();
+  //     return projet;
+  //   } catch (err) {
+  //     throw err
+  //   }
+  // }
+
+
+
+
+  async getAll(user:any): Promise<Projet[]> {
     try {
-      const projet = await this.projetRepo.find();
-      return projet;
+      let projets: Projet[];
+      if(user.role=="client"){
+
+        projets = await this.projetRepo.find({
+          where: { structure: { nomStruct: user.nomStruct } },
+        });
+      }else{
+        projets=await this.projetRepo.find()
+      }
+  
+      return projets;
     } catch (err) {
-      throw err
+      console.error("Erreur lors de la récupération des projets:", err.message);
+      throw err;
     }
   }
 
@@ -88,12 +112,11 @@ export class ProjetService {
 
       const structure = await this.structureservice.getStructureByname(nomStructure)
       if(!structure){throw new HttpException('structure non trouvé!',700)}
-      if (user?.roleMembre !== roleMembreEnum.TOPMANAGER) {
-        throw new HttpException("pas autorisé à ajouter projet",702);
+      if (user?.roleMembre !== roleMembreEnum.TOPMANAGER && user?.role=="client") {
+        throw new HttpException("pas autorisé à ajouter un projet à pour cette structure",702);
       }
       const newProjet = this.projetRepo.create({
         ...creation,
-        // membreStruct: user,
         structure:structure,
         etatprojet:etatprojetEnum.En_cours,
         nomStructure:structure.nomStruct
