@@ -7,9 +7,6 @@ import { Repository } from 'typeorm';
 import { roleMembreEnum } from 'src/generique/rolemembre.enum';
 import { StructureService } from '@/structure/structure.service';
 import { etatprojetEnum } from '@/generique/etatprojetEnum.enum';
-import { MembreStruct } from '@/membre-struct/entities/membre-struct.entity';
-import { UserEntity } from '@/user/entities/user.entity';
-import { isInstance } from 'class-validator';
 
 @Injectable()
 export class ProjetService {
@@ -22,31 +19,11 @@ export class ProjetService {
 
 
 
-  // async getAll() {
-  //   try {
-  //     const projet = await this.projetRepo.find();
-  //     return projet;
-  //   } catch (err) {
-  //     throw err
-  //   }
-  // }
-
-
-
-  async getAll(user:any) {
+  async getAll() {
     try {
-      if(user instanceof UserEntity){
-        const projet =await this.projetRepo.find();
-        return projet
-      } 
-      if(user instanceof MembreStruct){
-        const projet = await this.projetRepo.find({
-          where: { structure: { nomStruct: user.nomStruct } },
-        });
-        return projet;
-        }
-      }
-    catch (err) {
+      const projet = await this.projetRepo.find();
+      return projet;
+    } catch (err) {
       throw err
     }
   }
@@ -82,7 +59,16 @@ export class ProjetService {
 
 
 
-
+// async getMyAll(user:any) {
+//   try {
+//     const projet = await this.projetRepo.find({
+//       where: { membreStruct: { iduser: user.idStruct } },
+//     });
+//     return projet;
+//   } catch (err) {
+//     throw err
+//   }
+// }
 
 
   async getById(idprojet){
@@ -102,13 +88,12 @@ export class ProjetService {
 
       const structure = await this.structureservice.getStructureByname(nomStructure)
       if(!structure){throw new HttpException('structure non trouvé!',700)}
-      if(!(user instanceof UserEntity)&&user?.roleMembre !== roleMembreEnum.TOPMANAGER){
+      if (user?.roleMembre !== roleMembreEnum.TOPMANAGER) {
         throw new HttpException("pas autorisé à ajouter projet",702);
       }
-     
       const newProjet = this.projetRepo.create({
         ...creation,
-        // membreStruct: user,   je n'ai plus besoin car c'est une instace de l'admin ou super admin qui va créer le projet
+        // membreStruct: user,
         structure:structure,
         etatprojet:etatprojetEnum.En_cours,
         nomStructure:structure.nomStruct

@@ -34,10 +34,6 @@ export class AuthService {
       
         throw new HttpException("email ou mot de passe incorecte",700);
       }
-
-  
-
-
       const payload:any = { phonePers:  user.email,rolePers:user.contact };
       if (user instanceof MembreStruct) {
         payload.roleMembre = user.roleMembre;
@@ -69,6 +65,7 @@ export class AuthService {
 
    async getuser(){
     const user=await this.userService.getAllpersonne()
+    return user
     
    }
 
