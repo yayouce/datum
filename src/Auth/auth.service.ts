@@ -28,19 +28,23 @@ export class AuthService {
     const user = await this.userService.findPersByPhone(signIndata.email)
     console.log(user);
     
-    
+    let userData;
     if (!user || !await bcrypt.compare(signIndata.password, user?.password) ) {
-      console.log(user)
+      // console.log(user)
       
         throw new HttpException("email ou mot de passe incorecte",700);
       }
       const payload:any = { email:  user.email,role:user.role,contact:user.contact }
       if (user instanceof MembreStruct) {
         payload.roleMembre = user.roleMembre;
+
     }
 
+    
+    const { password, ...result } = user;
+    
     return {
-      user:user,
+      user:result,
       access_token: await this.jwtService.signAsync(payload),
      
     };

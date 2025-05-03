@@ -126,7 +126,7 @@ async findOnemembreByemail(email){
    
 
     return {
-      message: `voici lee code temporaéire ${code}`,
+      message: `voici lee code temporaire ${code}`,
     };
 
 

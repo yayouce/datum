@@ -114,8 +114,8 @@ export class UserService {
   
     // Compter les rôles spécifiques aux membres dans la table membre_struct
     const totalTopManager = await this.membreStructService.countByRole('Top manager');
-    const totalManager = await this.membreStructService.countByRole('Manager');
-    const totalCoordinateur = await this.membreStructService.countByRole('Coordinateur');
+    const totalManager = await this.membreStructService.countByRole('manager');
+    const totalCoordinateur = await this.membreStructService.countByRole('coordinateur');
   
     // Retourner l'objet avec le détail des rôles
     return {
@@ -126,14 +126,6 @@ export class UserService {
       totalCoordinateur
     };
   }
-  
-  
-  
-
-
-  
-
-
   
 }
   
