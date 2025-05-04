@@ -1,6 +1,6 @@
 import { ExtractJwt, Strategy } from 'passport-jwt';
 import { PassportStrategy } from '@nestjs/passport'
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { HttpException, Injectable, UnauthorizedException } from '@nestjs/common';
 import { jwtConstants } from './constants';
 import { Repository } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -30,7 +30,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
 
   async validate(payload: payloadInterface): Promise<ValidatedUser> {
     if (!payload || !payload.email) {
-      throw new UnauthorizedException('Payload invalide ou email manquant.');
+      throw new HttpException('Payload invalide ou email manquant.',800);
     }
 
     let user: UserEntity | MembreStruct | null = null;
@@ -48,7 +48,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       }
     } catch (error) {
         console.error("Erreur lors de la recherche séquentielle:", error);
-        throw new UnauthorizedException("Erreur lors de la validation de l'utilisateur.");
+        throw new HttpException("Erreur lors de la validation de l'utilisateur.",800);
     }
 
     // 3. Vérifier le résultat
@@ -58,7 +58,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
        return result;
     } else {
        console.warn(`Utilisateur non trouvé pour email ${payload.email} (ni via membreStructrepo, ni userrepo).`);
-       throw new UnauthorizedException("Utilisateur associé au token non trouvé.");
+       throw new HttpException("Utilisateur associé au token non trouvé.",800);
     }
   }
 }
