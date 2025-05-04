@@ -1,7 +1,6 @@
 import {
     CanActivate,
     ExecutionContext,
-    HttpException,
     Injectable,
     UnauthorizedException,
   } from '@nestjs/common';
@@ -17,7 +16,7 @@ import {
       const request = context.switchToHttp().getRequest();
       const token = this.extractTokenFromHeader(request);
       if (!token) {
-        throw new  HttpException("non autorisé",800);
+        throw new UnauthorizedException();
       }
       try {
         const payload = await this.jwtService.verifyAsync(
@@ -30,7 +29,7 @@ import {
         // so that we can access it in our route handlers
         request['user'] = payload;
       } catch {
-        throw new  HttpException("non autorisé",800);
+        throw new UnauthorizedException();
       }
       return true;
     }
