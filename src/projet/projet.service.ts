@@ -48,7 +48,7 @@ export class ProjetService {
       return projets;
     } catch (err) {
       console.error("Erreur lors de la récupération des projets:", err.message);
-      throw err;
+      throw new HttpException(err.message,800);
     }
   }
 
