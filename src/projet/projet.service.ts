@@ -44,7 +44,7 @@ export class ProjetService {
       }else{
         projets=await this.projetRepo.find()
       }
-  
+
       return projets;
     } catch (err) {
       console.error("Erreur lors de la récupération des projets:", err.message);
