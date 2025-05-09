@@ -604,6 +604,13 @@ async findOneById(id: string): Promise<Graph | null> {
 
 
 
+
+
+
+
+
+
+
 // --- Méthode mise à jour ---
 async generateGeoJsonForGraph(graphId: string): Promise<FeatureCollection> {
 // this.logger.log(`Début génération GeoJSON pour graph ID: ${graphId}`);
@@ -661,26 +668,29 @@ if (extractionMapTypes.includes(graph.typeGraphique)) {
   }
 
   // Étape 6: Accéder et valider données brutes dans la source
-  const sourceDataContainer = graph.sources?.fichier ?? sourceDonnee.fichier ?? sourceDonnee.bd_normales;
+  const sourceDataContainer :any = sourceDonnee.fichier || sourceDonnee.bd_normales;
+
   const nomGroupe = graph.configGeographique.feuille;
+  // console.log(sourceDataContainer.fichier.length())
 
   if (!sourceDataContainer || typeof sourceDataContainer !== 'object' || !sourceDataContainer[nomGroupe]) {
       // Les données brutes spécifiques nécessaires (la "feuille") sont manquantes dans la source -> 404 Not Found
-       throw new NotFoundException(`Données sources (groupe/feuille '${nomGroupe}') introuvables ou invalides dans la source ID ${sourceDonneeId} pour le graphique ${graphId}.`);
+       throw new NotFoundException(`Données sources (groupe/feuille '${nomGroupe} ') introuvables ou invalides dans la source ID ${sourceDonneeId} pour le graphique ${graphId}.`);
   }
 
-  const rawDataForSheet = sourceDataContainer[nomGroupe]; // Données spécifiques à traiter
+
+  
 
   // Étape 7: Appeler GeoService pour générer le GeoJSON
   try {
       // this.logger.log(`Appel de GeoService.createGeoJsonData pour ${graphId}`);
       const geoJsonResult: FeatureCollection = this.geoService.createGeoJsonData(
-          rawDataForSheet, // Passe uniquement les données de la feuille concernée
+        sourceDataContainer, // Passe uniquement les données de la feuille concernée
           graph.configGeographique,
           graph.colonnesEtiquettes || [],
-          graph.idgraph // Passe l'ID du graph si geoService en a besoin pour le logging/contexte
+          graph.idgraph
       );
-      // this.logger.log(`Génération GeoJSON réussie pour ${graphId}`);
+   
       return geoJsonResult;
 
   } catch (error) {

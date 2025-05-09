@@ -97,6 +97,7 @@ async getGraphByNameAndProject(@Param('name') name: string, @Param('projectId') 
   }
 
 
+
 @Get('/data/geojson/:idgraphique') 
     async getgeojson(
 

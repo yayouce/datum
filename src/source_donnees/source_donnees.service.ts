@@ -36,6 +36,7 @@ import { MasqueColumnToggleDto } from './dto/masquercolonne.dto';
 
 
 import { UpdateAutorisationsDto } from './dto/update-autorisations.dto';
+import { detectFileFormat, processCsvFile, processExcelFile, processJsonFile } from '@/utils/conversionFichier';
 
 
 type AuthenticatedUser = {
@@ -94,7 +95,7 @@ export class SourceDonneesService implements OnModuleInit {
           }
 
 
-          formatFichier = this.detectFileFormat(source);
+          formatFichier = detectFileFormat(source);
 
           // Convertir le buffer en fichier temporaire
           const filePath = path.join(__dirname, `temp.${formatFichier}`);
@@ -102,16 +103,16 @@ export class SourceDonneesService implements OnModuleInit {
 
           // Lire et formater le fichier selon son type
           if (formatFichier === 'xlsx') {
-            fichier = this.processExcelFile(filePath);
+            fichier = processExcelFile(filePath);
           } else if (formatFichier === 'csv') {
-            fichier = await this.processCsvFile(filePath);
+            fichier = await processCsvFile(filePath);
           } else if (formatFichier === 'json') {
-            fichier = this.processJsonFile(filePath);
+            fichier = processJsonFile(filePath);
           } else {
             throw new HttpException(`Format de fichier non supporté: ${formatFichier}`, 804);
           }
 
-          // 🧹 Supprimer le fichier temporaire après traitement
+          //  Supprimer le fichier temporaire après traitement
           fs.unlinkSync(filePath);
         } catch (error) {
           throw new HttpException(`Impossible de récupérer ou traiter les données depuis ${source}: ${error.message}`, 802);
@@ -139,95 +140,6 @@ export class SourceDonneesService implements OnModuleInit {
       throw new HttpException(err.message, 801);
     }
   }
-/**
-   * 🔍 Détecter le format du fichier à partir de l'URL
-   */
-private detectFileFormat(url: string): string {
-  const extension = path.extname(url).toLowerCase().replace('.', '');
-  return extension;
-}
-
-/**
- * 🔥 Convertit un fichier Excel en JSON formaté
- */
-private processExcelFile(filePath: string): any {
-  const workbook = xlsx.readFile(filePath);
-  const result = {};
-
-  for (const sheetName of workbook.SheetNames) {
-    const worksheet = workbook.Sheets[sheetName];
-    const rows: string[][] = xlsx.utils.sheet_to_json(worksheet, { header: 1 });
-
-    const sheetData = { donnees: [], colonnes: [] };
-    if (rows.length > 0) {
-      const headers = rows[0] as string[];
-      const columnCount = headers.length;
-
-      sheetData.colonnes = Array.from({ length: columnCount }, (_, j) => String.fromCharCode(65 + j));
-
-      const headerRow = {};
-      for (let j = 0; j < columnCount; j++) {
-        const colKey = `${String.fromCharCode(65 + j)}1`;
-        headerRow[colKey] = headers[j] || null;
-      }
-      sheetData.donnees.push(headerRow);
-
-      for (let i = 1; i < rows.length; i++) {
-        const row = rows[i];
-        const rowData = {};
-
-        for (let j = 0; j < columnCount; j++) {
-          const colKey = `${String.fromCharCode(65 + j)}${i + 1}`;
-          rowData[colKey] = row[j] || null;
-        }
-
-        sheetData.donnees.push(rowData);
-      }
-    }
-    result[sheetName] = sheetData;
-  }
-  return result;
-}
-
-/**
-   Convertit un fichier CSV en JSON formaté
- */
-private async  processCsvFile(filePath: string): Promise<any> {
-  return new Promise((resolve, reject) => {
-    const sheetData = { donnees: [], colonnes: [] };
-    const stream = fs.createReadStream(filePath).pipe(csvParser());
-
-    stream.on('headers', (headers) => {
-      sheetData.colonnes = headers.map((_, j) => String.fromCharCode(65 + j));
-      const headerRow = {};
-      headers.forEach((header, j) => {
-        headerRow[`${String.fromCharCode(65 + j)}1`] = header;
-      });
-      sheetData.donnees.push(headerRow);
-    });
-
-    stream.on('data', (row, index) => {
-      const rowData = {};
-      Object.values(row).forEach((value, j) => {
-        rowData[`${String.fromCharCode(65 + j)}${index + 2}`] = value;
-      });
-      sheetData.donnees.push(rowData);
-    });
-
-    stream.on('end', () => resolve({ CSV: sheetData }));
-    stream.on('error', (error) => reject(error));
-  });
-}
-
-
-  //Charge un fichier JSON tel quel
- 
-private processJsonFile(filePath: string): any {
-  return JSON.parse(fs.readFileSync(filePath, 'utf-8'));
-}
-
-
-
 
 
 
@@ -441,17 +353,17 @@ async updateSourceDonnees(
           throw new HttpException(`L'API ${source} ne retourne pas de fichier valide`, 706);
         }
 
-        const formatFichier = this.detectFileFormat(source);
+        const formatFichier = detectFileFormat(source);
         const filePath = path.join(__dirname, `temp_update.${formatFichier}`);
         fs.writeFileSync(filePath, response.data);
 
         let fichier = null;
         if (formatFichier === 'xlsx') {
-          fichier = this.processExcelFile(filePath);
+          fichier = processExcelFile(filePath);
         } else if (formatFichier === 'csv') {
-          fichier = await this.processCsvFile(filePath);
+          fichier = await processCsvFile(filePath);
         } else if (formatFichier === 'json') {
-          fichier = this.processJsonFile(filePath);
+          fichier = processJsonFile(filePath);
         } else {
           throw new HttpException(`Format de fichier non supporté: ${formatFichier}`, 707);
         }
@@ -492,17 +404,17 @@ async updateSourceDonnees(
         const response = await firstValueFrom(this.httpService.get(source.source, { responseType: 'arraybuffer' }));
         if (!response.data) continue;
   
-        const formatFichier = this.detectFileFormat(source.source);
+        const formatFichier = detectFileFormat(source.source);
         const filePath = path.join(__dirname, `temp_auto.${formatFichier}`);
         fs.writeFileSync(filePath, response.data);
   
         let fichier = null;
         if (formatFichier === 'xlsx') {
-          fichier = this.processExcelFile(filePath);
+          fichier = processExcelFile(filePath);
         } else if (formatFichier === 'csv') {
-          fichier = await this.processCsvFile(filePath);
+          fichier = await processCsvFile(filePath);
         } else if (formatFichier === 'json') {
-          fichier = this.processJsonFile(filePath);
+          fichier = processJsonFile(filePath);
         } else {
           console.log(` Format non supporté pour la source ${source.source}`);
           continue;
