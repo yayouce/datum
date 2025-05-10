@@ -1,6 +1,8 @@
-import { Controller, Get, InternalServerErrorException, NotFoundException, Param, ParseUUIDPipe, Patch, Post} from '@nestjs/common';
+import { Controller, Get, InternalServerErrorException, NotFoundException, Param, ParseUUIDPipe, Patch, Post, UseGuards} from '@nestjs/common';
 import { StructureService } from './structure.service';
 import { OrgChartNodeDto } from './dto/organigramme.dto';
+import { JwtAuthGuard } from '@/Auth/jwt-auth.guard';
+import { User } from '@/decorator/user.decorator';
 
 
 @Controller('structure')
@@ -17,10 +19,14 @@ export class StructureController {
     }
   }
 
+  @UseGuards(JwtAuthGuard)
   @Get("all")
-  async findAllmembers(){
+
+  async findAllmembers(
+       @User() user,
+  ){
     try{
-    return  await this.structureService.findAllStruct()
+    return  await this.structureService.findAllStructsConditional(user)
     }
     catch(err){
       throw err
@@ -49,41 +55,53 @@ export class StructureController {
 
 
   // Valider une adhésion
+   @UseGuards(JwtAuthGuard)
   @Post('adhesion/valider/:id')
-  async validationAdhesion(@Param('id') idStruct: string) {
-    return await this.structureService.validationadhesion(idStruct);
+  async validationAdhesion(@Param('id') idStruct: string,@User() user) {
+    return await this.structureService.validationadhesion(idStruct,user);
   }
 
   // Refuser une adhésion
+      @UseGuards(JwtAuthGuard)
   @Post('adhesion/refuser/:id')
-  async refuserAdhesion(@Param('id') idStruct: string) {
-    return await this.structureService.refuserAdhesion(idStruct);
+  async refuserAdhesion(@Param('id') idStruct: string, @User() user) {
+    return await this.structureService.refuserAdhesion(idStruct,user);
   }
 
   // Liste des structures approuvées
+    @UseGuards(JwtAuthGuard)
   @Get('adhesion/approuvees')
-  async getStructuctreadh() {
-    return await this.structureService.getStructuctreadh();
+  async getStructuctreadh(
+       @User() user,
+  ) {
+    return await this.structureService.getStructuctreadh(user);
   }
 
   // Liste des structures non approuvées
+  @UseGuards(JwtAuthGuard)
   @Get('adhesion/non-approuvees')
-  async getStructuctreNadh() {
-    return await this.structureService.getStructuctreNadh();
+  async getStructuctreNadh(
+    @User() user,
+  ) {
+    return await this.structureService.getStructuctreNadh(user);
   }
   
 
   //liste des structures refusées
+  @UseGuards(JwtAuthGuard)
   @Get('adhesion/refuse')
-  async getStructuctreRefuse() {
-    return await this.structureService.getStructuctreRefuse();
+  async getStructuctreRefuse(
+       @User() user,
+  ) {
+    return await this.structureService.getStructuctreRefuse(user);
   }
 
 
 
+    @UseGuards(JwtAuthGuard)
   @Post('adhesion/restore/:id')
-  async RestoreAdhesion(@Param('id') idStruct: string) {
-    return await this.structureService.RestoreAdhesion(idStruct);
+  async RestoreAdhesion(@Param('id') idStruct: string,@User() user) {
+    return await this.structureService.RestoreAdhesion(idStruct,user);
   }
 
 
@@ -100,7 +118,6 @@ export class StructureController {
     } catch (error) {
         // Gérer l'erreur si la structure n'est pas trouvée
         if (error instanceof NotFoundException) {
-            // Re-lancer l'erreur pour que NestJS renvoie une réponse 404
             throw error;
         }
         // Logguer l'erreur pour le débogage côté serveur

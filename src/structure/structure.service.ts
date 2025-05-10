@@ -1,4 +1,4 @@
-import { HttpException, HttpStatus, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, HttpException, HttpStatus, Injectable, NotFoundException } from '@nestjs/common';
 import { CreateStructureDto } from './dto/create-structure.dto';
 
 import { InjectRepository } from '@nestjs/typeorm';
@@ -6,6 +6,7 @@ import { Structure } from './entities/structure.entity';
 import { Repository } from 'typeorm';
 import { OrgChartNodeDto } from './dto/organigramme.dto';
 import { MembreStruct } from '@/membre-struct/entities/membre-struct.entity';
+import { checkAdminAccess } from '@/utils/auth.utils';
 
 
 @Injectable()
@@ -93,68 +94,76 @@ export class StructureService {
    //adhesion
 
       //validation
-      async validationadhesion(idStruct: string) {
-        try {
-          const structure = await this.structureRepo.findOne({ where: { idStruct } });
-      
-          if (!structure) {
-            throw new HttpException('Structure not found', 802);
-          }
-          
-      
-          structure.adhesion = true;
-          await this.structureRepo.save(structure); // Sauvegarde la modification
-      
-          return structure;
-        } catch (err) {
-          throw new HttpException(err.message, HttpStatus.INTERNAL_SERVER_ERROR);
-        }
-      }
+     async validationadhesion(idStruct: string, user) {
+  try {
+    checkAdminAccess(user);
+    const structure = await this.structureRepo.findOne({ where: { idStruct } });
+    if (!structure) {
+      throw new HttpException('Structure not found', 802);
+    }
+
+    structure.adhesion = true;
+    await this.structureRepo.save(structure);
+
+    return structure;
+  } catch (err) {
+    throw new HttpException(err.message, HttpStatus.INTERNAL_SERVER_ERROR);
+  }
+}
+
+
 
 
       //decliner
-      async refuserAdhesion(idStruct: string) {
-        try {
-          const structure = await this.structureRepo.findOne({ where: { idStruct } });
-      
-          if (!structure) {
-            throw new HttpException('Structure not found', HttpStatus.NOT_FOUND);
-          }
-      
-          structure.adhesion = false;
-          await this.structureRepo.save(structure); // Sauvegarde avant suppression
-      
-          await this.structureRepo.softDelete({ idStruct });
-      
-          return { message: 'Adhesion refusé et structure supprimée' };
-        } catch (err) {
-          throw new HttpException(err.message, 804);
-        }
-      }
+      async refuserAdhesion(idStruct: string, user) {
+  try {
+      checkAdminAccess(user);
+
+    const structure = await this.structureRepo.findOne({ where: { idStruct } });
+
+    if (!structure) {
+      throw new HttpException('Structure not found', HttpStatus.NOT_FOUND);
+    }
+
+    structure.adhesion = false;
+    await this.structureRepo.save(structure);
+
+    await this.structureRepo.softDelete({ idStruct });
+
+    return { message: 'Adhesion refusée et structure supprimée' };
+  } catch (err) {
+    throw new HttpException(err.message, 804);
+  }
+}
 
           //restore une structure
-          async RestoreAdhesion(idStruct: string) {
-            try {
-              await this.structureRepo.restore({ idStruct });
-              return { message: 'structure restauré' };
-            } catch (err) {
-              throw new HttpException(err.message, 804);
-            }
-          }
+  async RestoreAdhesion(idStruct: string, user) {
+  try {
+    checkAdminAccess(user);
+
+    await this.structureRepo.restore({ idStruct });
+    return { message: 'structure restaurée' };
+  } catch (err) {
+    throw new HttpException(err.message, 804);
+  }
+}
 
 
 
      //liste des approuvées
-     async getStructuctreadh(){
-      
+     async getStructuctreadh(user){
+  
       try{
-      const structure = await this.structureRepo.createQueryBuilder("structure")
+      let structures=[];
+      if(user.role==="client"){
+        throw new HttpException("pas autorisé à voir",HttpStatus.FORBIDDEN)
+      }
+      structures = await this.structureRepo.createQueryBuilder("structure")
       .select()
       .where("structure.adhesion=:adhesion",{adhesion:true})
       .getMany()
 
-      return structure}
-
+      return structures}
 
       catch(err){
         return new HttpException(err.message,804)
@@ -163,42 +172,41 @@ export class StructureService {
 
 
      //liste des non approuvées
-     async getStructuctreNadh(){
-      try{
-
-        const structure = await this.structureRepo.createQueryBuilder("structure")
-        .select()
-        .where("structure.adhesion=:adhesion",{adhesion:false})
-        .getMany()
-  
-        return structure
-      }
-      catch(err){
-        return new HttpException(err.message,805)
-      }
-      
+     async getStructuctreNadh(user) {
+  try {
+    if (user.role === "client") {
+      throw new HttpException("pas autorisé à voir", HttpStatus.FORBIDDEN);
     }
 
+    const structures = await this.structureRepo.createQueryBuilder("structure")
+      .select()
+      .where("structure.adhesion = :adhesion", { adhesion: false })
+      .getMany();
 
-    async getStructuctreRefuse(){
-      try{
-
-        const structure = await this.structureRepo.createQueryBuilder("structure")
-        .select()
-        .withDeleted()
-        .where("structure.deletedAt IS NOT NULL")
-        .getRawMany()
-        return structure
-      }
-      catch(err){
-        return new HttpException(err.message,805)
-      }
-      
+    return structures;
+  } catch (err) {
+    return new HttpException(err.message, 805);
+  }
+}
 
 
-
-
+    async getStructuctreRefuse(user) {
+  try {
+    if (user.role === "client") {
+      throw new HttpException("pas autorisé à voir", HttpStatus.FORBIDDEN);
     }
+
+    const structures = await this.structureRepo.createQueryBuilder("structure")
+      .select()
+      .withDeleted()
+      .where("structure.deletedAt IS NOT NULL")
+      .getRawMany();
+
+    return structures;
+  } catch (err) {
+    return new HttpException(err.message, 805);
+  }
+}
 
 
 
@@ -232,5 +240,51 @@ export class StructureService {
 
       return organigrammeNodes;
   }
+
+
+
+
+  async findAllStructsConditional(user: any /* UserEntity ou type spécifique si vous avez */): Promise<Structure[]> {
+    try {
+      // Utilisez la valeur de l'enum si vous en avez une, sinon la chaîne littérale.
+      // Exemple avec chaîne littérale comme demandé:
+      if (user.role === "client") {
+        if (!user.nomStruct) {
+          // Il est crucial que nomStruct soit présent pour un client.
+          // Vous pourriez lancer une erreur BadRequest si ce n'est pas le cas.
+          console.warn("findAllStructsConditional: Rôle client mais nomStruct manquant sur l'objet user.");
+          throw new BadRequestException("Informations utilisateur client incomplètes (nomStruct manquant).");
+          // Ou retourner un tableau vide si c'est le comportement préféré :
+          // return [];
+        }
+
+        // Recherche la structure spécifique du client
+        const clientStructure = await this.structureRepo.findOne({
+          where: { nomStruct: user.nomStruct },
+        });
+
+        if (!clientStructure) {
+          return [];
+        }
+        return [clientStructure];
+
+      } else {
+        return await this.structureRepo.find();
+      }
+    } catch (err) {
+      if (err instanceof HttpException) {
+        throw err;
+      }
+      // Pour les autres erreurs (ex: erreur de base de données)
+      console.error("Erreur lors de la récupération des structures (findAllStructsConditional):", err.message);
+      throw new HttpException(err.message, 500);
+    }
+  }
+
+
+
+
+
+  
 
 }
