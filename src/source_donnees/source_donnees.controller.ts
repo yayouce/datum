@@ -247,43 +247,53 @@ async getAllFeuillesFiltrees(
 
 
 
-  @UseGuards(JwtAuthGuard)
-  @Patch(':id/autorisations')
-  async updateAutorisations(
-      @Param('id') id: string,
-      @Body() updateAutorisationsDto: UpdateAutorisationsDto,
-      @User() currentUser: AuthenticatedUser // <--- Utiliser le décorateur ici
-  ): Promise<SourceDonnee> {
-      // Plus besoin de : const currentUser = req.user;
-      if (!currentUser) { // Garder cette vérification par sécurité
-          throw new ForbiddenException("Utilisateur non authentifié ou informations manquantes.");
-      }
-      return this.sourceDonneesService.updateAutorisations(id, updateAutorisationsDto, currentUser);
-  }
+  // @UseGuards(JwtAuthGuard)
+  // @Patch(':id/autorisations')
+  // async updateAutorisations(
+  //     @Param('id') id: string,
+  //     @Body() updateAutorisationsDto: UpdateAutorisationsDto,
+  //     @User() currentUser: AuthenticatedUser // <--- Utiliser le décorateur ici
+  // ): Promise<SourceDonnee> {
+  //     // Plus besoin de : const currentUser = req.user;
+  //     if (!currentUser) { // Garder cette vérification par sécurité
+  //         throw new ForbiddenException("Utilisateur non authentifié ou informations manquantes.");
+  //     }
+  //     return this.sourceDonneesService.updateAutorisations(id, updateAutorisationsDto, currentUser);
+  // }
 
-  @UseGuards(JwtAuthGuard)
-  @Get('autorisation/:id')
-  async findOne(
-      @Param('id') id: string,
-      @User() currentUser: AuthenticatedUser // <--- Utiliser le décorateur ici
-  ): Promise<SourceDonnee> {
-      if (!currentUser) { // Garder cette vérification par sécurité
-           throw new ForbiddenException("Utilisateur non authentifié ou informations manquantes.");
-      }
+  // @UseGuards(JwtAuthGuard)
+  // @Get('autorisation/:id')
+  // async findOne(
+  //     @Param('id') id: string,
+  //     @User() currentUser: AuthenticatedUser // <--- Utiliser le décorateur ici
+  // ): Promise<SourceDonnee> {
+  //     if (!currentUser) { // Garder cette vérification par sécurité
+  //          throw new ForbiddenException("Utilisateur non authentifié ou informations manquantes.");
+  //     }
 
-      const sourceDonnee = await this.sourceDonneesService.findById(id); // Récupère la source avec relations
+  //     const sourceDonnee = await this.sourceDonneesService.findById(id); // Récupère la source avec relations
 
-      const canView = await this.sourceDonneesService.checkPermission(currentUser, sourceDonnee, 'consulter');
+  //     const canView = await this.sourceDonneesService.checkPermission(currentUser, sourceDonnee, 'consulter');
 
-      if (!canView) {
-          throw new ForbiddenException("Vous n'avez pas les droits pour consulter cette source de données.");
-          // Ou NotFoundException pour masquer l'existence
-          // throw new NotFoundException(`Source de données avec l'ID ${id} non trouvée ou accès refusé.`);
-      }
+  //     if (!canView) {
+  //         throw new ForbiddenException("Vous n'avez pas les droits pour consulter cette source de données.");
+  //         // Ou NotFoundException pour masquer l'existence
+  //         // throw new NotFoundException(`Source de données avec l'ID ${id} non trouvée ou accès refusé.`);
+  //     }
 
-      return sourceDonnee;
-  }
+  //     return sourceDonnee;
+  // }
+
+
+
+@UseGuards(JwtAuthGuard)
+@Get('configuration')
+async getConfig(@User() user) {
+  return this.sourceDonneesService.getConfigurationSources(user);
+}
   
+
+
 
 
 }

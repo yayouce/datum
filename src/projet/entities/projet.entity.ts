@@ -33,7 +33,7 @@ export class Projet extends TimestampEntites {
     // membreStruct:MembreStruct
 
     @ManyToOne(()=>Structure,(structure)=>structure.projet)
-    structure:MembreStruct
+    structure:Structure
 
     @OneToMany(()=>Enquete,(membreStruct)=>membreStruct.projet)
     enquete:Enquete[]

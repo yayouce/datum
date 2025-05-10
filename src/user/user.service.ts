@@ -92,18 +92,16 @@ export class UserService {
 
 
 
-  async findAllUsersAndMembers() {
-    // Récupérer tous les utilisateurs
-    const users = await this.userrepo.find();
-  
-    // Récupérer tous les membres
-    const members = await this.membreStructService.getAllMembres();
-  
-    // Fusionner les listes
-    const allUsers = [...users, ...members];
-  
-    return allUsers;
-  }
+ async findAllUsersAndMembers() {
+  // Récupérer tous les utilisateurs
+  const users = await this.userrepo.find();
+  const members = await this.membreStructService.getAllMembres();
+  const usersSanitized = users.map(({ password, ...rest }) => rest);
+  const membersSanitized = members.map(({ password, ...rest }) => rest);
+  const allUsers = [...usersSanitized, ...membersSanitized];
+  return allUsers;
+}
+
 
 
 

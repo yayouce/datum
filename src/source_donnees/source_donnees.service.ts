@@ -7,7 +7,6 @@ import { DataTypeService } from 'src/data_type/data_type.service';
 import { FormatfichierService } from 'src/formatfichier/formatfichier.service';
 import { UnitefrequenceService } from 'src/frequence/unitefrequence.service';
 import { EnqueteService } from 'src/enquete/enquete.service';
-
 import { firstValueFrom } from 'rxjs';
 import { HttpService } from '@nestjs/axios';
 import { FileHandlerService } from 'src/utils/file-handler.service';
@@ -21,7 +20,6 @@ import { UpdateSourceDonneeDto } from './dto/update-source_donnee.dto';
 import { modifyCellDto } from './dto/modifyCell.dto';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { OnModuleInit } from '@nestjs/common';
-
 import * as xlsx from 'xlsx';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -29,14 +27,13 @@ import csvParser from 'csv-parser';
 import { ProjetService } from '@/projet/projet.service';
 import { JoinSourcesDto } from './dto/jointure.dto';
 import { evaluate,compare  } from 'mathjs'
-
-
 import { ApplyfunctionDto2 } from './dto/Applyfunction.dto';
 import { MasqueColumnToggleDto } from './dto/masquercolonne.dto';
-
-
 import { UpdateAutorisationsDto } from './dto/update-autorisations.dto';
 import { detectFileFormat, processCsvFile, processExcelFile, processJsonFile } from '@/utils/conversionFichier';
+import { AutorisationsSourceDonnee } from '@/utils/autorisation';
+import { MembreStruct } from '@/membre-struct/entities/membre-struct.entity';
+import { StructureService } from '@/structure/structure.service';
 
 
 type AuthenticatedUser = {
@@ -59,6 +56,7 @@ export class SourceDonneesService implements OnModuleInit {
     private projetservice:ProjetService,
     private fileHandlerService: FileHandlerService,
     private readonly httpService: HttpService,
+    private structureservice:StructureService
   ) {}
 
 
@@ -1350,92 +1348,92 @@ async findById(id: string): Promise<SourceDonnee> {
 
 
 
-async updateAutorisations(
-  idSource: string,
-  updateAutorisationsDto: UpdateAutorisationsDto,
-  currentUser: AuthenticatedUser // <--- Utilise le type importé
-): Promise<SourceDonnee> {
-   const sourceDonnee = await this.findOneById(idSource);
+// async updateAutorisations(
+//   idSource: string,
+//   updateAutorisationsDto: UpdateAutorisationsDto,
+//   currentUser: AuthenticatedUser // <--- Utilise le type importé
+// ): Promise<SourceDonnee> {
+//    const sourceDonnee = await this.findOneById(idSource);
 
-   const canCurrentUserModifyPermissions = await this.checkPermission(
-       currentUser,
-       sourceDonnee,
-       'modifier_permissions' // Action spéciale pour cette vérification
-   );
+//    const canCurrentUserModifyPermissions = await this.checkPermission(
+//        currentUser,
+//        sourceDonnee,
+//        'modifier_permissions' // Action spéciale pour cette vérification
+//    );
 
-   if (!canCurrentUserModifyPermissions) {
-        throw new ForbiddenException("Vous n'avez pas les droits pour modifier les permissions de cette source de données.");
-   }
+//    if (!canCurrentUserModifyPermissions) {
+//         throw new ForbiddenException("Vous n'avez pas les droits pour modifier les permissions de cette source de données.");
+//    }
 
-   sourceDonnee.autorisations = updateAutorisationsDto;
-   return this.sourcededonneesrepo.save(sourceDonnee);
-}
+//    sourceDonnee.autorisations = updateAutorisationsDto;
+//    return this.sourcededonneesrepo.save(sourceDonnee);
+// }
 
-/**
-* Vérifie si un utilisateur peut effectuer une action donnée sur une source de données.
-* @param user L'utilisateur authentifié (type AuthenticatedUser)
-* @param sourceDonnee L'entité SourceDonnee avec ses relations chargées ou son ID
-* @param action L'action à vérifier ('consulter', 'modifier', 'exporter', 'modifier_permissions')
-* @returns boolean Indique si l'action est autorisée
-*/
-async checkPermission(
-  user: AuthenticatedUser, // <--- Utilise le type importé
-  sourceDonnee: SourceDonnee | string,
-  action: 'consulter' | 'modifier' | 'exporter' | 'modifier_permissions'
-): Promise<boolean> {
-  // ... la logique interne de checkPermission reste la même ...
+// /**
+// * Vérifie si un utilisateur peut effectuer une action donnée sur une source de données.
+// * @param user L'utilisateur authentifié (type AuthenticatedUser)
+// * @param sourceDonnee L'entité SourceDonnee avec ses relations chargées ou son ID
+// * @param action L'action à vérifier ('consulter', 'modifier', 'exporter', 'modifier_permissions')
+// * @returns boolean Indique si l'action est autorisée
+// */
+// async checkPermission(
+//   user: AuthenticatedUser, // <--- Utilise le type importé
+//   sourceDonnee: SourceDonnee | string,
+//   action: 'consulter' | 'modifier' | 'exporter' | 'modifier_permissions'
+// ): Promise<boolean> {
+//   // ... la logique interne de checkPermission reste la même ...
 
-  let sd: SourceDonnee;
-   if (typeof sourceDonnee === 'string') {
-       // ... gestion de la récupération par ID ...
-        try {
-           sd = await this.findOneById(sourceDonnee);
-        } catch (error) {
-            if (error instanceof NotFoundException) return false;
-            throw error;
-        }
-   } else {
-       sd = sourceDonnee;
-   }
+//   let sd: SourceDonnee;
+//    if (typeof sourceDonnee === 'string') {
+//        // ... gestion de la récupération par ID ...
+//         try {
+//            sd = await this.findOneById(sourceDonnee);
+//         } catch (error) {
+//             if (error instanceof NotFoundException) return false;
+//             throw error;
+//         }
+//    } else {
+//        sd = sourceDonnee;
+//    }
 
-   // 0. Gérer la modification des permissions
-   if (action === 'modifier_permissions') {
-      if (user.role === 'admin') return true;
-      if (user.role === 'client' && user.roleMembre === 'Top manager') {
-           const structureSource = sd.enquete?.projet?.structure;
-           if (!structureSource) return false;
-           return user.structure?.idStruct === structureSource.structure.idStruct;
-      }
-      return false;
-  }
+//    // 0. Gérer la modification des permissions
+//    if (action === 'modifier_permissions') {
+//       if (user.role === 'admin') return true;
+//       if (user.role === 'client' && user.roleMembre === 'Top manager') {
+//            const structureSource = sd.enquete?.projet?.structure;
+//            if (!structureSource) return false;
+//            return user.structure?.idStruct === structureSource.structure.idStruct;
+//       }
+//       return false;
+//   }
 
-   // 1. Vérifier les autorisations définies
-   const autorisations = sd.autorisations;
-   if (!autorisations || !autorisations[action] || autorisations[action]?.length === 0) {
-      // Politique stricte : si non défini = refusé.
-      return false;
-  }
-  const rolesAutorises = autorisations[action] ?? [];
+//    // 1. Vérifier les autorisations définies
+//    const autorisations = sd.autorisations;
+//    if (!autorisations || !autorisations[action] || autorisations[action]?.length === 0) {
+//       // Politique stricte : si non défini = refusé.
+//       return false;
+//   }
+//   const rolesAutorises = autorisations[action] ?? [];
 
 
-  // 2. Vérifier les Admins
-  if (user.role === 'admin') {
-      return rolesAutorises.includes('admin');
-  }
+//   // 2. Vérifier les Admins
+//   if (user.role === 'admin') {
+//       return rolesAutorises.includes('admin');
+//   }
 
-  // 3. Vérifier les Clients
-  if (user.role === 'client') {
-      if (!user.roleMembre || !user.structure?.idStruct) return false; // Infos manquantes
+//   // 3. Vérifier les Clients
+//   if (user.role === 'client') {
+//       if (!user.roleMembre || !user.structure?.idStruct) return false; // Infos manquantes
 
-      const structureSource = sd.enquete?.projet?.structure;
-      if (!structureSource || structureSource.structure.idStruct !== user.structure.idStruct) return false; // Mauvaise structure
+//       const structureSource = sd.enquete?.projet?.structure;
+//       if (!structureSource || structureSource.structure.idStruct !== user.structure.idStruct) return false; // Mauvaise structure
 
-      return rolesAutorises.includes(user.roleMembre); // Rôle autorisé ?
-  }
+//       return rolesAutorises.includes(user.roleMembre); // Rôle autorisé ?
+//   }
 
-  // 4. Cas par défaut
-  return false;
-}
+//   // 4. Cas par défaut
+//   return false;
+// }
 
 // ...
 async findoneById(id: string): Promise<SourceDonnee> { // Assurez-vous que cette méthode charge bien les relations
@@ -1463,9 +1461,84 @@ async findoneById(id: string): Promise<SourceDonnee> { // Assurez-vous que cette
 
 
 
+//Configuration des autorisations
+
+//getsourceeconfiguration
+// source-donnees.service.ts
+    async getConfigurationSources(loggedInUser: MembreStruct): Promise<any[]> { // Renamed 'user' to 'loggedInUser' for clarity, still unused in current logic
+    // Récupérer toutes les sources de données avec les relations nécessaires,
+    // y compris les membres de la structure via le projet.
+    const sources = await this.sourcededonneesrepo
+      .createQueryBuilder('source')
+      .leftJoinAndSelect('source.enquete', 'enquete')
+      .leftJoinAndSelect('enquete.projet', 'projet') // Projet related to Enquete
+      .leftJoinAndSelect('projet.structure', 'structure') // Structure related to Projet
+      .leftJoinAndSelect('structure.membres', 'structureMembres') // Membres of that Structure
+      // If 'enquete.membreStruct' was used for anything else, you might need to add it back:
+      // .leftJoinAndSelect('enquete.membreStruct', 'membreStructEnquete') 
+      .getMany();
+
+    console.log(`Fetched ${sources.length} sources from DB.`);
+    sources.forEach((source, index) => {
+      console.log(`--- Source[${index}] ID: ${source.idsourceDonnes} ---`);
+      // Log the new path to structure
+      const structureEntity = source.enquete?.projet?.structure;
+      if (structureEntity) {
+        console.log(`  Structure ID (via projet): ${structureEntity.idStruct}`);
+        console.log(`  Structure.membres (directly from query result):`, structureEntity.membres);
+        if (structureEntity.membres && structureEntity.membres.length > 0) {
+          console.log(`  First member's ID: ${structureEntity.membres[0].iduser}, Name: ${structureEntity.membres[0].name}`);
+        } else {
+          console.log(`  Structure.membres (via projet) is empty or undefined.`);
+        }
+      } else {
+        console.log(`  Path to structure (source.enquete.projet.structure) is broken or null.`);
+      }
+    });
+
+    // Mapper les sources pour ajouter les utilisateurs et les autorisations
+    const result = sources.map((source) => {
+      // Récupérer la structure et ses membres à partir de la source de données (via enquete.projet)
+      const structure = source.enquete?.projet?.structure;
+      
+      const membres: MembreStruct[] = structure?.membres ?? [];
+
+      // Mapper les utilisateurs en extrayant les informations nécessaires
+      const users = membres.map((m) => ({
+        user: m.iduser, // Assuming iduser is on UserEntity, which MembreStruct extends
+        username: `${m.name} ${m.firstname}`, // Assuming name and firstname are on UserEntity
+        role: m.roleMembre,
+      }));
+
+      // Fonction pour filtrer les utilisateurs selon les autorisations
+      const formatAutorisations = (type: keyof AutorisationsSourceDonnee) => {
+        const ids = source.autorisations?.[type] ?? [];
+        return users.filter((u) => ids.includes(u.user));
+      };
+
+      return {
+        id: source.idsourceDonnes,
+        nombd: source.nomSource,
+        users,
+        autorisation: {
+          modifier: formatAutorisations('modifier'),
+          visualiser: formatAutorisations('visualiser'),
+          telecharger: formatAutorisations('telecharger'),
+        },
+      };
+    });
+
+    return result;
+  }
+
+//ajout d'un utilisateur dans un tableau de d'action
 
 
 
+
+
+
+// test
 
 
 }

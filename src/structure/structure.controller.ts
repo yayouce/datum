@@ -33,6 +33,11 @@ export class StructureController {
     }
   }
 
+  @Get("getMembresByStructureId/:idstruct")
+  async getMembresByStructureId(@Param("idsstruct") id:string){
+      return await this.structureService.getMembresByStructureId(id)
+  }
+
   @Get('total')
   async getTotalStructures() {
       return await this.structureService.getTotalStructures();

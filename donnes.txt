@@ -21,3 +21,108 @@ nombre de graphique d'un projet
 
 
 vdsaccess: 5cG08AQpem72fr
+
+
+
+// [
+//   {
+//     nombd:"BD1",
+//     autorisation:{
+//       modifier:[
+//         [
+//           {user:"1" ,username:"user1",role:"Admin"},
+//           {user:"2" ,username:"user2",role:"superAdmin"},
+//           {user:"3" ,username:"user3",role:"Top manager"},
+//           {user:"4" ,username:"user4",role:"manager"},
+//         ]
+//       ],
+//       visualiser:[
+//            [
+//           {user:"5" ,username:"user1",role:"coordinateur"},
+//           {user:"2" ,username:"user2",role:"superAdmin"},
+//           {user:"3" ,username:"user3",role:"Top manager"},
+//           {user:"4" ,username:"user4",role:"manager"},
+//         ]
+//       ],
+//       telecharger:[
+//          [
+//           {user:"5" ,username:"user5",role:"coordinateur"},
+//           {user:"2" ,username:"user6",role:"coordinateur"},
+//           {user:"3" ,username:"user3",role:"Top manager"},
+//           {user:"4" ,username:"user4",role:"manager"},
+//         ]
+//       ]
+
+//     }
+//   },
+//   {
+//     nombd:"BD2",
+//     autorisation:{
+//       modifier:[
+//         [
+//           {user:"1" ,username:"user1",role:"Admin"},
+//           {user:"2" ,username:"user2",role:"superAdmin"},
+//           {user:"3" ,username:"user3",role:"Top manager"},
+//           {user:"4" ,username:"user4",role:"manager"},
+//         ]
+//       ],
+//       visualiser:[
+//            [
+//           {user:"5" ,username:"user1",role:"coordinateur"},
+//           {user:"2" ,username:"user2",role:"superAdmin"},
+//           {user:"3" ,username:"user3",role:"Top manager"},
+//           {user:"4" ,username:"user4",role:"manager"},
+//         ]
+//       ],
+//       telecharger:[
+//          [
+//           {user:"5" ,username:"user5",role:"coordinateur"},
+//           {user:"2" ,username:"user6",role:"coordinateur"},
+//           {user:"3" ,username:"user3",role:"Top manager"},
+//           {user:"4" ,username:"user4",role:"manager"},
+//         ]
+//       ]
+
+//     }
+//   }
+// ]
+
+
+
+API GET CONFIGURATION:
+[
+  {
+    id:"1",
+    nombd:"nombd1",
+    users:[
+      {username:"yes",role:"admin"},
+      {username:"yes coordinateur",role:"coordinateur"},
+      {username:"yes coordinateur 2",role:"coordinateur"},
+    ],
+    autorisation:{
+      modifier:[
+        [
+          {user:"1" ,username:"user1",role:"Admin"},
+          {user:"2" ,username:"user2",role:"superAdmin"},
+          {user:"3" ,username:"user3",role:"Top manager"},
+          {user:"4" ,username:"user4",role:"manager"},
+        ]
+      ],
+      visualiser:[
+           [
+          {user:"5" ,username:"user1",role:"coordinateur"},
+          {user:"2" ,username:"user2",role:"superAdmin"},
+       
+        ]
+      ],
+      telecharger:[
+         [
+          {user:"5" ,username:"user5",role:"coordinateur"},
+          
+        ]
+      ]
+
+    }
+  
+  }
+]

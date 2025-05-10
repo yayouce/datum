@@ -74,10 +74,10 @@ export class SourceDonnee extends TimestampEntites {
 
 
     @Column({
-        type: 'json', // ou 'jsonb' si PostgreSQL
+        type: 'json', 
         nullable: true,
         comment: 'Stocke les roles autorisés pour consulter, modifier, exporter'
     })
-    autorisations: AutorisationsSourceDonnee | null; // Typ
+    autorisations: AutorisationsSourceDonnee | null; //type
 }
 

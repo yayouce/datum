@@ -283,6 +283,22 @@ export class StructureService {
 
 
 
+  async getMembresByStructureId(idStruct: string): Promise<MembreStruct[]> {
+  const structure = await this.structureRepo.findOne({
+    where: { idStruct },
+    relations: ['membres'],
+  });
+
+  if (!structure) {
+    throw new NotFoundException('Structure non trouvée');
+  }
+
+  return structure.membres;
+}
+
+
+
+
 
 
   

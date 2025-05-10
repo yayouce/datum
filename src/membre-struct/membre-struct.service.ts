@@ -146,23 +146,4 @@ async countByRole(roleMembre: string) {
   return await this.membreRepository.count({ where: { roleMembre } });
 }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 }
