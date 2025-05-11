@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, Query, HttpException, ForbiddenException, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Query, HttpException, ForbiddenException, UseGuards, ParseUUIDPipe, BadRequestException } from '@nestjs/common';
 import { SourceDonneesService } from './source_donnees.service';
 import { CreateSourceDonneeDto } from './dto/create-source_donnee.dto';
 import { SourceDonnee } from './entities/source_donnee.entity';
@@ -247,52 +247,56 @@ async getAllFeuillesFiltrees(
 
 
 
-  // @UseGuards(JwtAuthGuard)
-  // @Patch(':id/autorisations')
-  // async updateAutorisations(
-  //     @Param('id') id: string,
-  //     @Body() updateAutorisationsDto: UpdateAutorisationsDto,
-  //     @User() currentUser: AuthenticatedUser // <--- Utiliser le décorateur ici
-  // ): Promise<SourceDonnee> {
-  //     // Plus besoin de : const currentUser = req.user;
-  //     if (!currentUser) { // Garder cette vérification par sécurité
-  //         throw new ForbiddenException("Utilisateur non authentifié ou informations manquantes.");
-  //     }
-  //     return this.sourceDonneesService.updateAutorisations(id, updateAutorisationsDto, currentUser);
-  // }
-
-  // @UseGuards(JwtAuthGuard)
-  // @Get('autorisation/:id')
-  // async findOne(
-  //     @Param('id') id: string,
-  //     @User() currentUser: AuthenticatedUser // <--- Utiliser le décorateur ici
-  // ): Promise<SourceDonnee> {
-  //     if (!currentUser) { // Garder cette vérification par sécurité
-  //          throw new ForbiddenException("Utilisateur non authentifié ou informations manquantes.");
-  //     }
-
-  //     const sourceDonnee = await this.sourceDonneesService.findById(id); // Récupère la source avec relations
-
-  //     const canView = await this.sourceDonneesService.checkPermission(currentUser, sourceDonnee, 'consulter');
-
-  //     if (!canView) {
-  //         throw new ForbiddenException("Vous n'avez pas les droits pour consulter cette source de données.");
-  //         // Ou NotFoundException pour masquer l'existence
-  //         // throw new NotFoundException(`Source de données avec l'ID ${id} non trouvée ou accès refusé.`);
-  //     }
-
-  //     return sourceDonnee;
-  // }
+  
 
 
 
 @UseGuards(JwtAuthGuard)
-@Get('configuration')
-async getConfig(@User() user) {
-  return this.sourceDonneesService.getConfigurationSources(user);
-}
-  
+  @Get('configuration/projet/:projetId') // Route with projetId as path parameter
+  async getSourceConfigurations(
+    @User() loggedInUser,      
+    @Param('projetId', ParseUUIDPipe) projetId: string, 
+    @Query('bdType') bdTypeParam?: 'normales' | 'jointes' | 'tous', 
+  ): Promise<any[]> {
+    const bdTypeToUse = bdTypeParam || 'tous'; 
+    if (bdTypeParam && !['normales', 'jointes', 'tous'].includes(bdTypeParam)) {
+      throw new BadRequestException('Invalid bdType query parameter. Must be "normales", "jointes", or "tous".');
+    }
+    
+    console.log(`[Controller] Request for getSourceConfigurations - ProjetID: ${projetId}, BdType: ${bdTypeToUse}`);
 
+    return this.sourceDonneesService.getConfigurationSources(
+      projetId,
+      bdTypeToUse, // This will be 'normales', 'jointes', or 'tous'
+      loggedInUser,
+    );
+  }
+  
+@UseGuards(JwtAuthGuard)
+ @Post('autorisations/add/:idSourceDonnee')
+  async addUsersToAutorisation(
+    @Param('idSourceDonnee', ParseUUIDPipe) idSourceDonnee: string,    @User() loggedInUser,  
+    @Body() updateAutorisationsDto: UpdateAutorisationsDto, // Use the updated DTO
+  ): Promise<SourceDonnee> {
+    return this.sourceDonneesService.addUsersToAutorisation( // Call the new service method
+      idSourceDonnee,
+      updateAutorisationsDto.userIds, // Pass the array of userIds
+      updateAutorisationsDto.action,
+      loggedInUser
+    );
+  }
+
+  @Post('autorisations/remove/:idSourceDonnee')
+  async removeUsersFromAutorisation(
+    @Param('idSourceDonnee', ParseUUIDPipe) idSourceDonnee: string,
+    @Body() updateAutorisationsDto: UpdateAutorisationsDto, // Use the updated DTO
+  ): Promise<SourceDonnee> {
+    return this.sourceDonneesService.removeUsersFromAutorisation( // Call the new service method
+      idSourceDonnee,
+      updateAutorisationsDto.userIds, // Pass the array of userIds
+      updateAutorisationsDto.action,
+    );
+  }
 
 
 

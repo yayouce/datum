@@ -1,27 +1,17 @@
+import { IsNotEmpty, IsString, IsUUID, IsIn, IsArray, ArrayNotEmpty, ArrayMinSize } from 'class-validator';
+import { AutorisationsSourceDonnee } from '@/utils/autorisation';
 
-import { IsArray, IsString, IsOptional, ArrayNotEmpty, ValidateNested } from 'class-validator';
-import { Type } from 'class-transformer';
+export type SourceDonneePermissionAction = keyof AutorisationsSourceDonnee; // 'modifier' | 'visualiser' | 'telecharger'
 
+export class UpdateAutorisationsDto { // Renamed for clarity
+  @IsArray()
+  @ArrayNotEmpty()
+  @ArrayMinSize(1)
+  @IsUUID('all', { each: true }) // Validates each element in the array is a UUID
+  userIds: string[]; // Changed from userId to userIds and made it an array
 
-
-const validRoles = ["Top manager", "manager", "coordinateur", "admin"]; 
-export class UpdateAutorisationsDto {
-
-    @IsOptional()
-    @IsArray()
-    @IsString({ each: true })
-   // @IsIn(validRoles, { each: true }) // Valide que chaque rôle est connu (ajuster selon vos rôles)
-    consulter?: string[];
-
-    @IsOptional()
-    @IsArray()
-    @IsString({ each: true })
-   // @IsIn(validRoles, { each: true })
-    modifier?: string[];
-
-    @IsOptional()
-    @IsArray()
-    @IsString({ each: true })
-   // @IsIn(validRoles, { each: true })
-    exporter?: string[];
+  @IsNotEmpty()
+  @IsString()
+  @IsIn(['modifier', 'visualiser', 'telecharger'])
+  action: SourceDonneePermissionAction;
 }

@@ -11,10 +11,12 @@ import { FileHandlerService } from 'src/utils/file-handler.service';
 import { HttpModule } from '@nestjs/axios';
 import { ProjetModule } from '@/projet/projet.module';
 import { StructureModule } from '@/structure/structure.module';
+import { UserModule } from '@/user/user.module';
+import { Projet } from '@/projet/entities/projet.entity';
 // import { SourceAutoSyncService } from './source-auto-sync.service';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([SourceDonnee]),UnitefrequenceModule,DataTypeModule,FormatfichierModule,HttpModule,EnqueteModule,ProjetModule, StructureModule],
+  imports: [TypeOrmModule.forFeature([SourceDonnee,Projet]),UnitefrequenceModule,DataTypeModule,FormatfichierModule,HttpModule,EnqueteModule,ProjetModule, StructureModule,UserModule],
   controllers: [SourceDonneesController],
   providers: [SourceDonneesService,FileHandlerService],
   exports:[SourceDonneesService]

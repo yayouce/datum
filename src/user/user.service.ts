@@ -1,6 +1,6 @@
-import { HttpException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, HttpException, Injectable, NotFoundException } from '@nestjs/common';
 import { CreateUserDto } from './dto/create-user.dto';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { UserEntity } from './entities/user.entity';
 import { InjectRepository } from '@nestjs/typeorm';
 import { MembreStructService } from 'src/membre-struct/membre-struct.service';
@@ -124,6 +124,36 @@ export class UserService {
       totalCoordinateur
     };
   }
-  
+
+
+
+   // In UserService
+  async findby(userIds: string[]): Promise<UserEntity[]> {
+      // Add logs for detailed debugging during testing
+      console.log('[UserService.findby] Input userIds:', JSON.stringify(userIds));
+
+      if (!userIds || userIds.length === 0) {
+        console.log('[UserService.findby] Error: User IDs array is null or empty.');
+        throw new BadRequestException('User IDs array cannot be null or empty.');
+      }
+
+      const existingUsers = await this.userrepo.find({
+        where: { iduser: In(userIds) },
+      });
+      console.log('[UserService.findby] Users found in DB:', JSON.stringify(existingUsers.map(u => u.iduser)));
+
+
+      if (existingUsers.length !== userIds.length) {
+        const foundUserIdsSet = new Set(existingUsers.map(u => u.iduser));
+        const notFoundUserIds = userIds.filter(id => !foundUserIdsSet.has(id));
+        console.log('[UserService.findby] Error: Not all users found. Missing:', JSON.stringify(notFoundUserIds));
+        throw new NotFoundException(`Users not found: ${notFoundUserIds.join(', ')}.`);
+      }
+
+      console.log('[UserService.findby] Success: All users found.');
+      return existingUsers;
+  }
+
+
 }
   

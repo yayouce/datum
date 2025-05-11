@@ -1,4 +1,4 @@
-import { ForbiddenException, HttpException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, HttpException, HttpStatus, Injectable, NotFoundException } from '@nestjs/common';
 import { CreateSourceDonneeDto } from './dto/create-source_donnee.dto';
 import { InjectRepository } from '@nestjs/typeorm';
 import { SourceDonnee } from './entities/source_donnee.entity';
@@ -34,6 +34,11 @@ import { detectFileFormat, processCsvFile, processExcelFile, processJsonFile } f
 import { AutorisationsSourceDonnee } from '@/utils/autorisation';
 import { MembreStruct } from '@/membre-struct/entities/membre-struct.entity';
 import { StructureService } from '@/structure/structure.service';
+import { UserService } from '@/user/user.service';
+import { UserEntity } from '@/user/entities/user.entity';
+import { Projet } from '@/projet/entities/projet.entity';
+import { checkAdminAccess } from '@/utils/auth.utils';
+import { roleMembreEnum } from '@/generique/rolemembre.enum';
 
 
 type AuthenticatedUser = {
@@ -56,7 +61,11 @@ export class SourceDonneesService implements OnModuleInit {
     private projetservice:ProjetService,
     private fileHandlerService: FileHandlerService,
     private readonly httpService: HttpService,
-    private structureservice:StructureService
+    private structureservice:StructureService,
+
+    private userservice:UserService,
+    @InjectRepository(Projet)
+    private readonly projetRepo: Repository<Projet>,
   ) {}
 
 
@@ -1465,75 +1474,467 @@ async findoneById(id: string): Promise<SourceDonnee> { // Assurez-vous que cette
 
 //getsourceeconfiguration
 // source-donnees.service.ts
-    async getConfigurationSources(loggedInUser: MembreStruct): Promise<any[]> { // Renamed 'user' to 'loggedInUser' for clarity, still unused in current logic
-    // Récupérer toutes les sources de données avec les relations nécessaires,
-    // y compris les membres de la structure via le projet.
-    const sources = await this.sourcededonneesrepo
-      .createQueryBuilder('source')
-      .leftJoinAndSelect('source.enquete', 'enquete')
-      .leftJoinAndSelect('enquete.projet', 'projet') // Projet related to Enquete
-      .leftJoinAndSelect('projet.structure', 'structure') // Structure related to Projet
-      .leftJoinAndSelect('structure.membres', 'structureMembres') // Membres of that Structure
-      // If 'enquete.membreStruct' was used for anything else, you might need to add it back:
-      // .leftJoinAndSelect('enquete.membreStruct', 'membreStructEnquete') 
-      .getMany();
+  //    async getConfigurationSources(loggedInUser: MembreStruct): Promise<any[]> {
+  //   // 1. Récupérer toutes les sources de données avec les relations nécessaires pour la structure
+  //   const sources = await this.sourcededonneesrepo
+  //     .createQueryBuilder('source')
+  //     .leftJoinAndSelect('source.enquete', 'enquete')
+  //     .leftJoinAndSelect('enquete.projet', 'projet')
+  //     .leftJoinAndSelect('projet.structure', 'structure')
+  //     .leftJoinAndSelect('structure.membres', 'structureMembres')
+  //     .getMany();
 
-    console.log(`Fetched ${sources.length} sources from DB.`);
-    sources.forEach((source, index) => {
-      console.log(`--- Source[${index}] ID: ${source.idsourceDonnes} ---`);
-      // Log the new path to structure
-      const structureEntity = source.enquete?.projet?.structure;
-      if (structureEntity) {
-        console.log(`  Structure ID (via projet): ${structureEntity.idStruct}`);
-        console.log(`  Structure.membres (directly from query result):`, structureEntity.membres);
-        if (structureEntity.membres && structureEntity.membres.length > 0) {
-          console.log(`  First member's ID: ${structureEntity.membres[0].iduser}, Name: ${structureEntity.membres[0].name}`);
-        } else {
-          console.log(`  Structure.membres (via projet) is empty or undefined.`);
-        }
-      } else {
-        console.log(`  Path to structure (source.enquete.projet.structure) is broken or null.`);
+  //   console.log(`Fetched ${sources.length} sources from DB.`);
+
+  //   // 2. Collect all unique user IDs from all source.autorisations
+  //   const allUserIdsFromAutorisations = new Set<string>();
+  //   sources.forEach(source => {
+  //     if (source.autorisations) {
+  //       (Object.keys(source.autorisations) as Array<keyof AutorisationsSourceDonnee>).forEach(key => {
+  //         source.autorisations![key]?.forEach(userId => allUserIdsFromAutorisations.add(userId));
+  //       });
+  //     }
+  //   });
+
+  //   // 3. Fetch details for all these users in one batch
+  //   let usersFromAutorisationsMap: Map<string, UserEntity> = new Map();
+  //   if (allUserIdsFromAutorisations.size > 0) {
+  //     const userDetailsArray = await this.userservice.findby(Array.from(allUserIdsFromAutorisations));
+  //     userDetailsArray.forEach(user => usersFromAutorisationsMap.set(user.iduser, user));
+  //     console.log(`Fetched details for ${usersFromAutorisationsMap.size} unique users from autorisations.`);
+  //   }
+
+
+  //   // 4. Mapper les sources pour ajouter les utilisateurs de structure ET les autorisations
+  //   const result = sources.map((source) => {
+  //     // Get members of the current source's structure (as before)
+  //     const structure = source.enquete?.projet?.structure;
+  //     const membresDeStructure: MembreStruct[] = structure?.membres ?? [];
+  //     const usersDeStructure = membresDeStructure.map((m) => ({
+  //       user: m.iduser,
+  //       username: `${m.name} ${m.firstname}`, // Assuming name and firstname are on UserEntity/MembreStruct
+  //       role: m.roleMembre,
+  //     }));
+
+  //     // Fonction pour formater les autorisations en utilisant usersFromAutorisationsMap
+  //     const formatAutorisationsPourOptionB = (type: keyof AutorisationsSourceDonnee) => {
+  //       const idsFromSourceAuth = source.autorisations?.[type] ?? [];
+  //       return idsFromSourceAuth
+  //         .map(userId => {
+  //           const userDetail = usersFromAutorisationsMap.get(userId);
+  //           if (userDetail) {
+  //             return {
+  //               user: userDetail.iduser,
+  //               username: `${userDetail.name} ${userDetail.firstname}`, // Assuming name/firstname on UserEntity
+  //               role: null, // Role here might be ambiguous or you might need another source for it if it's permission-specific
+  //                           // For now, setting to null or you can fetch/derive it if needed.
+  //                           // If UserEntity (which MembreStruct extends) has a general role, use that.
+  //                           // If the user in 'autorisations' is ALSO a MembreStruct, you could look them up in 'usersDeStructure' for their roleMembre
+  //             };
+  //           }
+  //           return null; // User ID was in autorisations but not found in our map (e.g., deleted user)
+  //         })
+  //         .filter(user => user !== null); // Remove nulls for users not found
+  //     };
+
+  //     return {
+  //       id: source.idsourceDonnes,
+  //       nombd: source.nomSource,
+  //       users: usersDeStructure, // Users from the source's specific structure
+  //       autorisation: { // Users specifically granted permission in source.autorisations
+  //         modifier: formatAutorisationsPourOptionB('modifier'),
+  //         visualiser: formatAutorisationsPourOptionB('visualiser'),
+  //         telecharger: formatAutorisationsPourOptionB('telecharger'),
+  //       },
+  //     };
+  //   });
+
+  //   return result;
+  // }
+
+
+
+
+  async getConfigurationSources(
+    projetId: string,
+    bdType: 'normales' | 'jointes' | 'tous',
+    loggedInUser: MembreStruct, // Still present, potentially for future authorization logic
+  ): Promise<any[]> {
+    console.log(`[getConfigurationSources] START - ProjetID: ${projetId}, BdType: ${bdType}`);
+
+    // Verify project existence
+    const projetExists = await this.projetRepo.findOneBy({ idprojet: projetId }); // Adjust 'idprojet' if PK name is different
+    if (!projetExists) {
+      throw new NotFoundException(`Projet with ID ${projetId} not found.`);
+    }
+
+    // 1. Build the initial query for sources
+    const query = this.sourcededonneesrepo
+      .createQueryBuilder('source')
+      // Join to filter by project ID. 'projetRel' is used for the join condition.
+      .innerJoin('source.enquete', 'enqueteFilter') 
+      .innerJoin('enqueteFilter.projet', 'projetFilter', 'projetFilter.idprojet = :projetId', { projetId })
+      // Now, select all necessary related entities for data loading.
+      // Use different aliases if there's any ambiguity or to be explicit.
+      .leftJoinAndSelect('source.enquete', 'enqueteDetails')
+      .leftJoinAndSelect('enqueteDetails.projet', 'projetDetails') // This will be the same project as projetFilter
+      .leftJoinAndSelect('projetDetails.structure', 'structure')
+      .leftJoinAndSelect('structure.membres', 'structureMembres');
+
+    // Add conditions for bdType
+    if (bdType === 'normales') {
+      query.andWhere('source.bd_normales IS NOT NULL');
+    } else if (bdType === 'jointes') {
+      query.andWhere('source.bd_jointes IS NOT NULL');
+      // Similar considerations for JSON emptiness apply here if 'IS NOT NULL' isn't sufficient.
+    } else if (bdType !== 'tous') {
+     
+      throw new BadRequestException(`Type de BD "${bdType}" non supporté. Utilisez "normales", "jointes", ou "tous".`);
+    }
+
+    const sources = await query.getMany();
+
+    if (sources.length === 0) {
+      console.log(`[getConfigurationSources] No sources found for ProjetID: ${projetId} and BdType: ${bdType}. Returning empty array.`);
+      return [];
+    }
+    console.log(`[getConfigurationSources] Fetched ${sources.length} sources for ProjetID: ${projetId}, BdType: ${bdType}.`);
+
+    // 2. Collect all unique user IDs from all source.autorisations (for the filtered sources)
+    const allUserIdsFromAutorisations = new Set<string>();
+    sources.forEach(source => {
+      if (source.autorisations) {
+        // Iterate over known keys of AutorisationsSourceDonnee
+        (Object.keys(source.autorisations) as Array<keyof AutorisationsSourceDonnee>).forEach(key => {
+          const userIdsForPermission = source.autorisations![key];
+          if (userIdsForPermission && Array.isArray(userIdsForPermission)) {
+            userIdsForPermission.forEach(userId => allUserIdsFromAutorisations.add(userId));
+          }
+        });
       }
     });
 
-    // Mapper les sources pour ajouter les utilisateurs et les autorisations
-    const result = sources.map((source) => {
-      // Récupérer la structure et ses membres à partir de la source de données (via enquete.projet)
-      const structure = source.enquete?.projet?.structure;
-      
-      const membres: MembreStruct[] = structure?.membres ?? [];
+    // 3. Fetch details for all these users in one batch
+    let usersFromAutorisationsMap: Map<string, UserEntity> = new Map();
+    if (allUserIdsFromAutorisations.size > 0) {
+      const userDetailsArray = await this.userservice.findby(Array.from(allUserIdsFromAutorisations));
+      userDetailsArray.forEach(user => {
+        // Ensure user and user.iduser are valid before adding to map
+        if (user && user.iduser) {
+            usersFromAutorisationsMap.set(user.iduser, user);
+        }
+      });
+      console.log(`[getConfigurationSources] Fetched details for ${usersFromAutorisationsMap.size} unique users from autorisations lists.`);
+    }
 
-      // Mapper les utilisateurs en extrayant les informations nécessaires
-      const users = membres.map((m) => ({
-        user: m.iduser, // Assuming iduser is on UserEntity, which MembreStruct extends
-        username: `${m.name} ${m.firstname}`, // Assuming name and firstname are on UserEntity
+    // 4. Mapper les sources to the desired output format
+    const result = sources.map((source) => {
+      // Get members of the current source's structure
+      // The path source.enquete.projet.structure should be valid due to the leftJoinAndSelect strategy
+      const structureEntity = source.enquete?.projet?.structure;
+      const membresDeStructure: MembreStruct[] = structureEntity?.membres ?? [];
+      
+      const usersDeStructure = membresDeStructure.map((m) => ({
+        user: m.iduser,
+        username: `${m.name || ''} ${m.firstname || ''}`.trim(), // Handle potential null/undefined names
         role: m.roleMembre,
       }));
 
-      // Fonction pour filtrer les utilisateurs selon les autorisations
-      const formatAutorisations = (type: keyof AutorisationsSourceDonnee) => {
-        const ids = source.autorisations?.[type] ?? [];
-        return users.filter((u) => ids.includes(u.user));
+      // Function to format the 'autorisation' part based on Option B
+      const formatAutorisationsPourOptionB = (type: keyof AutorisationsSourceDonnee) => {
+        const idsFromSourceAuth = source.autorisations?.[type] ?? [];
+        return idsFromSourceAuth
+          .map(userId => {
+            const userDetail = usersFromAutorisationsMap.get(userId);
+            if (userDetail) {
+              // Attempt to find if this user is also a structure member to get their specific roleMembre
+              const structureMemberInfo = usersDeStructure.find(sm => sm.user === userDetail.iduser);
+              // Prioritize roleMembre if they are a structure member, otherwise use a general role from UserEntity if available
+              const roleToDisplay = structureMemberInfo 
+                                    ? structureMemberInfo.role 
+                                    : (userDetail as any).roleMembre || (userDetail as any).role || null; 
+
+              return {
+                user: userDetail.iduser,
+                username: `${userDetail.name || ''} ${userDetail.firstname || ''}`.trim(),
+                role: roleToDisplay,
+              };
+            }
+            return null; // User ID was in autorisations but no details found (e.g., deleted user)
+          })
+          .filter(user => user !== null); // Remove nulls for users not found
       };
 
       return {
         id: source.idsourceDonnes,
         nombd: source.nomSource,
-        users,
-        autorisation: {
-          modifier: formatAutorisations('modifier'),
-          visualiser: formatAutorisations('visualiser'),
-          telecharger: formatAutorisations('telecharger'),
+        users: usersDeStructure, // Users from the source's specific structure
+        autorisation: { // Users specifically granted permission in source.autorisations (globally fetched)
+          modifier: formatAutorisationsPourOptionB('modifier'),
+          visualiser: formatAutorisationsPourOptionB('visualiser'),
+          telecharger: formatAutorisationsPourOptionB('telecharger'),
         },
       };
     });
 
+    console.log(`[getConfigurationSources] END - Returning ${result.length} processed sources for ProjetID: ${projetId}, BdType: ${bdType}`);
     return result;
   }
 
+
+
+
+  // source-donnees.service.ts
+// ... (imports and constructor) ...
+
+// async getConfigurationSources(
+//     projetId: string,
+//     bdType: 'normales' | 'jointes' | 'tous',
+//     loggedInUser: MembreStruct,
+//   ): Promise<any[]> {
+//     console.log(`[getConfigurationSources] START - ProjetID: ${projetId}, BdType: ${bdType}`);
+
+//     const projetExists = await this.projetRepo.findOneBy({ idprojet: projetId });
+//     if (!projetExists) {
+//       throw new NotFoundException(`Projet with ID ${projetId} not found.`);
+//     }
+
+//     const query = this.sourcededonneesrepo
+//       .createQueryBuilder('source')
+//       .innerJoin('source.enquete', 'enqueteFilter') 
+//       .innerJoin('enqueteFilter.projet', 'projetFilter', 'projetFilter.idprojet = :projetId', { projetId })
+//       .leftJoinAndSelect('source.enquete', 'enqueteDetails')
+//       .leftJoinAndSelect('enqueteDetails.projet', 'projetDetails')
+//       .leftJoinAndSelect('projetDetails.structure', 'structure')
+//       .leftJoinAndSelect('structure.membres', 'structureMembres'); // This is supposed to load all members
+
+//     if (bdType === 'normales') {
+//       query.andWhere('source.bd_normales IS NOT NULL');
+//     } else if (bdType === 'jointes') {
+//       query.andWhere('source.bd_jointes IS NOT NULL');
+//     } else if (bdType !== 'tous') {
+//       throw new BadRequestException(`Type de BD "${bdType}" non supporté. Utilisez "normales", "jointes", ou "tous".`);
+//     }
+
+//     const sources = await query.getMany();
+
+//     if (sources.length === 0) {
+//       console.log(`[getConfigurationSources] No sources found for ProjetID: ${projetId} and BdType: ${bdType}. Returning empty array.`);
+//       return [];
+//     }
+//     console.log(`[getConfigurationSources] Fetched ${sources.length} sources for ProjetID: ${projetId}, BdType: ${bdType}.`);
+
+//     const allUserIdsFromAutorisations = new Set<string>();
+//     sources.forEach(source => {
+//       if (source.autorisations) {
+//         (Object.keys(source.autorisations) as Array<keyof AutorisationsSourceDonnee>).forEach(key => {
+//           const userIdsForPermission = source.autorisations![key];
+//           if (userIdsForPermission && Array.isArray(userIdsForPermission)) {
+//             userIdsForPermission.forEach(userId => allUserIdsFromAutorisations.add(userId));
+//           }
+//         });
+//       }
+//     });
+
+//     let usersFromAutorisationsMap: Map<string, UserEntity> = new Map();
+//     if (allUserIdsFromAutorisations.size > 0) {
+//       const userDetailsArray = await this.userservice.findby(Array.from(allUserIdsFromAutorisations)); // Assuming 'findby' is the correct method name
+//       userDetailsArray.forEach(user => {
+//         if (user && user.iduser) {
+//             usersFromAutorisationsMap.set(user.iduser, user);
+//         }
+//       });
+//       console.log(`[getConfigurationSources] Fetched details for ${usersFromAutorisationsMap.size} unique users from autorisations lists.`);
+//     }
+
+//     // 4. Mapper les sources to the desired output format
+//     const result = sources.map((source, index) => { // Added index for logging clarity
+//       const structureEntity = source.enquete?.projet?.structure;
+
+//       // =============== CRITICAL LOGGING BLOCK START ===============
+//       console.log(`--- Mapping Source [${index}] - ID: ${source.idsourceDonnes} ---`);
+//       if (structureEntity) {
+//         console.log(`  Structure ID: ${structureEntity.idStruct}, Name: ${structureEntity.nomStruct}`); // Assuming nomStruct exists
+//         if (structureEntity.membres && Array.isArray(structureEntity.membres)) {
+//           console.log(`  Raw structureEntity.membres from query (count: ${structureEntity.membres.length}):`, JSON.stringify(structureEntity.membres.map(m => ({ iduser: m.iduser, name: m.name, firstname: m.firstname, roleMembre: m.roleMembre }))));
+//           if (structureEntity.membres.length === 0) {
+//             console.log('    structureEntity.membres is an empty array.');
+//           }
+//         } else {
+//             console.log(`  structureEntity.membres is null, undefined, or not an array. Value:`, structureEntity.membres);
+//         }
+//       } else {
+//         console.log(`  No structure entity found for this source (source.enquete?.projet?.structure is null or undefined).`);
+//         // If structureEntity is null, then membresDeStructure will be [], and usersDeStructure will be []
+//       }
+//       // =============== CRITICAL LOGGING BLOCK END ===============
+      
+//       const membresDeStructure: MembreStruct[] = structureEntity?.membres ?? [];
+      
+//       const usersDeStructure = membresDeStructure.map((m) => ({
+//         user: m.iduser,
+//         username: `${m.name || ''} ${m.firstname || ''}`.trim(),
+//         role: m.roleMembre,
+//       }));
+
+//       const formatAutorisationsPourOptionB = (type: keyof AutorisationsSourceDonnee) => {
+//         const idsFromSourceAuth = source.autorisations?.[type] ?? [];
+//         return idsFromSourceAuth
+//           .map(userId => {
+//             const userDetail = usersFromAutorisationsMap.get(userId);
+//             if (userDetail) {
+//               const structureMemberInfo = usersDeStructure.find(sm => sm.user === userDetail.iduser);
+//               const roleToDisplay = structureMemberInfo 
+//                                     ? structureMemberInfo.role 
+//                                     : (userDetail as any).roleMembre || (userDetail as any).role || null; 
+//               return {
+//                 user: userDetail.iduser,
+//                 username: `${userDetail.name || ''} ${userDetail.firstname || ''}`.trim(),
+//                 role: roleToDisplay,
+//               };
+//             }
+//             return null;
+//           })
+//           .filter(user => user !== null);
+//       };
+
+//       return {
+//         id: source.idsourceDonnes,
+//         nombd: source.nomSource,
+//         users: usersDeStructure,
+//         autorisation: {
+//           modifier: formatAutorisationsPourOptionB('modifier'),
+//           visualiser: formatAutorisationsPourOptionB('visualiser'),
+//           telecharger: formatAutorisationsPourOptionB('telecharger'),
+//         },
+//       };
+//     });
+
+//     console.log(`[getConfigurationSources] END - Returning ${result.length} processed sources for ProjetID: ${projetId}, BdType: ${bdType}`);
+//     return result;
+//   }
+
 //ajout d'un utilisateur dans un tableau de d'action
 
+ async addUsersToAutorisation(
+    idSourceDonnee: string,
+    userIds: string[],
+    action: keyof AutorisationsSourceDonnee,
+    loggedInUser: any, // Added loggedInUser parameter
+  ): Promise<SourceDonnee> {
+    console.log(`[addUsersToAutorisation] START - User: ${loggedInUser.iduser}, Role: ${loggedInUser.role}, RoleMembre: ${loggedInUser.roleMembre}`);
 
+    // --- AUTHORIZATION LOGIC START ---
+    if (loggedInUser.role === 'client') {
+      if (loggedInUser.roleMembre !== roleMembreEnum.TOPMANAGER) {
+        throw new HttpException("Action non autorisée pour ce rôle client.", HttpStatus.FORBIDDEN); // Using HttpStatus.FORBIDDEN (403)
+        // Or your original: throw new HttpException("pas autorisé à modifier les rôles", 800);
+      }
+      // Client is a Top Manager, allowed to proceed for now (further checks might apply later if needed)
+      console.log(`[addUsersToAutorisation] Client with RoleMembre '${roleMembreEnum.TOPMANAGER}' is proceeding.`);
+    } else {
+      // User is not 'client', implying admin or superadmin.
+      // The checkAdminAccess utility will verify this or throw.
+      try {
+        checkAdminAccess(loggedInUser); // This will throw if user.role is 'client' or user is invalid
+        console.log(`[addUsersToAutorisation] Admin/Superadmin access confirmed for User: ${loggedInUser.iduser}`);
+      } catch (error) {
+        // This catch block might seem redundant if the outer `if` already checks `loggedInUser.role === 'client'`,
+        // but it's a safeguard if checkAdminAccess has more complex logic or if the role isn't strictly 'client' vs 'admin'.
+        // If checkAdminAccess throws, we re-throw its error.
+        console.error(`[addUsersToAutorisation] checkAdminAccess failed for non-client user: ${loggedInUser.iduser}`, error);
+        throw error;
+      }
+    }
+    // --- AUTHORIZATION LOGIC END ---
+
+
+    // 1. Validate userIds array is not empty
+    if (!userIds || userIds.length === 0) {
+        throw new BadRequestException('userIds array cannot be empty.');
+    }
+
+    // 2. Validate all users (to be added) exist.
+    await this.userservice.findby(userIds); // Assumes 'findby' is the correct method name
+    console.log('[addUsersToAutorisation] Validation of users to be added passed.');
+
+    // 3. Proceed with fetching the source and updating permissions
+    const source = await this.sourcededonneesrepo.findOneBy({ idsourceDonnes: idSourceDonnee });
+    if (!source) {
+      throw new NotFoundException(`SourceDonnee with ID ${idSourceDonnee} not found.`);
+    }
+
+    if (!source.autorisations) {
+      source.autorisations = {};
+    }
+    if (!source.autorisations[action]) {
+      source.autorisations[action] = [];
+    }
+
+    const actionArray = source.autorisations[action] as string[];
+    let usersAddedCount = 0;
+
+    userIds.forEach(userId => {
+      if (!actionArray.includes(userId)) {
+        actionArray.push(userId);
+        usersAddedCount++;
+      }
+    });
+
+    if (usersAddedCount > 0) {
+        console.log(`[addUsersToAutorisation] ${usersAddedCount} users added to '${action}' permission for source ${idSourceDonnee}.`);
+        source.autorisations = { ...source.autorisations, [action]: [...actionArray] };
+        
+        try {
+            const savedSource = await this.sourcededonneesrepo.save(source);
+            console.log(`[addUsersToAutorisation] SAVE SUCCEEDED for source ${idSourceDonnee}.`);
+            return savedSource;
+        } catch (error) {
+            console.error(`[addUsersToAutorisation] SAVE FAILED for source ${idSourceDonnee}:`, error);
+            throw new HttpException('Failed to save source autorisations.', HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    } else {
+        console.log(`[addUsersToAutorisation] No new users to add for '${action}' permission for source ${idSourceDonnee}. All provided users might already have the permission.`);
+        return source;
+    }
+  }
+
+  async removeUsersFromAutorisation(
+    idSourceDonnee: string,
+    userIds: string[],
+    action: keyof AutorisationsSourceDonnee,
+  ): Promise<SourceDonnee> {
+     if (!userIds || userIds.length === 0) {
+        throw new BadRequestException('userIds array cannot be empty.');
+    }
+
+    const source = await this.sourcededonneesrepo.findOneBy({ idsourceDonnes: idSourceDonnee });
+    if (!source) {
+      throw new NotFoundException(`SourceDonnee with ID ${idSourceDonnee} not found.`);
+    }
+
+    if (!source.autorisations || !source.autorisations[action] || source.autorisations[action]?.length === 0) {
+      console.log(`No '${action}' permissions found or list is empty for source ${idSourceDonnee}. No users removed.`);
+      return source;
+    }
+
+    const actionArray = source.autorisations[action] as string[];
+    const initialLength = actionArray.length;
+
+    // Create a Set of userIds to remove for efficient lookup
+    const usersToRemoveSet = new Set(userIds);
+    const updatedActionArray = actionArray.filter(id => !usersToRemoveSet.has(id));
+
+    if (updatedActionArray.length < initialLength) {
+      console.log(`${initialLength - updatedActionArray.length} users removed from '${action}' permission for source ${idSourceDonnee}.`);
+      // Re-assign for TypeORM change detection
+      source.autorisations = { ...source.autorisations, [action]: updatedActionArray };
+      return this.sourcededonneesrepo.save(source);
+    } else {
+      console.log(`No users from the provided list were found in '${action}' permissions for source ${idSourceDonnee}.`);
+      return source; // Return unmodified source
+    }
+  }
 
 
 
