@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, Query, HttpException, ForbiddenException, UseGuards, ParseUUIDPipe, BadRequestException } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Query, HttpException, ForbiddenException, UseGuards, ParseUUIDPipe, BadRequestException, ValidationPipe } from '@nestjs/common';
 import { SourceDonneesService } from './source_donnees.service';
 import { CreateSourceDonneeDto } from './dto/create-source_donnee.dto';
 import { SourceDonnee } from './entities/source_donnee.entity';
@@ -15,6 +15,7 @@ import { JwtAuthGuard } from '@/Auth/jwt-auth.guard';
 import { UpdateAutorisationsDto } from './dto/update-autorisations.dto';
 import { User } from '@/decorator/user.decorator';
 import { AuthenticatedUser } from '@/Auth/authenticated-user.type';
+import { TogglePermissionsArrayDto } from './dto/update-autorisation.dto';
 
 
 @Controller('source-donnees')
@@ -276,12 +277,13 @@ async getAllFeuillesFiltrees(
  @Post('autorisations/add/:idSourceDonnee')
   async addUsersToAutorisation(
     @Param('idSourceDonnee', ParseUUIDPipe) idSourceDonnee: string,    @User() loggedInUser,  
-    @Body() updateAutorisationsDto: UpdateAutorisationsDto, // Use the updated DTO
+    @Body(new ValidationPipe({ transform: true, whitelist: true, forbidNonWhitelisted: true }))
+     toggleDto: TogglePermissionsArrayDto, // Use the new DTO
   ): Promise<SourceDonnee> {
-    return this.sourceDonneesService.addUsersToAutorisation( // Call the new service method
+    return this.sourceDonneesService.togglePermissionsFromArray( // Call the new service method
       idSourceDonnee,
-      updateAutorisationsDto.userIds, // Pass the array of userIds
-      updateAutorisationsDto.action,
+      // updateAutorisationsDto.userIds, // Pass the array of userIds
+      toggleDto.permissions,
       loggedInUser
     );
   }

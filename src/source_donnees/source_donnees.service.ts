@@ -39,6 +39,7 @@ import { UserEntity } from '@/user/entities/user.entity';
 import { Projet } from '@/projet/entities/projet.entity';
 import { checkAdminAccess } from '@/utils/auth.utils';
 import { roleMembreEnum } from '@/generique/rolemembre.enum';
+import { UserPermissionToggleDto } from './dto/update-autorisation.dto';
 
 
 type AuthenticatedUser = {
@@ -1816,86 +1817,206 @@ async findoneById(id: string): Promise<SourceDonnee> { // Assurez-vous que cette
 
 //ajout d'un utilisateur dans un tableau de d'action
 
- async addUsersToAutorisation(
-    idSourceDonnee: string,
-    userIds: string[],
-    action: keyof AutorisationsSourceDonnee,
-    loggedInUser: any, // Added loggedInUser parameter
-  ): Promise<SourceDonnee> {
-    console.log(`[addUsersToAutorisation] START - User: ${loggedInUser.iduser}, Role: ${loggedInUser.role}, RoleMembre: ${loggedInUser.roleMembre}`);
+//  async addUsersToAutorisation(
+//     idSourceDonnee: string,
+//     userIds: string[],
+//     action: keyof AutorisationsSourceDonnee,
+//     loggedInUser: any, // Added loggedInUser parameter
+//   ): Promise<SourceDonnee> {
+//     console.log(`[addUsersToAutorisation] START - User: ${loggedInUser.iduser}, Role: ${loggedInUser.role}, RoleMembre: ${loggedInUser.roleMembre}`);
 
-    // --- AUTHORIZATION LOGIC START ---
+//     // --- AUTHORIZATION LOGIC START ---
+//     if (loggedInUser.role === 'client') {
+//       if (loggedInUser.roleMembre !== roleMembreEnum.TOPMANAGER) {
+//         throw new HttpException("Action non autorisée pour ce rôle client.", HttpStatus.FORBIDDEN); // Using HttpStatus.FORBIDDEN (403)
+//         // Or your original: throw new HttpException("pas autorisé à modifier les rôles", 800);
+//       }
+//       // Client is a Top Manager, allowed to proceed for now (further checks might apply later if needed)
+//       console.log(`[addUsersToAutorisation] Client with RoleMembre '${roleMembreEnum.TOPMANAGER}' is proceeding.`);
+//     } else {
+//       // User is not 'client', implying admin or superadmin.
+//       // The checkAdminAccess utility will verify this or throw.
+//       try {
+//         checkAdminAccess(loggedInUser); // This will throw if user.role is 'client' or user is invalid
+//         console.log(`[addUsersToAutorisation] Admin/Superadmin access confirmed for User: ${loggedInUser.iduser}`);
+//       } catch (error) {
+//         // This catch block might seem redundant if the outer `if` already checks `loggedInUser.role === 'client'`,
+//         // but it's a safeguard if checkAdminAccess has more complex logic or if the role isn't strictly 'client' vs 'admin'.
+//         // If checkAdminAccess throws, we re-throw its error.
+//         console.error(`[addUsersToAutorisation] checkAdminAccess failed for non-client user: ${loggedInUser.iduser}`, error);
+//         throw error;
+//       }
+//     }
+//     // --- AUTHORIZATION LOGIC END ---
+
+
+//     // 1. Validate userIds array is not empty
+//     if (!userIds || userIds.length === 0) {
+//         throw new BadRequestException('userIds array cannot be empty.');
+//     }
+
+//     // 2. Validate all users (to be added) exist.
+//     await this.userservice.findby(userIds); // Assumes 'findby' is the correct method name
+//     console.log('[addUsersToAutorisation] Validation of users to be added passed.');
+
+//     // 3. Proceed with fetching the source and updating permissions
+//     const source = await this.sourcededonneesrepo.findOneBy({ idsourceDonnes: idSourceDonnee });
+//     if (!source) {
+//       throw new NotFoundException(`SourceDonnee with ID ${idSourceDonnee} not found.`);
+//     }
+
+//     if (!source.autorisations) {
+//       source.autorisations = {};
+//     }
+//     if (!source.autorisations[action]) {
+//       source.autorisations[action] = [];
+//     }
+
+//     const actionArray = source.autorisations[action] as string[];
+//     let usersAddedCount = 0;
+
+//     userIds.forEach(userId => {
+//       if (!actionArray.includes(userId)) {
+//         actionArray.push(userId);
+//         usersAddedCount++;
+//       }
+//     });
+
+//     if (usersAddedCount > 0) {
+//         console.log(`[addUsersToAutorisation] ${usersAddedCount} users added to '${action}' permission for source ${idSourceDonnee}.`);
+//         source.autorisations = { ...source.autorisations, [action]: [...actionArray] };
+        
+//         try {
+//             const savedSource = await this.sourcededonneesrepo.save(source);
+//             console.log(`[addUsersToAutorisation] SAVE SUCCEEDED for source ${idSourceDonnee}.`);
+//             return savedSource;
+//         } catch (error) {
+//             console.error(`[addUsersToAutorisation] SAVE FAILED for source ${idSourceDonnee}:`, error);
+//             throw new HttpException('Failed to save source autorisations.', HttpStatus.INTERNAL_SERVER_ERROR);
+//         }
+//     } else {
+//         console.log(`[addUsersToAutorisation] No new users to add for '${action}' permission for source ${idSourceDonnee}. All provided users might already have the permission.`);
+//         return source;
+//     }
+//   }
+
+
+
+
+//  
+
+
+
+
+
+ async togglePermissionsFromArray(
+    idSourceDonnee: string,
+    permissionOperations: UserPermissionToggleDto[], // Array of actions and users to toggle
+    loggedInUser: MembreStruct,
+  ): Promise<SourceDonnee> {
+    console.log(`[togglePermissionsFromArray] START - User: ${loggedInUser.iduser}, SourceID: ${idSourceDonnee}`);
+    console.log(`[togglePermissionsFromArray] Permission Operations: ${JSON.stringify(permissionOperations)}`);
+
+    // --- AUTHORIZATION LOGIC (same as before) ---
     if (loggedInUser.role === 'client') {
       if (loggedInUser.roleMembre !== roleMembreEnum.TOPMANAGER) {
-        throw new HttpException("Action non autorisée pour ce rôle client.", HttpStatus.FORBIDDEN); // Using HttpStatus.FORBIDDEN (403)
-        // Or your original: throw new HttpException("pas autorisé à modifier les rôles", 800);
+        throw new HttpException("Action non autorisée pour ce rôle client.", HttpStatus.FORBIDDEN);
       }
-      // Client is a Top Manager, allowed to proceed for now (further checks might apply later if needed)
-      console.log(`[addUsersToAutorisation] Client with RoleMembre '${roleMembreEnum.TOPMANAGER}' is proceeding.`);
     } else {
-      // User is not 'client', implying admin or superadmin.
-      // The checkAdminAccess utility will verify this or throw.
       try {
-        checkAdminAccess(loggedInUser); // This will throw if user.role is 'client' or user is invalid
-        console.log(`[addUsersToAutorisation] Admin/Superadmin access confirmed for User: ${loggedInUser.iduser}`);
+        checkAdminAccess(loggedInUser);
       } catch (error) {
-        // This catch block might seem redundant if the outer `if` already checks `loggedInUser.role === 'client'`,
-        // but it's a safeguard if checkAdminAccess has more complex logic or if the role isn't strictly 'client' vs 'admin'.
-        // If checkAdminAccess throws, we re-throw its error.
-        console.error(`[addUsersToAutorisation] checkAdminAccess failed for non-client user: ${loggedInUser.iduser}`, error);
         throw error;
       }
     }
     // --- AUTHORIZATION LOGIC END ---
 
+    // 1. Collect all unique user IDs from ALL operations in the input DTO for validation
+    const allUserIdsToValidate = new Set<string>();
+    permissionOperations.forEach(op => {
+      if (op.userIds) op.userIds.forEach(id => allUserIdsToValidate.add(id));
+    });
 
-    // 1. Validate userIds array is not empty
-    if (!userIds || userIds.length === 0) {
-        throw new BadRequestException('userIds array cannot be empty.');
+    if (allUserIdsToValidate.size > 0) {
+      await this.userservice.findby(Array.from(allUserIdsToValidate)); // Validates all users exist
+      console.log('[togglePermissionsFromArray] Validation of all involved users passed.');
+    } else {
+      // This would happen if the permissions array was empty or all userIds arrays within it were empty
+      // (which should be caught by DTO validation if @ArrayNotEmpty is on UserPermissionToggleDto.userIds)
+      console.log('[togglePermissionsFromArray] No user IDs provided in the payload to toggle.');
+      // Consider throwing BadRequestException if an empty permissions array is not desired
+      // For now, we proceed, and it will result in no changes.
     }
 
-    // 2. Validate all users (to be added) exist.
-    await this.userservice.findby(userIds); // Assumes 'findby' is the correct method name
-    console.log('[addUsersToAutorisation] Validation of users to be added passed.');
-
-    // 3. Proceed with fetching the source and updating permissions
+    // 2. Fetch the source
     const source = await this.sourcededonneesrepo.findOneBy({ idsourceDonnes: idSourceDonnee });
     if (!source) {
       throw new NotFoundException(`SourceDonnee with ID ${idSourceDonnee} not found.`);
     }
 
+    // 3. Initialize autorisations if necessary
     if (!source.autorisations) {
       source.autorisations = {};
     }
-    if (!source.autorisations[action]) {
-      source.autorisations[action] = [];
+
+    let overallChangesMade = false;
+
+    // Iterate through each permission operation from the request
+    for (const operation of permissionOperations) {
+      const { action, userIds: userIdsToToggleForThisAction } = operation;
+
+      // DTO validation should ensure userIdsToToggleForThisAction is not empty if an operation is provided.
+      // If somehow it's empty here, skip.
+      if (!userIdsToToggleForThisAction || userIdsToToggleForThisAction.length === 0) {
+        console.warn(`[togglePermissionsFromArray] Skipping action '${action}' as no user IDs were provided for it.`);
+        continue;
+      }
+      
+      if (!source.autorisations![action]) {
+        source.autorisations![action] = [];
+      }
+
+      const currentActionArray = source.autorisations![action] as string[];
+      let newActionArray = [...currentActionArray]; // Work on a copy
+
+      let actionSpecificChangesMade = false;
+      for (const userId of userIdsToToggleForThisAction) {
+        const userIndex = newActionArray.indexOf(userId);
+        if (userIndex > -1) { // User is in the list, so remove
+          newActionArray.splice(userIndex, 1);
+          console.log(`[togglePermissionsFromArray] User ${userId} REMOVED from action '${action}'.`);
+          actionSpecificChangesMade = true;
+        } else { // User is not in the list, so add
+          newActionArray.push(userId);
+          console.log(`[togglePermissionsFromArray] User ${userId} ADDED to action '${action}'.`);
+          actionSpecificChangesMade = true;
+        }
+      }
+      
+      if (actionSpecificChangesMade) {
+          source.autorisations![action] = newActionArray;
+          overallChangesMade = true; // Mark that at least one action had changes
+          console.log(`[togglePermissionsFromArray] Permissions for action '${action}' effectively changed for source ${idSourceDonnee}.`);
+      }
     }
 
-    const actionArray = source.autorisations[action] as string[];
-    let usersAddedCount = 0;
 
-    userIds.forEach(userId => {
-      if (!actionArray.includes(userId)) {
-        actionArray.push(userId);
-        usersAddedCount++;
+    if (overallChangesMade) {
+      // Crucial: re-assign the top-level 'autorisations' object for TypeORM change detection
+      source.autorisations = { ...source.autorisations }; 
+      
+      console.log(`[togglePermissionsFromArray] Overall permissions updated for source ${idSourceDonnee}.`);
+      try {
+        const savedSource = await this.sourcededonneesrepo.save(source);
+        console.log(`[togglePermissionsFromArray] SAVE SUCCEEDED for source ${idSourceDonnee}.`);
+        return savedSource;
+      } catch (error) {
+        console.error(`[togglePermissionsFromArray] SAVE FAILED for source ${idSourceDonnee}:`, error);
+        throw new HttpException('Failed to save source autorisations.', HttpStatus.INTERNAL_SERVER_ERROR);
       }
-    });
-
-    if (usersAddedCount > 0) {
-        console.log(`[addUsersToAutorisation] ${usersAddedCount} users added to '${action}' permission for source ${idSourceDonnee}.`);
-        source.autorisations = { ...source.autorisations, [action]: [...actionArray] };
-        
-        try {
-            const savedSource = await this.sourcededonneesrepo.save(source);
-            console.log(`[addUsersToAutorisation] SAVE SUCCEEDED for source ${idSourceDonnee}.`);
-            return savedSource;
-        } catch (error) {
-            console.error(`[addUsersToAutorisation] SAVE FAILED for source ${idSourceDonnee}:`, error);
-            throw new HttpException('Failed to save source autorisations.', HttpStatus.INTERNAL_SERVER_ERROR);
-        }
     } else {
-        console.log(`[addUsersToAutorisation] No new users to add for '${action}' permission for source ${idSourceDonnee}. All provided users might already have the permission.`);
-        return source;
+      console.log(`[togglePermissionsFromArray] No effective changes made to permissions for source ${idSourceDonnee}.`);
+      return source; // Return original source if no actual change
     }
   }
 

@@ -1,17 +1,26 @@
+// src/source-donnees/dto/toggle-permissions-array.dto.ts
+import { Type } from 'class-transformer';
+import { IsArray, ArrayNotEmpty, ValidateNested, IsString, IsIn, IsUUID, ArrayMinSize } from 'class-validator';
+import { AutorisationsSourceDonnee } from '@/utils/autorisation'; // Adjust path
 
-import { IsNotEmpty, IsString, IsUUID, IsIn } from 'class-validator';
-import { AutorisationsSourceDonnee } from '@/utils/autorisation'; // Make sure this path is correct
+export type SourceDonneePermissionAction = keyof AutorisationsSourceDonnee;
 
-// Define the possible action keys more strictly if possible
-export type SourceDonneePermissionAction = keyof AutorisationsSourceDonnee; // 'modifier' | 'visualiser' | 'telecharger'
-
-export class UpdateAutorisationDto {
-  @IsNotEmpty()
-  @IsUUID()
-  userId: string;
-
-  @IsNotEmpty()
+export class UserPermissionToggleDto {
   @IsString()
-  @IsIn(['modifier', 'visualiser', 'telecharger']) // Validate against allowed actions
+  @IsIn(['modifier', 'visualiser', 'telecharger'])
   action: SourceDonneePermissionAction;
+
+  @IsArray()
+  @ArrayNotEmpty() // Each action in the request should specify users to toggle
+  @ArrayMinSize(1)
+  @IsUUID('all', { each: true })
+  userIds: string[]; // Users to toggle for this specific action
+}
+
+export class TogglePermissionsArrayDto {
+  @IsArray()
+  @ArrayNotEmpty() // The request must contain at least one permission operation
+  @ValidateNested({ each: true }) // Validates each UserPermissionToggleDto in the array
+  @Type(() => UserPermissionToggleDto)  // Tells class-validator the type of array elements
+  permissions: UserPermissionToggleDto[];
 }
