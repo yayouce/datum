@@ -42,7 +42,7 @@ export class UserController {
 
 
   @Post('test-findby')
-  async testFindbyMultipleUsers(@Body() testFindUsersDto: TestFindUsersDto): Promise<UserEntity[]> {
+  async testFindbyMultipleUsers(@Body() testFindUsersDto: TestFindUsersDto) {
     // Call the method from UserService
     // Assuming your method in UserService is named 'findby'
     return this.userService.findby(testFindUsersDto.userIds);

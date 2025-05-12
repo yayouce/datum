@@ -6,6 +6,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { MembreStructService } from 'src/membre-struct/membre-struct.service';
 import * as bcrypt from "bcrypt"
 import { UserRole } from '@/generique/userroleEnum';
+import { MembreStruct } from '@/membre-struct/entities/membre-struct.entity';
 
 @Injectable()
 export class UserService {
@@ -13,7 +14,10 @@ export class UserService {
       @InjectRepository(UserEntity)
       private userrepo: Repository<UserEntity>,
   
-      private membreStructService : MembreStructService
+      private membreStructService : MembreStructService,
+
+        @InjectRepository(MembreStruct)
+      private membrestructrepo: Repository<MembreStruct>
     ){}
   
   
@@ -128,31 +132,73 @@ export class UserService {
 
 
    // In UserService
-  async findby(userIds: string[]): Promise<UserEntity[]> {
-      // Add logs for detailed debugging during testing
-      console.log('[UserService.findby] Input userIds:', JSON.stringify(userIds));
+  // async findby(userIds: string[]): Promise<UserEntity[]> {
+  //     // Add logs for detailed debugging during testing
+  //     console.log('[UserService.findby] Input userIds:', JSON.stringify(userIds));
 
-      if (!userIds || userIds.length === 0) {
-        console.log('[UserService.findby] Error: User IDs array is null or empty.');
-        throw new BadRequestException('User IDs array cannot be null or empty.');
-      }
+  //     if (!userIds || userIds.length === 0) {
+  //       console.log('[UserService.findby] Error: User IDs array is null or empty.');
+  //       throw new BadRequestException('User IDs array cannot be null or empty.');
+  //     }
 
-      const existingUsers = await this.userrepo.find({
-        where: { iduser: In(userIds) },
-      });
-      console.log('[UserService.findby] Users found in DB:', JSON.stringify(existingUsers.map(u => u.iduser)));
+  //     const existingUsers = await this.userrepo.find({
+  //       where: { iduser: In(userIds) },
+  //     });
+  //     console.log('[UserService.findby] Users found in DB:', JSON.stringify(existingUsers.map(u => u.iduser)));
 
 
-      if (existingUsers.length !== userIds.length) {
-        const foundUserIdsSet = new Set(existingUsers.map(u => u.iduser));
-        const notFoundUserIds = userIds.filter(id => !foundUserIdsSet.has(id));
-        console.log('[UserService.findby] Error: Not all users found. Missing:', JSON.stringify(notFoundUserIds));
-        throw new NotFoundException(`Users not found: ${notFoundUserIds.join(', ')}.`);
-      }
+  //     if (existingUsers.length !== userIds.length) {
+  //       const foundUserIdsSet = new Set(existingUsers.map(u => u.iduser));
+  //       const notFoundUserIds = userIds.filter(id => !foundUserIdsSet.has(id));
+  //       console.log('[UserService.findby] Error: Not all users found. Missing:', JSON.stringify(notFoundUserIds));
+  //       throw new NotFoundException(`Users not found: ${notFoundUserIds.join(', ')}.`);
+  //     }
 
-      console.log('[UserService.findby] Success: All users found.');
-      return existingUsers;
+  //     console.log('[UserService.findby] Success: All users found.');
+  //     return existingUsers;
+  // }
+
+
+
+  async findby(userIds: string[]): Promise<(UserEntity | MembreStruct)[]> {
+  console.log('[UserService.findby] Input userIds:', JSON.stringify(userIds));
+
+  if (!userIds || userIds.length === 0) {
+    console.log('[UserService.findby] Error: User IDs array is null or empty.');
+    throw new BadRequestException('User IDs array cannot be null or empty.');
   }
+
+  // 1. Rechercher dans userrepo
+  const existingUsers = await this.userrepo.find({
+    where: { iduser: In(userIds) },
+  });
+  const foundUserIdsSet = new Set(existingUsers.map(u => u.iduser));
+
+  // 2. Identifier les IDs manquants
+  const missingUserIds = userIds.filter(id => !foundUserIdsSet.has(id));
+
+  // 3. Rechercher dans membreStructRepo les utilisateurs manquants
+  let additionalUsers: MembreStruct[] = [];
+  if (missingUserIds.length > 0) {
+    additionalUsers = await this.membrestructrepo.find({
+      where: { iduser: In(missingUserIds) },
+    });
+  }
+
+  const allFoundUsers = [...existingUsers, ...additionalUsers];
+  const allFoundUserIdsSet = new Set(allFoundUsers.map(u => u.iduser));
+  const stillMissingIds = userIds.filter(id => !allFoundUserIdsSet.has(id));
+
+  // 4. Vérifier s'il reste des IDs manquants
+  if (stillMissingIds.length > 0) {
+    console.log('[UserService.findby] Error: Some user IDs not found in any repo:', JSON.stringify(stillMissingIds));
+    throw new NotFoundException(`Users not found: ${stillMissingIds.join(', ')}.`);
+  }
+
+  console.log('[UserService.findby] Success: All users found across both repositories.');
+  return allFoundUsers;
+}
+
 
 
 }

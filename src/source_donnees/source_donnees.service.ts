@@ -1358,93 +1358,6 @@ async findById(id: string): Promise<SourceDonnee> {
 
 
 
-// async updateAutorisations(
-//   idSource: string,
-//   updateAutorisationsDto: UpdateAutorisationsDto,
-//   currentUser: AuthenticatedUser // <--- Utilise le type importé
-// ): Promise<SourceDonnee> {
-//    const sourceDonnee = await this.findOneById(idSource);
-
-//    const canCurrentUserModifyPermissions = await this.checkPermission(
-//        currentUser,
-//        sourceDonnee,
-//        'modifier_permissions' // Action spéciale pour cette vérification
-//    );
-
-//    if (!canCurrentUserModifyPermissions) {
-//         throw new ForbiddenException("Vous n'avez pas les droits pour modifier les permissions de cette source de données.");
-//    }
-
-//    sourceDonnee.autorisations = updateAutorisationsDto;
-//    return this.sourcededonneesrepo.save(sourceDonnee);
-// }
-
-// /**
-// * Vérifie si un utilisateur peut effectuer une action donnée sur une source de données.
-// * @param user L'utilisateur authentifié (type AuthenticatedUser)
-// * @param sourceDonnee L'entité SourceDonnee avec ses relations chargées ou son ID
-// * @param action L'action à vérifier ('consulter', 'modifier', 'exporter', 'modifier_permissions')
-// * @returns boolean Indique si l'action est autorisée
-// */
-// async checkPermission(
-//   user: AuthenticatedUser, // <--- Utilise le type importé
-//   sourceDonnee: SourceDonnee | string,
-//   action: 'consulter' | 'modifier' | 'exporter' | 'modifier_permissions'
-// ): Promise<boolean> {
-//   // ... la logique interne de checkPermission reste la même ...
-
-//   let sd: SourceDonnee;
-//    if (typeof sourceDonnee === 'string') {
-//        // ... gestion de la récupération par ID ...
-//         try {
-//            sd = await this.findOneById(sourceDonnee);
-//         } catch (error) {
-//             if (error instanceof NotFoundException) return false;
-//             throw error;
-//         }
-//    } else {
-//        sd = sourceDonnee;
-//    }
-
-//    // 0. Gérer la modification des permissions
-//    if (action === 'modifier_permissions') {
-//       if (user.role === 'admin') return true;
-//       if (user.role === 'client' && user.roleMembre === 'Top manager') {
-//            const structureSource = sd.enquete?.projet?.structure;
-//            if (!structureSource) return false;
-//            return user.structure?.idStruct === structureSource.structure.idStruct;
-//       }
-//       return false;
-//   }
-
-//    // 1. Vérifier les autorisations définies
-//    const autorisations = sd.autorisations;
-//    if (!autorisations || !autorisations[action] || autorisations[action]?.length === 0) {
-//       // Politique stricte : si non défini = refusé.
-//       return false;
-//   }
-//   const rolesAutorises = autorisations[action] ?? [];
-
-
-//   // 2. Vérifier les Admins
-//   if (user.role === 'admin') {
-//       return rolesAutorises.includes('admin');
-//   }
-
-//   // 3. Vérifier les Clients
-//   if (user.role === 'client') {
-//       if (!user.roleMembre || !user.structure?.idStruct) return false; // Infos manquantes
-
-//       const structureSource = sd.enquete?.projet?.structure;
-//       if (!structureSource || structureSource.structure.idStruct !== user.structure.idStruct) return false; // Mauvaise structure
-
-//       return rolesAutorises.includes(user.roleMembre); // Rôle autorisé ?
-//   }
-
-//   // 4. Cas par défaut
-//   return false;
-// }
-
 // ...
 async findoneById(id: string): Promise<SourceDonnee> { // Assurez-vous que cette méthode charge bien les relations
   const source = await this.sourcededonneesrepo.findOne({
@@ -1466,95 +1379,6 @@ async findoneById(id: string): Promise<SourceDonnee> { // Assurez-vous que cette
 
   return source;
 }
-
-
-
-
-
-//Configuration des autorisations
-
-//getsourceeconfiguration
-// source-donnees.service.ts
-  //    async getConfigurationSources(loggedInUser: MembreStruct): Promise<any[]> {
-  //   // 1. Récupérer toutes les sources de données avec les relations nécessaires pour la structure
-  //   const sources = await this.sourcededonneesrepo
-  //     .createQueryBuilder('source')
-  //     .leftJoinAndSelect('source.enquete', 'enquete')
-  //     .leftJoinAndSelect('enquete.projet', 'projet')
-  //     .leftJoinAndSelect('projet.structure', 'structure')
-  //     .leftJoinAndSelect('structure.membres', 'structureMembres')
-  //     .getMany();
-
-  //   console.log(`Fetched ${sources.length} sources from DB.`);
-
-  //   // 2. Collect all unique user IDs from all source.autorisations
-  //   const allUserIdsFromAutorisations = new Set<string>();
-  //   sources.forEach(source => {
-  //     if (source.autorisations) {
-  //       (Object.keys(source.autorisations) as Array<keyof AutorisationsSourceDonnee>).forEach(key => {
-  //         source.autorisations![key]?.forEach(userId => allUserIdsFromAutorisations.add(userId));
-  //       });
-  //     }
-  //   });
-
-  //   // 3. Fetch details for all these users in one batch
-  //   let usersFromAutorisationsMap: Map<string, UserEntity> = new Map();
-  //   if (allUserIdsFromAutorisations.size > 0) {
-  //     const userDetailsArray = await this.userservice.findby(Array.from(allUserIdsFromAutorisations));
-  //     userDetailsArray.forEach(user => usersFromAutorisationsMap.set(user.iduser, user));
-  //     console.log(`Fetched details for ${usersFromAutorisationsMap.size} unique users from autorisations.`);
-  //   }
-
-
-  //   // 4. Mapper les sources pour ajouter les utilisateurs de structure ET les autorisations
-  //   const result = sources.map((source) => {
-  //     // Get members of the current source's structure (as before)
-  //     const structure = source.enquete?.projet?.structure;
-  //     const membresDeStructure: MembreStruct[] = structure?.membres ?? [];
-  //     const usersDeStructure = membresDeStructure.map((m) => ({
-  //       user: m.iduser,
-  //       username: `${m.name} ${m.firstname}`, // Assuming name and firstname are on UserEntity/MembreStruct
-  //       role: m.roleMembre,
-  //     }));
-
-  //     // Fonction pour formater les autorisations en utilisant usersFromAutorisationsMap
-  //     const formatAutorisationsPourOptionB = (type: keyof AutorisationsSourceDonnee) => {
-  //       const idsFromSourceAuth = source.autorisations?.[type] ?? [];
-  //       return idsFromSourceAuth
-  //         .map(userId => {
-  //           const userDetail = usersFromAutorisationsMap.get(userId);
-  //           if (userDetail) {
-  //             return {
-  //               user: userDetail.iduser,
-  //               username: `${userDetail.name} ${userDetail.firstname}`, // Assuming name/firstname on UserEntity
-  //               role: null, // Role here might be ambiguous or you might need another source for it if it's permission-specific
-  //                           // For now, setting to null or you can fetch/derive it if needed.
-  //                           // If UserEntity (which MembreStruct extends) has a general role, use that.
-  //                           // If the user in 'autorisations' is ALSO a MembreStruct, you could look them up in 'usersDeStructure' for their roleMembre
-  //             };
-  //           }
-  //           return null; // User ID was in autorisations but not found in our map (e.g., deleted user)
-  //         })
-  //         .filter(user => user !== null); // Remove nulls for users not found
-  //     };
-
-  //     return {
-  //       id: source.idsourceDonnes,
-  //       nombd: source.nomSource,
-  //       users: usersDeStructure, // Users from the source's specific structure
-  //       autorisation: { // Users specifically granted permission in source.autorisations
-  //         modifier: formatAutorisationsPourOptionB('modifier'),
-  //         visualiser: formatAutorisationsPourOptionB('visualiser'),
-  //         telecharger: formatAutorisationsPourOptionB('telecharger'),
-  //       },
-  //     };
-  //   });
-
-  //   return result;
-  // }
-
-
-
 
   async getConfigurationSources(
     projetId: string,
@@ -1625,7 +1449,6 @@ async findoneById(id: string): Promise<SourceDonnee> { // Assurez-vous que cette
             usersFromAutorisationsMap.set(user.iduser, user);
         }
       });
-      console.log(`[getConfigurationSources] Fetched details for ${usersFromAutorisationsMap.size} unique users from autorisations lists.`);
     }
 
     // 4. Mapper les sources to the desired output format
@@ -1678,232 +1501,9 @@ async findoneById(id: string): Promise<SourceDonnee> { // Assurez-vous que cette
       };
     });
 
-    console.log(`[getConfigurationSources] END - Returning ${result.length} processed sources for ProjetID: ${projetId}, BdType: ${bdType}`);
+    // console.log(`[getConfigurationSources] END - Returning ${result.length} processed sources for ProjetID: ${projetId}, BdType: ${bdType}`);
     return result;
   }
-
-
-
-
-  // source-donnees.service.ts
-// ... (imports and constructor) ...
-
-// async getConfigurationSources(
-//     projetId: string,
-//     bdType: 'normales' | 'jointes' | 'tous',
-//     loggedInUser: MembreStruct,
-//   ): Promise<any[]> {
-//     console.log(`[getConfigurationSources] START - ProjetID: ${projetId}, BdType: ${bdType}`);
-
-//     const projetExists = await this.projetRepo.findOneBy({ idprojet: projetId });
-//     if (!projetExists) {
-//       throw new NotFoundException(`Projet with ID ${projetId} not found.`);
-//     }
-
-//     const query = this.sourcededonneesrepo
-//       .createQueryBuilder('source')
-//       .innerJoin('source.enquete', 'enqueteFilter') 
-//       .innerJoin('enqueteFilter.projet', 'projetFilter', 'projetFilter.idprojet = :projetId', { projetId })
-//       .leftJoinAndSelect('source.enquete', 'enqueteDetails')
-//       .leftJoinAndSelect('enqueteDetails.projet', 'projetDetails')
-//       .leftJoinAndSelect('projetDetails.structure', 'structure')
-//       .leftJoinAndSelect('structure.membres', 'structureMembres'); // This is supposed to load all members
-
-//     if (bdType === 'normales') {
-//       query.andWhere('source.bd_normales IS NOT NULL');
-//     } else if (bdType === 'jointes') {
-//       query.andWhere('source.bd_jointes IS NOT NULL');
-//     } else if (bdType !== 'tous') {
-//       throw new BadRequestException(`Type de BD "${bdType}" non supporté. Utilisez "normales", "jointes", ou "tous".`);
-//     }
-
-//     const sources = await query.getMany();
-
-//     if (sources.length === 0) {
-//       console.log(`[getConfigurationSources] No sources found for ProjetID: ${projetId} and BdType: ${bdType}. Returning empty array.`);
-//       return [];
-//     }
-//     console.log(`[getConfigurationSources] Fetched ${sources.length} sources for ProjetID: ${projetId}, BdType: ${bdType}.`);
-
-//     const allUserIdsFromAutorisations = new Set<string>();
-//     sources.forEach(source => {
-//       if (source.autorisations) {
-//         (Object.keys(source.autorisations) as Array<keyof AutorisationsSourceDonnee>).forEach(key => {
-//           const userIdsForPermission = source.autorisations![key];
-//           if (userIdsForPermission && Array.isArray(userIdsForPermission)) {
-//             userIdsForPermission.forEach(userId => allUserIdsFromAutorisations.add(userId));
-//           }
-//         });
-//       }
-//     });
-
-//     let usersFromAutorisationsMap: Map<string, UserEntity> = new Map();
-//     if (allUserIdsFromAutorisations.size > 0) {
-//       const userDetailsArray = await this.userservice.findby(Array.from(allUserIdsFromAutorisations)); // Assuming 'findby' is the correct method name
-//       userDetailsArray.forEach(user => {
-//         if (user && user.iduser) {
-//             usersFromAutorisationsMap.set(user.iduser, user);
-//         }
-//       });
-//       console.log(`[getConfigurationSources] Fetched details for ${usersFromAutorisationsMap.size} unique users from autorisations lists.`);
-//     }
-
-//     // 4. Mapper les sources to the desired output format
-//     const result = sources.map((source, index) => { // Added index for logging clarity
-//       const structureEntity = source.enquete?.projet?.structure;
-
-//       // =============== CRITICAL LOGGING BLOCK START ===============
-//       console.log(`--- Mapping Source [${index}] - ID: ${source.idsourceDonnes} ---`);
-//       if (structureEntity) {
-//         console.log(`  Structure ID: ${structureEntity.idStruct}, Name: ${structureEntity.nomStruct}`); // Assuming nomStruct exists
-//         if (structureEntity.membres && Array.isArray(structureEntity.membres)) {
-//           console.log(`  Raw structureEntity.membres from query (count: ${structureEntity.membres.length}):`, JSON.stringify(structureEntity.membres.map(m => ({ iduser: m.iduser, name: m.name, firstname: m.firstname, roleMembre: m.roleMembre }))));
-//           if (structureEntity.membres.length === 0) {
-//             console.log('    structureEntity.membres is an empty array.');
-//           }
-//         } else {
-//             console.log(`  structureEntity.membres is null, undefined, or not an array. Value:`, structureEntity.membres);
-//         }
-//       } else {
-//         console.log(`  No structure entity found for this source (source.enquete?.projet?.structure is null or undefined).`);
-//         // If structureEntity is null, then membresDeStructure will be [], and usersDeStructure will be []
-//       }
-//       // =============== CRITICAL LOGGING BLOCK END ===============
-      
-//       const membresDeStructure: MembreStruct[] = structureEntity?.membres ?? [];
-      
-//       const usersDeStructure = membresDeStructure.map((m) => ({
-//         user: m.iduser,
-//         username: `${m.name || ''} ${m.firstname || ''}`.trim(),
-//         role: m.roleMembre,
-//       }));
-
-//       const formatAutorisationsPourOptionB = (type: keyof AutorisationsSourceDonnee) => {
-//         const idsFromSourceAuth = source.autorisations?.[type] ?? [];
-//         return idsFromSourceAuth
-//           .map(userId => {
-//             const userDetail = usersFromAutorisationsMap.get(userId);
-//             if (userDetail) {
-//               const structureMemberInfo = usersDeStructure.find(sm => sm.user === userDetail.iduser);
-//               const roleToDisplay = structureMemberInfo 
-//                                     ? structureMemberInfo.role 
-//                                     : (userDetail as any).roleMembre || (userDetail as any).role || null; 
-//               return {
-//                 user: userDetail.iduser,
-//                 username: `${userDetail.name || ''} ${userDetail.firstname || ''}`.trim(),
-//                 role: roleToDisplay,
-//               };
-//             }
-//             return null;
-//           })
-//           .filter(user => user !== null);
-//       };
-
-//       return {
-//         id: source.idsourceDonnes,
-//         nombd: source.nomSource,
-//         users: usersDeStructure,
-//         autorisation: {
-//           modifier: formatAutorisationsPourOptionB('modifier'),
-//           visualiser: formatAutorisationsPourOptionB('visualiser'),
-//           telecharger: formatAutorisationsPourOptionB('telecharger'),
-//         },
-//       };
-//     });
-
-//     console.log(`[getConfigurationSources] END - Returning ${result.length} processed sources for ProjetID: ${projetId}, BdType: ${bdType}`);
-//     return result;
-//   }
-
-//ajout d'un utilisateur dans un tableau de d'action
-
-//  async addUsersToAutorisation(
-//     idSourceDonnee: string,
-//     userIds: string[],
-//     action: keyof AutorisationsSourceDonnee,
-//     loggedInUser: any, // Added loggedInUser parameter
-//   ): Promise<SourceDonnee> {
-//     console.log(`[addUsersToAutorisation] START - User: ${loggedInUser.iduser}, Role: ${loggedInUser.role}, RoleMembre: ${loggedInUser.roleMembre}`);
-
-//     // --- AUTHORIZATION LOGIC START ---
-//     if (loggedInUser.role === 'client') {
-//       if (loggedInUser.roleMembre !== roleMembreEnum.TOPMANAGER) {
-//         throw new HttpException("Action non autorisée pour ce rôle client.", HttpStatus.FORBIDDEN); // Using HttpStatus.FORBIDDEN (403)
-//         // Or your original: throw new HttpException("pas autorisé à modifier les rôles", 800);
-//       }
-//       // Client is a Top Manager, allowed to proceed for now (further checks might apply later if needed)
-//       console.log(`[addUsersToAutorisation] Client with RoleMembre '${roleMembreEnum.TOPMANAGER}' is proceeding.`);
-//     } else {
-//       // User is not 'client', implying admin or superadmin.
-//       // The checkAdminAccess utility will verify this or throw.
-//       try {
-//         checkAdminAccess(loggedInUser); // This will throw if user.role is 'client' or user is invalid
-//         console.log(`[addUsersToAutorisation] Admin/Superadmin access confirmed for User: ${loggedInUser.iduser}`);
-//       } catch (error) {
-//         // This catch block might seem redundant if the outer `if` already checks `loggedInUser.role === 'client'`,
-//         // but it's a safeguard if checkAdminAccess has more complex logic or if the role isn't strictly 'client' vs 'admin'.
-//         // If checkAdminAccess throws, we re-throw its error.
-//         console.error(`[addUsersToAutorisation] checkAdminAccess failed for non-client user: ${loggedInUser.iduser}`, error);
-//         throw error;
-//       }
-//     }
-//     // --- AUTHORIZATION LOGIC END ---
-
-
-//     // 1. Validate userIds array is not empty
-//     if (!userIds || userIds.length === 0) {
-//         throw new BadRequestException('userIds array cannot be empty.');
-//     }
-
-//     // 2. Validate all users (to be added) exist.
-//     await this.userservice.findby(userIds); // Assumes 'findby' is the correct method name
-//     console.log('[addUsersToAutorisation] Validation of users to be added passed.');
-
-//     // 3. Proceed with fetching the source and updating permissions
-//     const source = await this.sourcededonneesrepo.findOneBy({ idsourceDonnes: idSourceDonnee });
-//     if (!source) {
-//       throw new NotFoundException(`SourceDonnee with ID ${idSourceDonnee} not found.`);
-//     }
-
-//     if (!source.autorisations) {
-//       source.autorisations = {};
-//     }
-//     if (!source.autorisations[action]) {
-//       source.autorisations[action] = [];
-//     }
-
-//     const actionArray = source.autorisations[action] as string[];
-//     let usersAddedCount = 0;
-
-//     userIds.forEach(userId => {
-//       if (!actionArray.includes(userId)) {
-//         actionArray.push(userId);
-//         usersAddedCount++;
-//       }
-//     });
-
-//     if (usersAddedCount > 0) {
-//         console.log(`[addUsersToAutorisation] ${usersAddedCount} users added to '${action}' permission for source ${idSourceDonnee}.`);
-//         source.autorisations = { ...source.autorisations, [action]: [...actionArray] };
-        
-//         try {
-//             const savedSource = await this.sourcededonneesrepo.save(source);
-//             console.log(`[addUsersToAutorisation] SAVE SUCCEEDED for source ${idSourceDonnee}.`);
-//             return savedSource;
-//         } catch (error) {
-//             console.error(`[addUsersToAutorisation] SAVE FAILED for source ${idSourceDonnee}:`, error);
-//             throw new HttpException('Failed to save source autorisations.', HttpStatus.INTERNAL_SERVER_ERROR);
-//         }
-//     } else {
-//         console.log(`[addUsersToAutorisation] No new users to add for '${action}' permission for source ${idSourceDonnee}. All provided users might already have the permission.`);
-//         return source;
-//     }
-//   }
-
-
-
-
-//  
 
 
 
@@ -1968,7 +1568,7 @@ async findoneById(id: string): Promise<SourceDonnee> { // Assurez-vous que cette
       // DTO validation should ensure userIdsToToggleForThisAction is not empty if an operation is provided.
       // If somehow it's empty here, skip.
       if (!userIdsToToggleForThisAction || userIdsToToggleForThisAction.length === 0) {
-        console.warn(`[togglePermissionsFromArray] Skipping action '${action}' as no user IDs were provided for it.`);
+        // console.warn(`[togglePermissionsFromArray] Skipping action '${action}' as no user IDs were provided for it.`);
         continue;
       }
       
@@ -1984,11 +1584,11 @@ async findoneById(id: string): Promise<SourceDonnee> { // Assurez-vous que cette
         const userIndex = newActionArray.indexOf(userId);
         if (userIndex > -1) { // User is in the list, so remove
           newActionArray.splice(userIndex, 1);
-          console.log(`[togglePermissionsFromArray] User ${userId} REMOVED from action '${action}'.`);
+          // console.log(`[togglePermissionsFromArray] User ${userId} REMOVED from action '${action}'.`);
           actionSpecificChangesMade = true;
         } else { // User is not in the list, so add
           newActionArray.push(userId);
-          console.log(`[togglePermissionsFromArray] User ${userId} ADDED to action '${action}'.`);
+          // console.log(`[togglePermissionsFromArray] User ${userId} ADDED to action '${action}'.`);
           actionSpecificChangesMade = true;
         }
       }
@@ -1996,7 +1596,7 @@ async findoneById(id: string): Promise<SourceDonnee> { // Assurez-vous que cette
       if (actionSpecificChangesMade) {
           source.autorisations![action] = newActionArray;
           overallChangesMade = true; // Mark that at least one action had changes
-          console.log(`[togglePermissionsFromArray] Permissions for action '${action}' effectively changed for source ${idSourceDonnee}.`);
+          // console.log(`[togglePermissionsFromArray] Permissions for action '${action}' effectively changed for source ${idSourceDonnee}.`);
       }
     }
 
@@ -2005,17 +1605,17 @@ async findoneById(id: string): Promise<SourceDonnee> { // Assurez-vous que cette
       // Crucial: re-assign the top-level 'autorisations' object for TypeORM change detection
       source.autorisations = { ...source.autorisations }; 
       
-      console.log(`[togglePermissionsFromArray] Overall permissions updated for source ${idSourceDonnee}.`);
+      // console.log(`[togglePermissionsFromArray] Overall permissions updated for source ${idSourceDonnee}.`);
       try {
         const savedSource = await this.sourcededonneesrepo.save(source);
-        console.log(`[togglePermissionsFromArray] SAVE SUCCEEDED for source ${idSourceDonnee}.`);
+        // console.log(`[togglePermissionsFromArray] SAVE SUCCEEDED for source ${idSourceDonnee}.`);
         return savedSource;
       } catch (error) {
-        console.error(`[togglePermissionsFromArray] SAVE FAILED for source ${idSourceDonnee}:`, error);
+        // console.error(`[togglePermissionsFromArray] SAVE FAILED for source ${idSourceDonnee}:`, error);
         throw new HttpException('Failed to save source autorisations.', HttpStatus.INTERNAL_SERVER_ERROR);
       }
     } else {
-      console.log(`[togglePermissionsFromArray] No effective changes made to permissions for source ${idSourceDonnee}.`);
+      // console.log(`[togglePermissionsFromArray] No effective changes made to permissions for source ${idSourceDonnee}.`);
       return source; // Return original source if no actual change
     }
   }
@@ -2035,7 +1635,7 @@ async findoneById(id: string): Promise<SourceDonnee> { // Assurez-vous que cette
     }
 
     if (!source.autorisations || !source.autorisations[action] || source.autorisations[action]?.length === 0) {
-      console.log(`No '${action}' permissions found or list is empty for source ${idSourceDonnee}. No users removed.`);
+      // console.log(`No '${action}' permissions found or list is empty for source ${idSourceDonnee}. No users removed.`);
       return source;
     }
 
@@ -2047,12 +1647,12 @@ async findoneById(id: string): Promise<SourceDonnee> { // Assurez-vous que cette
     const updatedActionArray = actionArray.filter(id => !usersToRemoveSet.has(id));
 
     if (updatedActionArray.length < initialLength) {
-      console.log(`${initialLength - updatedActionArray.length} users removed from '${action}' permission for source ${idSourceDonnee}.`);
+      // console.log(`${initialLength - updatedActionArray.length} users removed from '${action}' permission for source ${idSourceDonnee}.`);
       // Re-assign for TypeORM change detection
       source.autorisations = { ...source.autorisations, [action]: updatedActionArray };
       return this.sourcededonneesrepo.save(source);
     } else {
-      console.log(`No users from the provided list were found in '${action}' permissions for source ${idSourceDonnee}.`);
+      // console.log(`No users from the provided list were found in '${action}' permissions for source ${idSourceDonnee}.`);
       return source; // Return unmodified source
     }
   }
