@@ -1204,7 +1204,7 @@ async applyFunctionAndSave2(
     });
   });
 
-  // ✅ Fonction de comparaison sécurisée
+
   function safeCompare(a: any, b: any): boolean {
     if (!isNaN(a) && !isNaN(b)) {
       return Number(a) === Number(b); // Comparaison numérique
@@ -1379,6 +1379,120 @@ async findoneById(id: string): Promise<SourceDonnee> { // Assurez-vous que cette
 
   return source;
 }
+
+
+
+
+
+
+async getOneConfigurationSource(
+  projetId: string,
+  sourceId: string,
+  bdType: 'normales' | 'jointes' | 'tous',
+  loggedInUser: MembreStruct,
+): Promise<any> {
+  console.log(`[getOneConfigurationSource] START - ProjetID: ${projetId}, SourceID: ${sourceId}, BdType: ${bdType}`);
+
+  const projetExists = await this.projetRepo.findOneBy({ idprojet: projetId });
+  if (!projetExists) {
+    throw new NotFoundException(`Projet with ID ${projetId} not found.`);
+  }
+
+  const query = this.sourcededonneesrepo
+    .createQueryBuilder('source')
+    .innerJoin('source.enquete', 'enqueteFilter')
+    .innerJoin('enqueteFilter.projet', 'projetFilter', 'projetFilter.idprojet = :projetId', { projetId })
+    .leftJoinAndSelect('source.enquete', 'enqueteDetails')
+    .leftJoinAndSelect('enqueteDetails.projet', 'projetDetails')
+    .leftJoinAndSelect('projetDetails.structure', 'structure')
+    .leftJoinAndSelect('structure.membres', 'structureMembres')
+    .where('source.idsourceDonnes = :sourceId', { sourceId });
+
+  if (bdType === 'normales') {
+    query.andWhere('source.bd_normales IS NOT NULL');
+  } else if (bdType === 'jointes') {
+    query.andWhere('source.bd_jointes IS NOT NULL');
+  } else if (bdType !== 'tous') {
+    throw new BadRequestException(`Type de BD "${bdType}" non supporté. Utilisez "normales", "jointes", ou "tous".`);
+  }
+
+  const source = await query.getOne();
+  if (!source) {
+    throw new NotFoundException(`Aucune source trouvée avec l'ID ${sourceId} pour le projet ${projetId}`);
+  }
+
+  // Traitement des autorisations
+  const allUserIdsFromAutorisations = new Set<string>();
+  if (source.autorisations) {
+    (Object.keys(source.autorisations) as Array<keyof AutorisationsSourceDonnee>).forEach(key => {
+      const ids = source.autorisations![key];
+      if (Array.isArray(ids)) {
+        ids.forEach(uid => allUserIdsFromAutorisations.add(uid));
+      }
+    });
+  }
+
+  let usersFromAutorisationsMap: Map<string, UserEntity> = new Map();
+  if (allUserIdsFromAutorisations.size > 0) {
+    const userDetailsArray = await this.userservice.findby(Array.from(allUserIdsFromAutorisations));
+    userDetailsArray.forEach(user => {
+      if (user && user.iduser) {
+        usersFromAutorisationsMap.set(user.iduser, user);
+      }
+    });
+  }
+
+  const structureEntity = source.enquete?.projet?.structure;
+  const membresDeStructure: MembreStruct[] = structureEntity?.membres ?? [];
+
+  const usersDeStructure = membresDeStructure.map((m) => ({
+    user: m.iduser,
+    username: `${m.name || ''} ${m.firstname || ''}`.trim(),
+    role: m.roleMembre,
+  }));
+
+  const formatAutorisationsPourOptionB = (type: keyof AutorisationsSourceDonnee) => {
+    const idsFromSourceAuth = source.autorisations?.[type] ?? [];
+    return idsFromSourceAuth
+      .map(userId => {
+        const userDetail = usersFromAutorisationsMap.get(userId);
+        if (userDetail) {
+          const structureMemberInfo = usersDeStructure.find(sm => sm.user === userDetail.iduser);
+          const roleToDisplay = structureMemberInfo
+            ? structureMemberInfo.role
+            : (userDetail as any).roleMembre || (userDetail as any).role || null;
+
+          return {
+            user: userDetail.iduser,
+            username: `${userDetail.name || ''} ${userDetail.firstname || ''}`.trim(),
+            role: roleToDisplay,
+          };
+        }
+        return null;
+      })
+      .filter(user => user !== null);
+  };
+
+  const result = {
+    id: source.idsourceDonnes,
+    nombd: source.nomSource,
+    users: usersDeStructure,
+    autorisation: {
+      modifier: formatAutorisationsPourOptionB('modifier'),
+      visualiser: formatAutorisationsPourOptionB('visualiser'),
+      telecharger: formatAutorisationsPourOptionB('telecharger'),
+    },
+  };
+
+  return result;
+}
+
+
+
+
+
+
+
 
   async getConfigurationSources(
     projetId: string,

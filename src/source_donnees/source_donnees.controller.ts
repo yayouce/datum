@@ -16,6 +16,7 @@ import { UpdateAutorisationsDto } from './dto/update-autorisations.dto';
 import { User } from '@/decorator/user.decorator';
 import { AuthenticatedUser } from '@/Auth/authenticated-user.type';
 import { TogglePermissionsArrayDto } from './dto/update-autorisation.dto';
+import { UUID } from 'crypto';
 
 
 @Controller('source-donnees')
@@ -253,7 +254,7 @@ async getAllFeuillesFiltrees(
 
 
 @UseGuards(JwtAuthGuard)
-  @Get('configuration/projet/:projetId') // Route with projetId as path parameter
+  @Get('configuration/projet/:projetId')
   async getSourceConfigurations(
     @User() loggedInUser,      
     @Param('projetId', ParseUUIDPipe) projetId: string, 
@@ -268,6 +269,32 @@ async getAllFeuillesFiltrees(
 
     return this.sourceDonneesService.getConfigurationSources(
       projetId,
+      bdTypeToUse, // This will be 'normales', 'jointes', or 'tous'
+      loggedInUser,
+    );
+  }
+
+
+
+
+  @UseGuards(JwtAuthGuard)
+  @Get('getoneconfiguration/projet/:projetId/:idSource')
+  async getOneSourceConfigurations(
+    @User() loggedInUser,      
+    @Param('projetId', ParseUUIDPipe) projetId: string,
+    @Param('idSource', ParseUUIDPipe) sourceId: string,
+    @Query('bdType') bdTypeParam?: 'normales' | 'jointes' | 'tous', 
+  ): Promise<any[]> {
+    const bdTypeToUse = bdTypeParam || 'tous'; 
+    if (bdTypeParam && !['normales', 'jointes', 'tous'].includes(bdTypeParam)) {
+      throw new BadRequestException('Invalid bdType query parameter. Must be "normales", "jointes", or "tous".');
+    }
+    
+    console.log(`[Controller] Request for getSourceConfigurations - ProjetID: ${projetId}, BdType: ${bdTypeToUse}`);
+
+    return this.sourceDonneesService.getOneConfigurationSource(
+      projetId,
+      sourceId,
       bdTypeToUse, // This will be 'normales', 'jointes', or 'tous'
       loggedInUser,
     );
