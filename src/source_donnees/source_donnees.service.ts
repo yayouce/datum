@@ -85,7 +85,7 @@ export class SourceDonneesService implements OnModuleInit {
   }
 
 
-  @Cron(CronExpression.EVERY_10_MINUTES) // Si ce service est aussi le scheduler
+  @Cron(CronExpression.EVERY_10_MINUTES,{ name: 'sync' }) // Si ce service est aussi le scheduler
   async handleCron() {
     this.logger.log('CRON: Démarrage du rafraîchissement automatique des sources de données.');
     await this.refreshSourcesAuto2(); // Appel de la méthode de ce service
@@ -476,6 +476,7 @@ private isTimeToUpdate(sourceDonnee: SourceDonnee): boolean {
 
 
 
+async refreshSourcesAuto2(): Promise<void> {
 async refreshSourcesAuto2(): Promise<void> {
     const sources = await this.sourcededonneesrepo.find({
       where: { 
