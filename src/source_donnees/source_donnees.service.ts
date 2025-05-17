@@ -495,7 +495,7 @@ private isTimeToUpdate(sourceDonnee: SourceDonnee): boolean {
 
       if (!this.isTimeToUpdate(sourceDonnee)) {
         // Pas besoin de sauvegarder si on ne fait rien, sauf si vous voulez mettre à jour derniereTentativeMiseAJourSource
-        // if (sourceDonnee.derniereTentativeMiseAJourSource) await this.sourcededonneesrepo.save(sourceDonnee);
+        if (sourceDonnee.derniereMiseAJourReussieSource) await this.sourcededonneesrepo.save(sourceDonnee);
         continue;
       }
       
