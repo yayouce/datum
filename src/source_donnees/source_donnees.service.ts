@@ -85,7 +85,7 @@ export class SourceDonneesService implements OnModuleInit {
   }
 
 
-  @Cron(CronExpression.EVERY_MINUTE) // Si ce service est aussi le scheduler
+  @Cron(CronExpression.EVERY_10_MINUTES) // Si ce service est aussi le scheduler
   async handleCron() {
     this.logger.log('CRON: Démarrage du rafraîchissement automatique des sources de données.');
     await this.refreshSourcesAuto2(); // Appel de la méthode de ce service
@@ -476,7 +476,7 @@ private isTimeToUpdate(sourceDonnee: SourceDonnee): boolean {
 
 
 
-    async refreshSourcesAuto2(): Promise<void> {
+async refreshSourcesAuto2(): Promise<void> {
     const sources = await this.sourcededonneesrepo.find({
       where: { 
         source: Not(IsNull()),      // Doit avoir une URL source
@@ -495,7 +495,7 @@ private isTimeToUpdate(sourceDonnee: SourceDonnee): boolean {
 
       if (!this.isTimeToUpdate(sourceDonnee)) {
         // Pas besoin de sauvegarder si on ne fait rien, sauf si vous voulez mettre à jour derniereTentativeMiseAJourSource
-        if (sourceDonnee.derniereMiseAJourReussieSource) await this.sourcededonneesrepo.save(sourceDonnee);
+        //if (sourceDonnee.derniereMiseAJourReussieSource) await this.sourcededonneesrepo.save(sourceDonnee);
         continue;
       }
       
@@ -503,7 +503,7 @@ private isTimeToUpdate(sourceDonnee: SourceDonnee): boolean {
 
       if (!sourceDonnee.source || !sourceDonnee.source.startsWith('http')) {
         this.logger.warn(`URL source invalide pour ${sourceDonnee.nomSource}: ${sourceDonnee.source}. Mise à jour de la date de tentative.`);
-        // await this.sourcededonneesrepo.save(sourceDonnee); // Sauvegarder la date de tentative
+        //await this.sourcededonneesrepo.save(sourceDonnee); // Sauvegarder la date de tentative
         continue;
       }
 
@@ -514,14 +514,14 @@ private isTimeToUpdate(sourceDonnee: SourceDonnee): boolean {
 
         if (!response || !response.data || response.data.byteLength === 0) {
           this.logger.warn(`Aucune donnée ou fichier vide pour ${sourceDonnee.nomSource} depuis ${sourceDonnee.source}.`);
-          // await this.sourcededonneesrepo.save(sourceDonnee); // Sauvegarder la date de tentative
+          await this.sourcededonneesrepo.save(sourceDonnee); // Sauvegarder la date de tentative
           continue;
         }
 
         const formatFichier = detectFileFormat(sourceDonnee.source);
         if (!formatFichier) {
             this.logger.error(`Format de fichier non détecté ou non supporté pour ${sourceDonnee.source}.`);
-            // await this.sourcededonneesrepo.save(sourceDonnee);
+             await this.sourcededonneesrepo.save(sourceDonnee);
             continue;
         }
 
@@ -541,7 +541,7 @@ private isTimeToUpdate(sourceDonnee: SourceDonnee): boolean {
         } else {
           this.logger.error(`Format de fichier '${formatFichier}' non supporté pour traitement (source: ${sourceDonnee.source}).`);
           fs.unlinkSync(filePath);
-          // await this.sourcededonneesrepo.save(sourceDonnee);
+          await this.sourcededonneesrepo.save(sourceDonnee);
           continue;
         }
 
