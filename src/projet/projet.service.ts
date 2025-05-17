@@ -108,7 +108,6 @@ export class ProjetService {
   async createProjet(CreateProjetdto: CreateProjetDto, user) {
     const { nomStructure, ...creation } = CreateProjetdto;
     try {
-
       const structure = await this.structureservice.getStructureByname(nomStructure)
       if(!structure){throw new HttpException('structure non trouvé!',700)}
       if (user?.roleMembre !== roleMembreEnum.TOPMANAGER && user?.role=="client") {

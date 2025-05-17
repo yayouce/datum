@@ -1,4 +1,4 @@
-import { BadRequestException, ForbiddenException, HttpException, HttpStatus, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, HttpException, HttpStatus, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { CreateSourceDonneeDto } from './dto/create-source_donnee.dto';
 import { InjectRepository } from '@nestjs/typeorm';
 import { SourceDonnee } from './entities/source_donnee.entity';
@@ -52,6 +52,9 @@ type AuthenticatedUser = {
 @Injectable()
 export class SourceDonneesService implements OnModuleInit {
   membreStructRepository: any;
+
+  private readonly logger = new Logger(SourceDonneesService.name); // Ou le nom exact de votre classe
+  private readonly tempDir: string; // <--- 1. DÉCLARATION DE LA PROPRIÉT Produits
   constructor(
     @InjectRepository(SourceDonnee)
     private sourcededonneesrepo: Repository<SourceDonnee>,
@@ -67,7 +70,28 @@ export class SourceDonneesService implements OnModuleInit {
     private userservice:UserService,
     @InjectRepository(Projet)
     private readonly projetRepo: Repository<Projet>,
-  ) {}
+  
+  ) {
+     this.tempDir = path.resolve(process.cwd(), 'temp_cron_files');
+    if (!fs.existsSync(this.tempDir)) {
+      try {
+        fs.mkdirSync(this.tempDir, { recursive: true });
+        this.logger.log(`Répertoire temporaire créé : ${this.tempDir}`);
+      } catch (error) {
+        this.logger.error(`Impossible de créer le répertoire temporaire ${this.tempDir}: `, error.stack);
+  
+      }
+    }
+  }
+
+
+  @Cron(CronExpression.EVERY_MINUTE) // Si ce service est aussi le scheduler
+  async handleCron() {
+    this.logger.log('CRON: Démarrage du rafraîchissement automatique des sources de données.');
+    await this.refreshSourcesAuto2(); // Appel de la méthode de ce service
+    this.logger.log('CRON: Rafraîchissement automatique des sources de données terminé.');
+  }
+
 
 
   onModuleInit() {
@@ -399,6 +423,165 @@ async updateSourceDonnees(
   }
 
 
+
+private isTimeToUpdate(sourceDonnee: SourceDonnee): boolean {
+    if (!sourceDonnee.frequence || !sourceDonnee.libelleunite) {
+      // this.logger.verbose(`Source ${sourceDonnee.nomSource} (ID: ${sourceDonnee.idsourceDonnes}) : configuration de fréquence manquante.`);
+      return false;
+    }
+
+    const derniereMiseAJourReussie = sourceDonnee.derniereMiseAJourReussieSource; 
+
+    if (!derniereMiseAJourReussie) {
+      this.logger.log(`Source ${sourceDonnee.nomSource} (ID: ${sourceDonnee.idsourceDonnes}): Première mise à jour nécessaire.`);
+      return true;
+    }
+
+    const derniereMajDate = new Date(derniereMiseAJourReussie);
+    const maintenant = new Date();
+    let prochainCheck = new Date(derniereMajDate);
+
+    const frequence = sourceDonnee.frequence;
+    const unite = sourceDonnee.libelleunite;
+
+    switch (unite) {
+      case 'Minutes':
+      case 'minute':
+        prochainCheck.setMinutes(derniereMajDate.getMinutes() + frequence);
+        break;
+      case 'Heures':
+      case 'heure':
+        prochainCheck.setHours(derniereMajDate.getHours() + frequence);
+        break;
+      case 'Jours':
+      case 'jour':
+        prochainCheck.setDate(derniereMajDate.getDate() + frequence);
+        break;
+      case 'Seconds':
+      case 'seconds':
+        prochainCheck.setDate(derniereMajDate.getDate() + frequence);
+        break;
+      default:
+        this.logger.warn(`Unité de fréquence '${unite}' non reconnue pour ${sourceDonnee.nomSource} (ID: ${sourceDonnee.idsourceDonnes}).`);
+        return false;
+    }
+    
+    const decision = maintenant >= prochainCheck;
+    if(decision) {
+        this.logger.log(`Source ${sourceDonnee.nomSource} (ID: ${sourceDonnee.idsourceDonnes}): Mise à jour requise. Prochain check était à ${prochainCheck.toISOString()}`);
+    }
+    return decision;
+  }
+
+
+
+
+    async refreshSourcesAuto2(): Promise<void> {
+    const sources = await this.sourcededonneesrepo.find({
+      where: { 
+        source: Not(IsNull()),      // Doit avoir une URL source
+        frequence: Not(IsNull()),   // Et une fréquence
+        libelleunite: Not(IsNull()) // Et une unité
+      },
+      relations: ['format', 'typedonnes', 'unitefrequence' /* Ajoutez d'autres relations si besoin pour le traitement */],
+    });
+
+    this.logger.log(`Vérification de ${sources.length} source(s) de données potentielle(s) pour rafraîchissement.`);
+
+    for (const sourceDonnee of sources) {
+      // L'entité SourceDonnee a déjà `updatedAt` qui sera mis à jour par TypeORM lors du save()
+      // Si vous avez ajouté derniereTentativeMiseAJourSource, mettez-le à jour ici:
+      sourceDonnee.derniereMiseAJourReussieSource = new Date();
+
+      if (!this.isTimeToUpdate(sourceDonnee)) {
+        // Pas besoin de sauvegarder si on ne fait rien, sauf si vous voulez mettre à jour derniereTentativeMiseAJourSource
+        // if (sourceDonnee.derniereTentativeMiseAJourSource) await this.sourcededonneesrepo.save(sourceDonnee);
+        continue;
+      }
+      
+      this.logger.log(`Traitement de la source: ${sourceDonnee.nomSource} (ID: ${sourceDonnee.idsourceDonnes}, URL: ${sourceDonnee.source})`);
+
+      if (!sourceDonnee.source || !sourceDonnee.source.startsWith('http')) {
+        this.logger.warn(`URL source invalide pour ${sourceDonnee.nomSource}: ${sourceDonnee.source}. Mise à jour de la date de tentative.`);
+        // await this.sourcededonneesrepo.save(sourceDonnee); // Sauvegarder la date de tentative
+        continue;
+      }
+
+      try {
+        const response = await firstValueFrom(
+          this.httpService.get(sourceDonnee.source, { responseType: 'arraybuffer', timeout: 60000 }) // Timeout 60s
+        );
+
+        if (!response || !response.data || response.data.byteLength === 0) {
+          this.logger.warn(`Aucune donnée ou fichier vide pour ${sourceDonnee.nomSource} depuis ${sourceDonnee.source}.`);
+          // await this.sourcededonneesrepo.save(sourceDonnee); // Sauvegarder la date de tentative
+          continue;
+        }
+
+        const formatFichier = detectFileFormat(sourceDonnee.source);
+        if (!formatFichier) {
+            this.logger.error(`Format de fichier non détecté ou non supporté pour ${sourceDonnee.source}.`);
+            // await this.sourcededonneesrepo.save(sourceDonnee);
+            continue;
+        }
+
+        const tempFileName = `temp_auto_cron_${sourceDonnee.idsourceDonnes}_${Date.now()}.${formatFichier}`;
+        const filePath = path.join(this.tempDir, tempFileName);
+        
+        fs.writeFileSync(filePath, Buffer.from(response.data)); // Utiliser Buffer.from
+        this.logger.log(`Fichier temporaire écrit: ${filePath} pour ${sourceDonnee.nomSource}`);
+
+        let fichierTraite = null;
+        if (formatFichier === 'xlsx') {
+          fichierTraite = processExcelFile(filePath);
+        } else if (formatFichier === 'csv') {
+          fichierTraite = await processCsvFile(filePath);
+        } else if (formatFichier === 'json') {
+          fichierTraite = processJsonFile(filePath);
+        } else {
+          this.logger.error(`Format de fichier '${formatFichier}' non supporté pour traitement (source: ${sourceDonnee.source}).`);
+          fs.unlinkSync(filePath);
+          // await this.sourcededonneesrepo.save(sourceDonnee);
+          continue;
+        }
+
+        fs.unlinkSync(filePath);
+        this.logger.log(`Fichier temporaire supprimé: ${filePath}`);
+
+        // Utilisez votre service pour récupérer l'entité Formatfichier
+        const format = await this.formatservice.getoneByLibelle(formatFichier); 
+        if (!format) {
+          this.logger.error(`Entité Formatfichier introuvable en base pour le libellé: '${formatFichier}'.`);
+          // await this.sourcededonneesrepo.save(sourceDonnee);
+          continue;
+        }
+
+        // Mettre à jour uniquement les champs liés au fichier
+        sourceDonnee.bd_normales = fichierTraite; // ou sourceDonnee.fichier, selon celui que vous voulez mettre à jour
+        sourceDonnee.format = format;
+        sourceDonnee.libelleformat = format.libelleFormat; // Assurez-vous que 'libelleFormat' est le bon nom de propriété sur Formatfichier
+
+        // **CHOIX ICI (si vous avez ajouté derniereMiseAJourReussieSource): **
+        sourceDonnee.derniereMiseAJourReussieSource = new Date(); 
+
+        // `updatedAt` sera mis à jour automatiquement par TypeORM grâce à TimestampEntites
+        await this.sourcededonneesrepo.save(sourceDonnee);
+        this.logger.log(`SUCCÈS: Source ${sourceDonnee.nomSource} (ID: ${sourceDonnee.idsourceDonnes}) mise à jour.`);
+
+      } catch (error) {
+        this.logger.error(`ERREUR lors du traitement de ${sourceDonnee.nomSource} (ID: ${sourceDonnee.idsourceDonnes}, URL: ${sourceDonnee.source}): ${error.message}`, error.stack)
+      }
+    }
+    this.logger.log('Fin de la vérification des sources de données pour rafraîchissement.');
+  }
+
+
+
+
+
+
+
+  //cron de mise à jour des sources de données
   async refreshSourcesAuto(): Promise<void> {
     const sources = await this.sourcededonneesrepo.find({
       where: { source: Not(IsNull()) },

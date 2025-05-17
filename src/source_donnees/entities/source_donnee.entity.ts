@@ -79,5 +79,11 @@ export class SourceDonnee extends TimestampEntites {
         comment: 'Stocke les roles autorisés pour consulter, modifier, exporter'
     })
     autorisations: AutorisationsSourceDonnee | null; //type
+
+
+
+
+    @Column({ type: 'timestamp', nullable: true, comment: 'Date de la dernière mise à jour réussie des données depuis la source externe' })
+    derniereMiseAJourReussieSource: Date | null;
 }
 
