@@ -115,7 +115,7 @@ export class StructureService {
 
 
       //decliner
-      async refuserAdhesion(idStruct: string, user) {
+  async refuserAdhesion(idStruct: string, user) {
   try {
       checkAdminAccess(user);
 
@@ -150,9 +150,9 @@ export class StructureService {
 
 
 
+
      //liste des approuvées
      async getStructuctreadh(user){
-  
       try{
       let structures=[];
       if(user.role==="client"){
