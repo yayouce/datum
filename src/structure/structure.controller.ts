@@ -112,6 +112,81 @@ export class StructureController {
 
 
 
+
+  // --- Routes pour la gestion de l'adhésion des MEMBRES au sein d'une Structure ---
+
+
+  //valider adhesion
+  @UseGuards(JwtAuthGuard)
+  @Post('membres/adhesion/valider/:idMembre')
+  async validerAdhesionMembre(
+    @Param('idMembre') idMembre: string,
+    @User() userReq: any,
+  ) {
+    // Note: userReq contiendra l'objet utilisateur complet (avec son iduser, role, etc.)
+    return await this.structureService.validerAdhesionMembre(idMembre, userReq);
+  }
+
+  //refuseradhesion
+  @UseGuards(JwtAuthGuard)
+  @Post('membres/adhesion/refuser/:idMembre')
+  async refuserAdhesionMembre(
+    @Param('idMembre') idMembre: string,
+    @User() userReq: any,
+  ) {
+    return await this.structureService.refuserAdhesionMembre(idMembre, userReq);
+  }
+
+  //membres en attente d'attente adhesion
+  @UseGuards(JwtAuthGuard)
+  @Get('membres/en-attente-adhesion/:idStruct')
+  async getMembresEnAttenteAdhesion(
+    @Param('idStruct') idStruct: string,
+    @User() userReq: any,
+  ) {
+    return await this.structureService.getMembresEnAttenteAdhesion(idStruct, userReq);
+  }
+
+
+  //liste des membres approuves
+
+  @UseGuards(JwtAuthGuard)
+  @Get('membres/approuves/:idStruct')
+  async getMembresApprouvesDansStructure(
+    @Param('idStruct') idStruct: string,
+    @User() userReq: any,
+  ) {
+    return await this.structureService.getMembresApprouvesDansStructure(idStruct, userReq);
+  }
+
+  
+  // La route pour lister les membres refusés
+  @UseGuards(JwtAuthGuard)
+  @Get('membres/refuses-supprimes/:idStruct') // Nom de route mis à jour
+  async getMembresRefusesOuSupprimesDansStructure(
+    @Param('idStruct') idStruct: string,
+    @User() userReq: any,
+  ) {
+    return await this.structureService.getMembresRefusesOuSupprimesDansStructure(idStruct, userReq);
+  }
+
+  @UseGuards(JwtAuthGuard)
+    @Post('membres/restore/:idMembre') //  pour restaurer un membre
+    async restaurerMembre(
+      @Param('idMembre') idMembre: string,
+      @User() userReq: any,
+    ) {
+      return await this.structureService.restaurerMembre(idMembre, userReq);
+    }
+
+  
+
+
+
+  //______________________________ organigramme
+
+
+
   @Get('organigramme/:idStruct')
   async getOrganigramme(
     @Param('idStruct', ParseUUIDPipe) idStruct: string // Valide que idStruct est un UUID

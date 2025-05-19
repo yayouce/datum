@@ -1,12 +1,13 @@
-import { BadRequestException, HttpException, HttpStatus, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, HttpException, HttpStatus, Injectable, NotFoundException } from '@nestjs/common';
 import { CreateStructureDto } from './dto/create-structure.dto';
 
 import { InjectRepository } from '@nestjs/typeorm';
 import { Structure } from './entities/structure.entity';
-import { Repository } from 'typeorm';
+import { IsNull, Not, Repository } from 'typeorm';
 import { OrgChartNodeDto } from './dto/organigramme.dto';
 import { MembreStruct } from '@/membre-struct/entities/membre-struct.entity';
 import { checkAdminAccess } from '@/utils/auth.utils';
+import { roleMembreEnum } from '@/generique/rolemembre.enum';
 
 
 @Injectable()
@@ -18,6 +19,42 @@ export class StructureService {
     private membreStructRepository: Repository<MembreStruct>,
    
   ){}
+
+
+
+    private isSuperAdmin(user: any): boolean {
+    return user.role !== 'client';
+  }
+  // Helper pour vérifier si l'utilisateur est TOPMANAGER de la structure du membre cible
+  private async isUserTopManagerForMember(actingUserId: string, targetMemberId: string): Promise<boolean> {
+    const targetMember = await this.membreStructRepository.findOne({
+      where: { iduser: targetMemberId },
+      relations: ['structure'],
+      withDeleted:true
+    });
+    if (!targetMember || !targetMember.structure) return false;
+
+    const actingUserAsMember = await this.membreStructRepository.findOne({
+      where: {
+        iduser: actingUserId,
+        structure: { idStruct: targetMember.structure.idStruct },
+        roleMembre: roleMembreEnum.TOPMANAGER,
+      },
+    });
+    return !!actingUserAsMember;
+  }
+
+  // Helper pour vérifier si l'utilisateur est le supérieur direct du membre cible
+  private async isUserDirectSuperieur(actingUserId: string, targetMemberId: string): Promise<boolean> {
+    const targetMember = await this.membreStructRepository.findOne({
+      where: { iduser: targetMemberId },
+      relations: ['superieur'],
+      withDeleted:true
+    });
+    return !!(targetMember && targetMember.superieur && targetMember.superieur.iduser === actingUserId);
+  }
+
+
 
   async createStructure(createStructure: CreateStructureDto) {
 
@@ -155,9 +192,9 @@ export class StructureService {
      async getStructuctreadh(user){
       try{
       let structures=[];
-      if(user.role==="client"){
-        throw new HttpException("pas autorisé à voir",HttpStatus.FORBIDDEN)
-      }
+      // if(user.role==="client"){
+      //   throw new HttpException("pas autorisé à voir",HttpStatus.FORBIDDEN)
+      // }
       structures = await this.structureRepo.createQueryBuilder("structure")
       .select()
       .where("structure.adhesion=:adhesion",{adhesion:true})
@@ -174,9 +211,9 @@ export class StructureService {
      //liste des non approuvées
      async getStructuctreNadh(user) {
   try {
-    if (user.role === "client") {
-      throw new HttpException("pas autorisé à voir", HttpStatus.FORBIDDEN);
-    }
+    // if (user.role === "client") {
+    //   throw new HttpException("pas autorisé à voir", HttpStatus.FORBIDDEN);
+    // }
 
     const structures = await this.structureRepo.createQueryBuilder("structure")
       .select()
@@ -192,9 +229,9 @@ export class StructureService {
 
     async getStructuctreRefuse(user) {
   try {
-    if (user.role === "client") {
-      throw new HttpException("pas autorisé à voir", HttpStatus.FORBIDDEN);
-    }
+    // if (user.role === "client") {
+    //   throw new HttpException("pas autorisé à voir", HttpStatus.FORBIDDEN);
+    // }
 
     const structures = await this.structureRepo.createQueryBuilder("structure")
       .select()
@@ -297,6 +334,213 @@ export class StructureService {
 }
 
 
+
+//##############_________validation membre________________________####################
+
+
+async validerAdhesionMembre(idMembre: string, user: any) {
+    const membreCible = await this.membreStructRepository.findOne({
+      where: { iduser: idMembre },
+      relations: ['structure', 'superieur'], // Charger structure et superieur pour les vérifications
+    });
+
+    if (!membreCible) {
+      throw new NotFoundException(`Membre avec l'ID ${idMembre} non trouvé.`);
+    }
+    if (!membreCible.structure) {
+        throw new BadRequestException(`Le membre avec l'ID ${idMembre} n'est pas associé à une structure.`);
+    }
+
+    const canValidate =
+      this.isSuperAdmin(user) ||
+      (await this.isUserTopManagerForMember(user.iduser, idMembre)) ||
+      (await this.isUserDirectSuperieur(user.iduser, idMembre));
+
+    if (!canValidate) {
+      throw new ForbiddenException("Action non autorisée. Vous n'avez pas les droits pour valider ce membre.");
+    }
+
+    membreCible.adhesion = true;
+    try {
+      await this.membreStructRepository.save(membreCible);
+      return membreCible;
+    } catch (err) {
+      throw new HttpException(err.message, HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+  }
+
+  async refuserAdhesionMembre(idMembreCible: string, userQuiAgit: any) {
+    // Empêcher l'auto-refus
+    if (idMembreCible === userQuiAgit.iduser) {
+      throw new ForbiddenException("Vous не pouvez pas refuser votre propre adhésion de cette manière.");
+    }
+
+    const membreCible = await this.membreStructRepository.findOne({
+      where: { iduser: idMembreCible },
+      relations: ['structure', 'superieur'], // Charger les relations pour les vérifications de droits
+    });
+
+    if (!membreCible) {
+      throw new NotFoundException(`Membre avec l'ID ${idMembreCible} non trouvé.`);
+    }
+    if (!membreCible.structure) {
+        throw new BadRequestException(`Le membre avec l'ID ${idMembreCible} n'est pas associé à une structure.`);
+    }
+    if (membreCible.deletedAt) {
+        throw new BadRequestException(`Le membre avec l'ID ${idMembreCible} est déjà supprimé.`);
+    }
+
+
+    const canRefuse =
+      this.isSuperAdmin(userQuiAgit) ||
+      (await this.isUserTopManagerForMember(userQuiAgit.iduser, idMembreCible)) ||
+      (await this.isUserDirectSuperieur(userQuiAgit.iduser, idMembreCible));
+
+    if (!canRefuse) {
+      throw new ForbiddenException("Action non autorisée. Vous n'avez pas les droits pour refuser l'adhésion de ce membre.");
+    }
+
+    membreCible.adhesion = false;
+    try {
+      await this.membreStructRepository.save(membreCible); // Sauvegarder adhesion = false
+      await this.membreStructRepository.softDelete({ iduser: idMembreCible }); // Puis soft-delete
+      return { message: 'Adhésion du membre refusée et membre marqué comme supprimé.' };
+    } catch (err) {
+      if (err instanceof HttpException) throw err;
+      throw new HttpException(err.message, HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+  }
+
+  async restaurerMembre(idMembreCible: string, userQuiAgit: any) {
+    const membreCible = await this.membreStructRepository.findOne({
+        where: { iduser: idMembreCible },
+        relations: ['structure', 'superieur'], // Charger les relations pour les vérifications de droits
+        withDeleted: true, // pour trouver un membre soft-deleted
+      
+    });
+
+    if (!membreCible) {
+        throw new NotFoundException(`Membre avec l'ID ${idMembreCible} non trouvé, même parmi les supprimés.`);
+    }
+
+    if (!membreCible.deletedAt) {
+        throw new BadRequestException(`Le membre avec l'ID ${idMembreCible} n'est pas supprimé et ne peut être restauré.`);
+    }
+     if (!membreCible.structure) { // Devrait toujours être là, mais bonne pratique de vérifier
+        throw new BadRequestException(`Le membre avec l'ID ${idMembreCible} n'est pas associé à une structure.`);
+    }
+
+
+ 
+     const canRestore =
+      this.isSuperAdmin(userQuiAgit) ||
+      (await this.isUserTopManagerForMember(userQuiAgit.iduser, idMembreCible)) ||
+      (await this.isUserDirectSuperieur(userQuiAgit.iduser, idMembreCible));
+      ; // Supérieur direct
+
+
+    if (!canRestore) {
+      throw new ForbiddenException("Action non autorisée. Vous n'avez pas les droits pour restaurer ce membre.");
+    }
+
+    try {
+      await this.membreStructRepository.restore({ iduser: idMembreCible });
+       const membreRestaure = await this.membreStructRepository.findOne({ where: { iduser: idMembreCible } });
+      if (membreRestaure) {
+        membreRestaure.adhesion = false; // Remettre en attente
+        await this.membreStructRepository.save(membreRestaure);
+      }
+      return { message: `Membre avec l'ID ${idMembreCible} restauré avec succès.` };
+    } catch (err) {
+      if (err instanceof HttpException) throw err;
+      throw new HttpException(err.message, HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+  }
+
+  async getMembresEnAttenteAdhesion(idStruct: string, user: any): Promise<MembreStruct[]> {
+    const structure = await this.structureRepo.findOne({ where: { idStruct } });
+    if (!structure) {
+      throw new NotFoundException(`Structure avec l'ID ${idStruct} non trouvée.`);
+    }
+
+ 
+    // SuperAdmin ou TOPMANAGER de cette structure. Un supérieur pourrait voir ses subordonnés directs en attente.
+    const isActingUserTopManager = await this.membreStructRepository.findOne({
+        where: { iduser: user.iduser, structure: { idStruct }, roleMembre: roleMembreEnum.TOPMANAGER }
+    });
+
+    if (!this.isSuperAdmin(user) && !isActingUserTopManager) {
+        throw new ForbiddenException("Action non autorisée pour voir les membres en attente de cette structure.");
+    }
+
+    try {
+      return await this.membreStructRepository.find({
+        where: {
+          structure: { idStruct: idStruct },
+          adhesion: false,
+        },
+      });
+    } catch (err) {
+      throw new HttpException(err.message, HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+  }
+  
+  async getMembresApprouvesDansStructure(idStruct: string, user: any): Promise<MembreStruct[]> {
+    const structure = await this.structureRepo.findOne({ where: { idStruct } });
+    if (!structure) {
+      throw new NotFoundException(`Structure avec l'ID ${idStruct} non trouvée.`);
+    }
+     const isActingUserTopManager = await this.membreStructRepository.findOne({
+        where: { iduser: user.iduser, structure: { idStruct }, roleMembre: roleMembreEnum.TOPMANAGER }
+    });
+
+    if (!this.isSuperAdmin(user) && !isActingUserTopManager) { // Ou autre logique d'accès
+        throw new ForbiddenException("Action non autorisée pour voir les membres approuvés de cette structure.");
+    }
+    
+    try {
+      return await this.membreStructRepository.find({
+        where: {
+          structure: { idStruct: idStruct },
+          adhesion: true,
+        },
+      });
+    } catch (err) {
+      throw new HttpException(err.message, HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+  }
+
+
+
+
+  async getMembresRefusesOuSupprimesDansStructure(idStruct: string, user: any): Promise<MembreStruct[]> {
+    const structure = await this.structureRepo.findOne({ where: { idStruct } });
+    if (!structure) {
+      throw new NotFoundException(`Structure avec l'ID ${idStruct} non trouvée.`);
+    }
+
+    const isActingUserTopManager = await this.membreStructRepository.findOne({
+        where: { iduser: user.iduser, structure: { idStruct }, roleMembre: roleMembreEnum.TOPMANAGER }
+    });
+
+    if (!this.isSuperAdmin(user) && !isActingUserTopManager) {
+        throw new ForbiddenException("Action non autorisée pour voir les membres refusés de cette structure.");
+    }
+
+    try {
+        // Membres soft-deleted (deletedAt IS NOT NULL)
+        // L'adhésion sera false car on l'a mise à false avant le softDelete.
+        return await this.membreStructRepository.find({
+            where: {
+                structure: { idStruct: idStruct },
+                deletedAt: Not(IsNull()) // On ne veut que les soft-deleted
+            },
+            withDeleted: true, // Nécessaire pour que TypeORM récupère les entités soft-deleted
+        });
+    } catch (err) {
+        throw new HttpException(err.message, HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+  }
 
 
 

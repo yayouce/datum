@@ -37,12 +37,12 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
 
     try {
       console.log(`Tentative de recherche spécifique MembreStruct pour: ${payload.email}`);
-      // 1. Essayer avec le repo MembreStruct d'abord
+      // 1.avec le MembreStruct d'abord
       user = await this.membreStructrepo.findOne({ where: { email: payload.email } });
 
       if (!user) {
         console.log(`Non trouvé comme MembreStruct, tentative UserEntity pour: ${payload.email}`);
-        // 2. Si non trouvé, essayer avec le repo UserEntity
+        // 2. Si non trouvé, Userrepo
         user = await this.userrepo.findOne({ where: { email: payload.email } });
   
       }

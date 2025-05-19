@@ -14,10 +14,6 @@ const saltOrRounds = 10;
 @Injectable()
 export class AuthService {
 
-
-
-
-
     constructor(
         private  userService : UserService,
         private jwtService: JwtService

@@ -20,8 +20,9 @@ MembreStruct extends UserEntity {
     nomStruct:string
 
     
+    @Column({default:false})
+    adhesion:boolean
 
-   
 
     @ManyToOne(()=>Structure,(structure)=>structure.membres,{eager:true})
     structure:Structure;

@@ -40,6 +40,7 @@ async createMembreStruct(createmembre:CreateMembreStructDto){
     ...membredata,
     password:hashedpassword,
     roleMembre:roleMembreEnum.TOPMANAGER,
+    adhesion:true,
     email:createmembre.email,
     structure:creatredStructure,
     nomStruct:creatredStructure.nomStruct
@@ -71,6 +72,7 @@ async rejoindreStructure(rejoindrestructures: rejoindrestructureDto) {
       password: hashedPassword,
       structure: sup.structure,
       superieur: sup,
+      adhesion:false,
     });
 
     // Sauvegarde du nouveau membre
