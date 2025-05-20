@@ -1,10 +1,13 @@
-import { HttpException, Injectable } from '@nestjs/common';
+import { HttpException, HttpStatus, Injectable } from '@nestjs/common';
 import { CreateEnqueteDto } from './dto/create-enquete.dto';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Enquete } from './entities/enquete.entity';
 import { Repository } from 'typeorm';
 import { ProjetService } from 'src/projet/projet.service';
 import { UpdateEnqueteDto } from './dto/update-enquete.dto';
+import { UserEntity } from '@/user/entities/user.entity';
+import { MembreStruct } from '@/membre-struct/entities/membre-struct.entity';
+import { UserRole } from '@/generique/userroleEnum';
 
 @Injectable()
 export class EnqueteService {
@@ -117,8 +120,12 @@ export class EnqueteService {
 
 
 
-    async softDeleteEnquetes(idsEnquetes: string[]) {
+    async softDeleteEnquetes(idsEnquetes: string[],user:UserEntity|MembreStruct) {
       try {
+
+        if(user.role==UserRole.Client){
+                throw new HttpException("seul le superAdmin peut supprimer une enquête",HttpStatus.FORBIDDEN)
+              }
         if (!idsEnquetes || idsEnquetes.length === 0) {
           throw new HttpException("Aucun ID fourni pour la suppression.", 700);
         }
@@ -133,9 +140,6 @@ export class EnqueteService {
       } catch (err) {
         throw new HttpException(err.message, 701);
       }
-
-
-
 
 
     }

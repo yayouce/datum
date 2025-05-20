@@ -16,6 +16,9 @@ import { SourceDonneesModule } from './source_donnees/source_donnees.module';
 import { UnitefrequenceModule } from './frequence/unitefrequence.module';
 import { GraphModule } from './graph/graph.module';
 import { ScheduleModule } from '@nestjs/schedule';
+import { DashboardModule } from './dashboard/dashboard.module';
+
+
 
 @Module({
   imports: [
@@ -43,7 +46,8 @@ import { ScheduleModule } from '@nestjs/schedule';
     DataTypeModule,
     UnitefrequenceModule,
     SourceDonneesModule,
-    GraphModule],
+    GraphModule,
+    DashboardModule],
   controllers: [AppController],
   providers: [AppService],
 })

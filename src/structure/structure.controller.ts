@@ -1,4 +1,4 @@
-import { Controller, Get, InternalServerErrorException, NotFoundException, Param, ParseUUIDPipe, Patch, Post, UseGuards} from '@nestjs/common';
+import { Controller, Delete, Get, InternalServerErrorException, NotFoundException, Param, ParseUUIDPipe, Patch, Post, UseGuards} from '@nestjs/common';
 import { StructureService } from './structure.service';
 import { OrgChartNodeDto } from './dto/organigramme.dto';
 import { JwtAuthGuard } from '@/Auth/jwt-auth.guard';
@@ -179,7 +179,18 @@ export class StructureController {
       return await this.structureService.restaurerMembre(idMembre, userReq);
     }
 
-  
+    
+
+  //__________________ delete___________________________________
+  @UseGuards(JwtAuthGuard) // Assurez-vous que l'utilisateur est authentifié
+  @Delete('delete/:idStruct') // Utilisation de DELETE HTTP method
+  async softDeleteStructure(
+    @Param('idStruct') idStruct: string,
+    @User() userReq: any, 
+  ): Promise<{ message: string }> { // Le service retourne { message: string; structure?: Structure }, on prend juste le message ici
+    const result = await this.structureService.softDeleteStructure(idStruct, userReq);
+    return { message: result.message };
+  }
 
 
 

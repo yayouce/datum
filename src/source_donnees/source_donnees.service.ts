@@ -40,6 +40,7 @@ import { Projet } from '@/projet/entities/projet.entity';
 import { checkAdminAccess } from '@/utils/auth.utils';
 import { roleMembreEnum } from '@/generique/rolemembre.enum';
 import { UserPermissionToggleDto } from './dto/update-autorisation.dto';
+import { UserRole } from '@/generique/userroleEnum';
 
 
 type AuthenticatedUser = {
@@ -1958,7 +1959,53 @@ async getOneConfigurationSource(
 
 
 
-// test
+//_______________suppression
+
+ async softDeleteSourceDonnee(
+    idsourceDonnes: string,
+    currentUser: UserEntity, // Ou le type de votre utilisateur/membre authentifié
+  ): Promise<{ message: string }> {
+    
+    const sourceDonnee = await this.sourcededonneesrepo.findOne({
+      where: { idsourceDonnes },
+      relations: ['enquete', 'enquete.projet', 'enquete.projet.structure'], // Pour vérifier les permissions
+    });
+
+    if (!sourceDonnee) {
+      throw new NotFoundException(`Source de données avec l'ID ${idsourceDonnes} non trouvée.`);
+    }
+
+    // --- Logique de permission ---
+    // Qui peut supprimer une source de données ?
+    // Exemple : L'utilisateur doit être SuperAdmin, ou un membre de la structure propriétaire de l'enquête/projet
+    //          avec un rôle spécifique (ex: TOPMANAGER, ou le créateur de l'enquête/source).
+    //          Ou basé sur les `autorisations` de la source de données elle-même.
+    
+    let canDelete = false;
+    if (currentUser.role !== UserRole.Client) { // SuperAdmin
+        canDelete = true;
+    
+    }
+    // Vous pourriez aussi vérifier les `sourceDonnee.autorisations` ici
+
+    if (!canDelete) {
+      throw new ForbiddenException("Vous n'avez pas les droits pour supprimer cette source de données.");
+    }
+
+    try {
+      const result = await this.sourcededonneesrepo.softDelete(idsourceDonnes);
+
+      if (result.affected === 0) {
+        throw new NotFoundException(`Source de données avec l'ID ${idsourceDonnes} non trouvée pour la suppression (après vérification).`);
+      }
+
+      return { message: `Source de données avec l'ID ${idsourceDonnes} marquée comme supprimée avec succès.` };
+    } catch (err) {
+      if (err instanceof HttpException) throw err;
+      this.logger.error(`Erreur lors du soft delete de la source de données ${idsourceDonnes}`, err.stack);
+      throw new HttpException('Erreur interne du serveur lors de la suppression de la source de données.', HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+  }
 
 
 }

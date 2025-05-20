@@ -1,8 +1,11 @@
-import { Body, Controller, Get, Post } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, Param, Post, UseGuards } from '@nestjs/common';
 import { UserService } from './user.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UserEntity } from './entities/user.entity';
 import { ArrayMinSize, ArrayNotEmpty, IsArray, IsUUID } from 'class-validator';
+import { JwtAuthGuard } from '@/Auth/jwt-auth.guard';
+import { User } from '@/decorator/user.decorator';
+import { MembreStruct } from '@/membre-struct/entities/membre-struct.entity';
 export class TestFindUsersDto {
   @IsArray()
   @ArrayNotEmpty()
@@ -24,9 +27,22 @@ export class UserController {
   }
 
 
+  @UseGuards(JwtAuthGuard)
   @Get('/all')
-  async getAllUsers() {
-    return await this.userService.findAllUsersAndMembers();
+  async getAllUsers(@User() user: MembreStruct) {
+    return await this.userService.findAllUsersAndMembers2(user);
+  }
+
+
+
+  @Delete('delete/:idUserToDelete') // ex: DELETE /users/uuid-a-supprimer
+  @UseGuards(JwtAuthGuard)
+  // @HttpCode(HttpStatus.OK) // Ou 204 si vous ne retournez rien
+  async deleteUserOrMember(
+    @Param('idUserToDelete') idUserToDelete: string,
+    @User() currentUser: MembreStruct, // L'utilisateur qui effectue l'action
+  ): Promise<{ message: string }> {
+    return await this.userService.softDeleteUserOrMember(idUserToDelete, currentUser);
   }
 
   // @Get('/count')

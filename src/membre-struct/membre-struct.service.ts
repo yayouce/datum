@@ -1,7 +1,7 @@
-import { HttpException, Injectable} from '@nestjs/common';
+import { HttpException, HttpStatus, Injectable} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { MembreStruct } from './entities/membre-struct.entity';
-import { Repository } from 'typeorm';
+import { IsNull, Repository } from 'typeorm';
 
 import { StructureService } from 'src/structure/structure.service';
 import { CreateMembreStructDto } from './dto/create-membre-struct.dto';
@@ -89,6 +89,22 @@ async rejoindreStructure(rejoindrestructures: rejoindrestructureDto) {
   }
 }
 
+
+
+async getMembresByStructureId(idStruct: string): Promise<MembreStruct[]> {
+  try {
+    return await this.membreRepository.find({
+      where: {
+        structure: { idStruct: idStruct },
+        adhesion: true, // On ne montre généralement que les membres approuvés
+        deletedAt: IsNull(), // Et non supprimés
+      },
+      // relations: ['structure', 'superieur'] // Chargez les relations nécessaires pour l'affichage
+    });
+  } catch (err) {
+    throw new HttpException(`Erreur lors de la récupération des membres pour la structure ${idStruct}.`, HttpStatus.INTERNAL_SERVER_ERROR);
+  }}
+
 async moficationinformationsup(emailSuperieur,supdata){
    await this.findOnemembreByemail(emailSuperieur);
  
@@ -147,5 +163,109 @@ async findOnemembreByemail(email){
 async countByRole(roleMembre: string) {
   return await this.membreRepository.count({ where: { roleMembre } });
 }
+
+
+
+
+
+// --- Méthodes AJOUTÉES pour le Dashboard ---
+
+  async countMembresEnAttenteAdhesionGlobal(): Promise<number> {
+    try {
+      return await this.membreRepository.count({
+        where: {
+          adhesion: false,
+          deletedAt: IsNull(), // Compter uniquement les membres actifs
+        },
+      });
+    } catch (err) {
+      throw new HttpException('Erreur lors du comptage global des membres en attente.', HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+  }
+
+  async countMembresAdhesionValideeGlobal(): Promise<number> {
+    try {
+      return await this.membreRepository.count({
+        where: {
+          adhesion: true,
+          deletedAt: IsNull(), // Compter uniquement les membres actifs
+        },
+      });
+    } catch (err) {
+      throw new HttpException('Erreur lors du comptage global des membres validés.', HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+  }
+
+  async countMembresByRoleGlobal(role: roleMembreEnum): Promise<number> {
+    try {
+      // Cette fonction compte les membres actifs (adhésion validée et non supprimés) pour un rôle donné.
+      return await this.membreRepository.count({
+        where: {
+          roleMembre: role,
+          adhesion: true,       // On ne compte que les membres actifs et approuvés pour les rôles
+          deletedAt: IsNull(),
+        },
+      });
+    } catch (err) {
+      throw new HttpException(`Erreur lors du comptage global des membres pour le rôle ${role}.`, HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+  }
+
+  async countMembresInStructure(idStruct: string): Promise<number> {
+    try {
+      return await this.membreRepository.count({
+        where: {
+          structure: { idStruct: idStruct },
+          adhesion: true,       // On compte généralement les membres actifs/approuvés d'une structure
+          deletedAt: IsNull(),
+        },
+      });
+    } catch (err) {
+      throw new HttpException(`Erreur lors du comptage des membres pour la structure ${idStruct}.`, HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+  }
+
+  async countMembresInStructureByRole(idStruct: string, role: roleMembreEnum): Promise<number> {
+    try {
+      return await this.membreRepository.count({
+        where: {
+          structure: { idStruct: idStruct },
+          roleMembre: role,
+          adhesion: true,       // Membres actifs et approuvés du rôle dans la structure
+          deletedAt: IsNull(),
+        },
+      });
+    } catch (err) {
+      throw new HttpException(`Erreur lors du comptage des membres pour la structure ${idStruct} et le rôle ${role}.`, HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+  }
+
+  async countMembresEnAttenteInStructure(idStruct: string): Promise<number> {
+    try {
+      return await this.membreRepository.count({
+        where: {
+          structure: { idStruct: idStruct },
+          adhesion: false,
+          deletedAt: IsNull(),
+        },
+      });
+    } catch (err) {
+      throw new HttpException(`Erreur lors du comptage des membres en attente pour la structure ${idStruct}.`, HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+  }
+
+  async countMembresValidesInStructure(idStruct: string): Promise<number> {
+    try {
+      return await this.membreRepository.count({
+        where: {
+          structure: { idStruct: idStruct },
+          adhesion: true,
+          deletedAt: IsNull(),
+        },
+      });
+    } catch (err) {
+      throw new HttpException(`Erreur lors du comptage des membres validés pour la structure ${idStruct}.`, HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+  }
 
 }

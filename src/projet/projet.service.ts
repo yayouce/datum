@@ -1,14 +1,15 @@
-import { HttpException, Injectable } from '@nestjs/common';
+import { HttpException, HttpStatus, Injectable } from '@nestjs/common';
 import { CreateProjetDto } from './dto/create-projet.dto';
 import { UpdateProjetDto } from './dto/update-projet.dto';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Projet } from './entities/projet.entity';
-import { Repository } from 'typeorm';
+import { IsNull, Repository } from 'typeorm';
 import { roleMembreEnum } from 'src/generique/rolemembre.enum';
 import { StructureService } from '@/structure/structure.service';
 import { etatprojetEnum } from '@/generique/etatprojetEnum.enum';
 import { UserEntity } from '@/user/entities/user.entity';
 import { MembreStruct } from '@/membre-struct/entities/membre-struct.entity';
+import { UserRole } from '@/generique/userroleEnum';
 
 @Injectable()
 export class ProjetService {
@@ -160,8 +161,11 @@ export class ProjetService {
   }
   
 
-  async softDeleteProjet(idprojet: string) {
+  async softDeleteProjet(idprojet: string,user:UserEntity|MembreStruct) {
     try {
+      if(user.role==UserRole.Client){
+        throw new HttpException("seul le superAdmin peut supprimer un projet",HttpStatus.FORBIDDEN)
+      }
       if (!idprojet) {
         throw new HttpException('ID du projet requis', 400);
       }
@@ -187,6 +191,45 @@ export class ProjetService {
   
 
 
-  
-  //liste des sources de données par projet 
+  // --- Méthodes pour le Dashboard ---
+
+  async countProjetsByEtatGlobal(etat: etatprojetEnum): Promise<number> {
+    try {
+      return await this.projetRepo.count({
+        where: {
+          etatprojet: etat,
+          deletedAt: IsNull(), // Compter uniquement les projets actifs
+        },
+      });
+    } catch (err) {
+      throw new HttpException(`Erreur lors du comptage global des projets par état ${etat}.`, HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+  }
+
+  async countProjetsInStructure(idStruct: string): Promise<number> {
+    try {
+      return await this.projetRepo.count({
+        where: {
+          structure: { idStruct: idStruct },
+          deletedAt: IsNull(), // Compter uniquement les projets actifs de cette structure
+        },
+      });
+    } catch (err) {
+      throw new HttpException(`Erreur lors du comptage des projets pour la structure ${idStruct}.`, HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+  }
+
+  async countProjetsInStructureByEtat(idStruct: string, etat: etatprojetEnum): Promise<number> {
+    try {
+      return await this.projetRepo.count({
+        where: {
+          structure: { idStruct: idStruct },
+          etatprojet: etat,
+          deletedAt: IsNull(), // Compter uniquement les projets actifs de cet état pour cette structure
+        },
+      });
+    } catch (err) {
+      throw new HttpException(`Erreur lors du comptage des projets pour la structure ${idStruct} avec l'état ${etat}.`, HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+  }
 }

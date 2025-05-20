@@ -1,4 +1,4 @@
-import { BadRequestException, ForbiddenException, HttpException, HttpStatus, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, forwardRef, HttpException, HttpStatus, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { CreateStructureDto } from './dto/create-structure.dto';
 
 import { InjectRepository } from '@nestjs/typeorm';
@@ -8,6 +8,12 @@ import { OrgChartNodeDto } from './dto/organigramme.dto';
 import { MembreStruct } from '@/membre-struct/entities/membre-struct.entity';
 import { checkAdminAccess } from '@/utils/auth.utils';
 import { roleMembreEnum } from '@/generique/rolemembre.enum';
+import { ProjetService } from '@/projet/projet.service';
+import { UserEntity } from '@/user/entities/user.entity';
+import { DashboardStatsDto } from './dto/dashboard-stats.dto';
+import { MembreStructService } from '@/membre-struct/membre-struct.service';
+import { etatprojetEnum } from '@/generique/etatprojetEnum.enum';
+import { UserRole } from '@/generique/userroleEnum';
 
 
 @Injectable()
@@ -281,6 +287,35 @@ export class StructureService {
 
 
 
+  async countStructuresEnAttente(): Promise<number> {
+    try {
+      return this.structureRepo.count({ where: { adhesion: false, deletedAt: IsNull() } });
+    } catch (err) {
+      throw new HttpException('Erreur lors du comptage des structures en attente.', HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+  }
+
+  async countStructuresApprouvees(): Promise<number> {
+    try {
+      // Si une structure approuvée ne peut pas être soft-deleted, deletedAt: IsNull() n'est pas nécessaire.
+      // Sinon, ajoutez-le pour la cohérence.
+      return this.structureRepo.count({ where: { adhesion: true /*, deletedAt: IsNull() */ } });
+    } catch (err) {
+      throw new HttpException('Erreur lors du comptage des structures approuvées.', HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+  }
+
+  async getOneStructure(idStruct: string): Promise<Structure | null> {
+    try {
+      return this.structureRepo.findOne({ where: { idStruct } });
+    } catch (err) {
+      throw new HttpException(`Erreur lors de la récupération de la structure ${idStruct}.`, HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+  }
+
+
+
+
   async findAllStructsConditional(user: any /* UserEntity ou type spécifique si vous avez */): Promise<Structure[]> {
     try {
       // Utilisez la valeur de l'enum si vous en avez une, sinon la chaîne littérale.
@@ -545,6 +580,33 @@ async validerAdhesionMembre(idMembre: string, user: any) {
 
 
 
+
+  async softDeleteStructure(idStruct: string, user: any /* Optionnel: pour vérification des droits */): Promise<{ message: string; structure?: Structure }> {
+    if (!this.isSuperAdmin(user)) { // Ou une autre logique de permission
+      throw new ForbiddenException("Action non autorisée pour supprimer cette structure.");
+    }
+
+    const structure = await this.structureRepo.findOne({ where: { idStruct } });
+
+    if (!structure) {
+      throw new NotFoundException(`Structure avec l'ID ${idStruct} non trouvée.`);
+    }
+    try {
+      const softDeleteResult = await this.structureRepo.softDelete(idStruct);
+
+      if (softDeleteResult.affected === 0) {
+        // Cela ne devrait pas arriver si le findOne ci-dessus a réussi, mais c'est une double vérification.
+        throw new NotFoundException(`Structure avec l'ID ${idStruct} non trouvée pour la suppression.`);
+      }
+      return { message: `Structure avec l'ID ${idStruct} marquée comme supprimée avec succès.` };
+    } catch (err) {
+      if (err instanceof HttpException) throw err;
+      throw new HttpException(`Erreur lors du soft delete de la structure ${idStruct}.`, HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+
+
+
+
   
 
-}
+}}

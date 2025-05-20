@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, Query, HttpException, ForbiddenException, UseGuards, ParseUUIDPipe, BadRequestException, ValidationPipe } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Query, HttpException, ForbiddenException, UseGuards, ParseUUIDPipe, BadRequestException, ValidationPipe, Delete } from '@nestjs/common';
 import { SourceDonneesService } from './source_donnees.service';
 import { CreateSourceDonneeDto } from './dto/create-source_donnee.dto';
 import { SourceDonnee } from './entities/source_donnee.entity';
@@ -17,6 +17,8 @@ import { User } from '@/decorator/user.decorator';
 import { AuthenticatedUser } from '@/Auth/authenticated-user.type';
 import { TogglePermissionsArrayDto } from './dto/update-autorisation.dto';
 import { UUID } from 'crypto';
+import { UserEntity } from '@/user/entities/user.entity';
+import { MembreStruct } from '@/membre-struct/entities/membre-struct.entity';
 
 
 @Controller('source-donnees')
@@ -176,6 +178,17 @@ async getBdsCountByProjet(
       idsource,
       body
     );
+  }
+
+
+
+  @UseGuards(JwtAuthGuard)
+  @Delete('delete/:id') // ex: DELETE /source-donnees/uuid-de-la-source
+  async softDeleteSourceDonnee(
+    @Param('id') idsourceDonnes: string,
+    @User() currentUser: UserEntity|MembreStruct,
+  ): Promise<{ message: string }> {
+    return this.sourceDonneesService.softDeleteSourceDonnee(idsourceDonnes, currentUser);
   }
 
 

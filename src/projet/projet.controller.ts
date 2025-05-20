@@ -66,12 +66,13 @@ export class ProjetController {
     return await this.projetService.getTotalProjetsParEtat();
   }
 
+  @UseGuards(JwtAuthGuard)
   @Delete("deleteprojet/:idprojet")
   async deleteProjet(
     @Param('idprojet') idprojet:string,
-    // @User() user
+    @User() user
   ){
-    return this.projetService.softDeleteProjet(idprojet)
+    return this.projetService.softDeleteProjet(idprojet,user)
     
   }
 }

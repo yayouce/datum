@@ -3,8 +3,8 @@ import { ProjetService } from './projet.service';
 import { ProjetController } from './projet.controller';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { Projet } from './entities/projet.entity';
-import { Structure } from '@/structure/entities/structure.entity';
 import { StructureModule } from '@/structure/structure.module';
+
 
 @Module({
 

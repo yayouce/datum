@@ -67,8 +67,7 @@ export class Graph extends TimestampEntites {
   nomsourceDonnees: string | null;
 
   @ManyToOne(() => SourceDonnee, (sourcedonnee) => sourcedonnee.graphique, {
-      // eager: false, // Définissez les options de chargement selon vos besoins
-      // cascade: false,
+      onDelete:"CASCADE"
   })
   @JoinColumn({ name: "sourcesIdsourceDonnes" })
   sources: SourceDonnee; // La relation vers la source

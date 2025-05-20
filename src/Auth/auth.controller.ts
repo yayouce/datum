@@ -19,7 +19,7 @@ export class AuthController {
 
 @Post('signIn')
 async SignIn(@Body() usersignIn:userSignInDto){
-    return await this.authService.signIn(usersignIn)
+    return await this.authService.signIn2(usersignIn)
 }
 
 // @UseGuards(AuthGuard)

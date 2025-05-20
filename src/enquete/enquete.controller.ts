@@ -4,6 +4,8 @@ import { CreateEnqueteDto } from './dto/create-enquete.dto';
 import { JwtAuthGuard } from 'src/Auth/jwt-auth.guard';
 import { User } from 'src/decorator/user.decorator';
 import { UpdateEnqueteDto } from './dto/update-enquete.dto';
+import { UserEntity } from '@/user/entities/user.entity';
+import { MembreStruct } from '@/membre-struct/entities/membre-struct.entity';
 
 @Controller('enquete')
 export class EnqueteController {
@@ -56,9 +58,10 @@ export class EnqueteController {
     return await this.enqueteService.getAllByProject(idproject)
   }
 
+  @UseGuards(JwtAuthGuard)
   @Post('/delete')
-  async softDeleteEnquetes(@Body() body: { idsEnquetes: string[] }) {
-    return await this.enqueteService.softDeleteEnquetes(body.idsEnquetes);
+  async softDeleteEnquetes(@Body() body: { idsEnquetes: string[] },@User() user:UserEntity|MembreStruct) {
+    return await this.enqueteService.softDeleteEnquetes(body.idsEnquetes,user);
   }
 
   @Post('/update/:idEnquete')

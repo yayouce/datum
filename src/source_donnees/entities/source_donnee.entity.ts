@@ -58,10 +58,8 @@ export class SourceDonnee extends TimestampEntites {
     })
     inStudio:boolean
 
-    @ManyToOne(()=>Enquete,(enquete)=>enquete.source)
+    @ManyToOne(()=>Enquete,(enquete)=>enquete.source,{onDelete:"CASCADE"})
     enquete:Enquete
-
-
 
     @Column({ type: 'json', nullable: true })
     bd_normales: any;

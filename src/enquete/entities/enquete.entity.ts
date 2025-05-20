@@ -31,7 +31,8 @@ export class Enquete extends TimestampEntites {
         @ManyToOne(()=>MembreStruct,(membreStruct)=>membreStruct.enquete)
         membreStruct:MembreStruct
 
-        @ManyToOne(()=>Projet,(membreStruct)=>membreStruct.enquete)
+        @ManyToOne(()=>Projet,(membreStruct)=>membreStruct.enquete,{onDelete:'CASCADE'})
+
         projet:Projet
 
         @OneToMany(()=>SourceDonnee,(SourceDonnee)=>SourceDonnee.source)
