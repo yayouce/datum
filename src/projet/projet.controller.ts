@@ -67,7 +67,7 @@ export class ProjetController {
   }
 
   @UseGuards(JwtAuthGuard)
-  @Delete("deleteprojet/:idprojet")
+  @Post("deleteprojet/:idprojet")
   async deleteProjet(
     @Param('idprojet') idprojet:string,
     @User() user

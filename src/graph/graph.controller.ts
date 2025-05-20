@@ -63,7 +63,7 @@ async addInOutstudio(
 
  
 
-  @Delete("delete/:id")
+  @Post("delete/:id")
   remove(@Param("id") id: string) {
     return this.graphService.softDelete(id);
   }

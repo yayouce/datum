@@ -183,7 +183,7 @@ export class StructureController {
 
   //__________________ delete___________________________________
   @UseGuards(JwtAuthGuard) // Assurez-vous que l'utilisateur est authentifié
-  @Delete('delete/:idStruct') // Utilisation de DELETE HTTP method
+  @Post('delete/:idStruct') // Utilisation de DELETE HTTP method
   async softDeleteStructure(
     @Param('idStruct') idStruct: string,
     @User() userReq: any, 
