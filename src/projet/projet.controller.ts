@@ -4,6 +4,8 @@ import { CreateProjetDto } from './dto/create-projet.dto';
 import { UpdateProjetDto } from './dto/update-projet.dto';
 import { JwtAuthGuard } from 'src/Auth/jwt-auth.guard';
 import { User } from 'src/decorator/user.decorator';
+import { MembreStruct } from '../membre-struct/entities/membre-struct.entity';
+import { UserEntity } from '../user/entities/user.entity';
 
 @Controller('projet')
 export class ProjetController {
@@ -67,12 +69,12 @@ export class ProjetController {
   }
 
   @UseGuards(JwtAuthGuard)
-  @Post("deleteprojet/:idprojet")
+  @Post("deleteprojet")
   async deleteProjet(
-    @Param('idprojet') idprojet:string,
-    @User() user
+    @Body() body: { idprojects: string[] },
+    @User() user:UserEntity|MembreStruct
   ){
-    return this.projetService.softDeleteProjet(idprojet,user)
+    return this.projetService.softDeleteProjet(body.idprojects,user)
     
   }
 }

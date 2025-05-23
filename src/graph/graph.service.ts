@@ -1,4 +1,4 @@
-import { BadRequestException, HttpCode, HttpException, HttpStatus, Injectable, InternalServerErrorException, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, HttpCode, HttpException, HttpStatus, Injectable, InternalServerErrorException, Logger, NotFoundException } from '@nestjs/common';
 import { CreateGraphDto } from './dto/create-graph.dto';
 import { UpdateGraphDto } from './dto/update-graph.dto';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -13,6 +13,9 @@ import { DOMParser } from '@xmldom/xmldom'; // Fonctionne bien en statique
 import * as AdmZip from 'adm-zip';   
 import * as shapefile from 'shapefile'; 
 import { ImportMapFileDto } from './dto/importMapFile.dto';
+import { UserEntity } from '../user/entities/user.entity';
+import { MembreStruct } from '../membre-struct/entities/membre-struct.entity';
+import { UserRole } from '../generique/userroleEnum';
 
 @Injectable()
 export class GraphService {
@@ -875,7 +878,56 @@ async createMapFromFile(idsource: string, dto: ImportMapFileDto, file: Express.M
   }
 }
 
-}
 
+
+
+// deleted graph
+async softDeleteGraphs(ids: string[], user: any) {
+ if (user.role === UserRole.Client) {
+      throw new HttpException("Seul le superAdmin peut supprimer un projet", HttpStatus.FORBIDDEN);
+    }
+
+  if (!ids || ids.length === 0) {
+    throw new HttpException('Aucun id passé en paramètre', HttpStatus.BAD_REQUEST);
+  }
+  try {
+    const notFoundIds: string[] = [];
+    let nbdelete = 0;
+
+    for (const id of ids) {
+      const graph = await this.graphRepository.findOne({ where: { idgraph: id  } });
+
+      if (!graph) {
+        notFoundIds.push(id);
+        continue;
+      }
+
+      await this.graphRepository.softDelete(id);
+      nbdelete++;
+    }
+
+    if (notFoundIds.length > 0) {
+      throw new HttpException(
+        `Les graphes suivants sont introuvables : ${notFoundIds.join(', ')}`,
+        HttpStatus.BAD_REQUEST
+      );
+    }
+
+    return {
+      message: "Graphes supprimés avec succès.",
+      deletedCount: nbdelete,
+    };
+
+  } catch (err) {
+    if (err instanceof HttpException) throw err;
+    throw new HttpException(`Erreur lors du soft delete des graphes.`, HttpStatus.BAD_REQUEST);
+  }
+
+
+}
+  isSuperAdmin(user: any) {
+    throw new Error('Method not implemented.');
+  }
+}
 
 

@@ -24,7 +24,7 @@ MembreStruct extends UserEntity {
     adhesion:boolean
 
 
-    @ManyToOne(()=>Structure,(structure)=>structure.membres,{eager:true})
+    @ManyToOne(()=>Structure,(structure)=>structure.membres,{eager:true, onDelete:"CASCADE",})
     structure:Structure;
 
 

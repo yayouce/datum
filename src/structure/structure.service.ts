@@ -581,32 +581,73 @@ async validerAdhesionMembre(idMembre: string, user: any) {
 
 
 
-  async softDeleteStructure(idStruct: string, user: any /* Optionnel: pour vérification des droits */): Promise<{ message: string; structure?: Structure }> {
-    if (!this.isSuperAdmin(user)) { // Ou une autre logique de permission
-      throw new ForbiddenException("Action non autorisée pour supprimer cette structure.");
-    }
+//   async softDeleteStructure(idStructs: string[], user: any /* Optionnel: pour vérification des droits */) {
+//     if (!this.isSuperAdmin(user)) { // Ou une autre logique de permission
+//       throw new ForbiddenException("Action non autorisée pour supprimer cette structure.");
+//     }
 
-    const structure = await this.structureRepo.findOne({ where: { idStruct } });
+//     // const structure = await this.structureRepo.findOne({ where: { idStructs } });
+//     // const structures = await this.structureRepo.find( {where:{id in idstructus}});
+//     // console.log(structures)
+//     if (!idStructs||idStructs.length==0) {
+//       throw new NotFoundException(HttpStatus.BAD_REQUEST);
+//     }
+//     try {
+//       const softDeleteResult = await this.structureRepo.softDelete(idStructs);
 
-    if (!structure) {
-      throw new NotFoundException(`Structure avec l'ID ${idStruct} non trouvée.`);
-    }
-    try {
-      const softDeleteResult = await this.structureRepo.softDelete(idStruct);
+//       if (softDeleteResult.affected !== idStructs.length) {
+//         throw new NotFoundException(`une structure dans les Id non trouvées`);
+//       }
+//       return { message: `Structure avec l'ID ${idStructs} marquée comme supprimée avec succès.` };
+//     } catch (err) {
+//       if (err instanceof HttpException) throw err;
+//       throw new HttpException(`Erreur lors du soft delete de la structure ${idStructs}.`, HttpStatus.BAD_REQUEST);
+//     }
+// }
 
-      if (softDeleteResult.affected === 0) {
-        // Cela ne devrait pas arriver si le findOne ci-dessus a réussi, mais c'est une double vérification.
-        throw new NotFoundException(`Structure avec l'ID ${idStruct} non trouvée pour la suppression.`);
+
+async softDeleteStructure(idStructs: string[], user: any) {
+  if (!this.isSuperAdmin(user)) {
+    throw new ForbiddenException("Action non autorisée pour supprimer cette structure.");
+  }
+
+  if (!idStructs || idStructs.length === 0) {
+    throw new HttpException('Aucun id passé en paramètre', HttpStatus.BAD_REQUEST);
+  }
+
+  try {
+    const notFoundIds: string[] = [];
+    let nbdelete = 0;
+
+    for (const id of idStructs) {
+      const structure = await this.structureRepo.findOne({ where: { idStruct: id } });
+
+      if (!structure) {
+        notFoundIds.push(id);
+        continue;
       }
-      return { message: `Structure avec l'ID ${idStruct} marquée comme supprimée avec succès.` };
-    } catch (err) {
-      if (err instanceof HttpException) throw err;
-      throw new HttpException(`Erreur lors du soft delete de la structure ${idStruct}.`, HttpStatus.INTERNAL_SERVER_ERROR);
+
+      await this.structureRepo.softDelete(id);
+      nbdelete++;
     }
 
+    if (notFoundIds.length > 0) {
+      throw new HttpException(
+        `Les structures suivantes sont introuvables : ${notFoundIds.join(', ')}`,
+        HttpStatus.BAD_REQUEST
+      );
+    }
+
+    return {
+      message: "Structures supprimées avec succès.",
+      deletedCount: nbdelete,
+    };
+
+  } catch (err) {
+    if (err instanceof HttpException) throw err;
+    throw new HttpException(`Erreur lors du soft delete des structures.`, HttpStatus.BAD_REQUEST);
+  }
+}
 
 
-
-  
-
-}}
+}

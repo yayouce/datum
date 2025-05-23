@@ -130,7 +130,6 @@ export class EnqueteService {
           throw new HttpException("Aucun ID fourni pour la suppression.", 700);
         }
     
-        // Appliquer le soft delete avec TypeORM
         await this.enqueteRepo.softDelete(idsEnquetes);
     
         return {

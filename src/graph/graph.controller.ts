@@ -1,10 +1,14 @@
-import { Controller, Get, Post, Body, Param, Patch, Delete, NotFoundException, BadRequestException, ParseUUIDPipe, HttpException, InternalServerErrorException, UseInterceptors, UploadedFile } from "@nestjs/common";
+import { Controller, Get, Post, Body, Param, Patch, Delete, NotFoundException, BadRequestException, ParseUUIDPipe, HttpException, InternalServerErrorException, UseInterceptors, UploadedFile, UseGuards } from "@nestjs/common";
 import { GraphService } from "./graph.service";
 import { CreateGraphDto } from "./dto/create-graph.dto";
 import { UpdateGraphDto } from "./dto/update-graph.dto";
 import { FeatureCollection, FeatureCollection as GeoJsonFeatureCollection } from 'geojson';
 import { FileInterceptor } from "@nestjs/platform-express";
 import { ImportMapFileDto } from "./dto/importMapFile.dto";
+import { JwtAuthGuard } from "../Auth/jwt-auth.guard";
+import { UserEntity } from "../user/entities/user.entity";
+import { MembreStruct } from "../membre-struct/entities/membre-struct.entity";
+import { User } from "../decorator/user.decorator";
 
 
 @Controller("graph")
@@ -149,4 +153,16 @@ async getGraphByNameAndProject(@Param('name') name: string, @Param('projectId') 
        throw new InternalServerErrorException("Erreur serveur lors de l'importation de la carte.");
     }
   }
+
+
+
+  @UseGuards(JwtAuthGuard) // Assurez-vous que l'utilisateur est authentifié
+    @Post('deleteGraph') // Utilisation de DELETE HTTP method
+    async softDeleteStructure(
+      @Body() body: {idGraph: string[]},
+      @User() user: any, 
+    ): Promise<{ message: string }> {
+      const result = await this.graphService.softDeleteGraphs(body.idGraph, user);
+      return { message: result.message };
+    }
 }

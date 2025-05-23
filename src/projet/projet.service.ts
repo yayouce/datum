@@ -10,6 +10,7 @@ import { etatprojetEnum } from '@/generique/etatprojetEnum.enum';
 import { UserEntity } from '@/user/entities/user.entity';
 import { MembreStruct } from '@/membre-struct/entities/membre-struct.entity';
 import { UserRole } from '@/generique/userroleEnum';
+import { count } from 'console';
 
 @Injectable()
 export class ProjetService {
@@ -161,33 +162,51 @@ export class ProjetService {
   }
   
 
-  async softDeleteProjet(idprojet: string,user:UserEntity|MembreStruct) {
-    try {
-      if(user.role==UserRole.Client){
-        throw new HttpException("seul le superAdmin peut supprimer un projet",HttpStatus.FORBIDDEN)
-      }
-      if (!idprojet) {
-        throw new HttpException('ID du projet requis', 400);
-      }
-  
-      // Vérifier si le projet existe
-      const projet = await this.projetRepo.findOne({ where: { idprojet } });
-  
-      if (!projet) {
-        throw new HttpException('Projet non trouvé', 705);
-      }
-  
-      // Effectuer le soft delete
-      await this.projetRepo.softDelete(idprojet);
-  
-      return {
-        message: 'Projet supprimé avec succès (soft delete).',
-        idprojet: idprojet
-      };
-    } catch (err) {
-      throw new HttpException(err.message, 803);
+  async softDeleteProjet(idprojets: string[], user: UserEntity | MembreStruct) {
+
+  try {
+    if (user.role === UserRole.Client) {
+      throw new HttpException("Seul le superAdmin peut supprimer un projet", HttpStatus.FORBIDDEN);
     }
+
+    if (!idprojets || idprojets.length === 0) {
+      throw new HttpException('Aucun id passé en paramètre', HttpStatus.BAD_REQUEST);
+    }
+
+    const notFoundIds: string[] = [];
+    let nbdelete = 0;
+
+    for (const id of idprojets) {
+      const projet = await this.projetRepo.findOne({ where: { idprojet: id } });
+
+      if (!projet) {
+        notFoundIds.push(id);
+        continue;
+      }
+
+      await this.projetRepo.softDelete(id);
+      nbdelete++;
+    }
+
+    if (notFoundIds.length > 0) {
+      throw new HttpException(
+        `Les projets suivants sont introuvables : ${notFoundIds.join(', ')}`,
+        HttpStatus.BAD_REQUEST
+      );
+    }
+
+    return {
+      message: "Projets supprimés avec succès.",
+      deletedCount: nbdelete,
+    };
+
+  } catch (err) {
+    throw new HttpException(err.message, HttpStatus.BAD_REQUEST);
   }
+}
+
+
+
   
 
 
