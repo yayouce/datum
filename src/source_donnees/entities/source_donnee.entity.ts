@@ -66,6 +66,9 @@ export class SourceDonnee extends TimestampEntites {
  
     @Column({ type: 'json', nullable: true })
     bd_jointes: any;
+
+    @Column({ type: 'json', nullable: true })
+    bd_archive: any;
     @OneToMany(()=>Graph,(graph)=>graph.sources)
     graphique:Graph[]
 

@@ -578,41 +578,13 @@ async validerAdhesionMembre(idMembre: string, user: any) {
   }
 
 
-
-
-
-//   async softDeleteStructure(idStructs: string[], user: any /* Optionnel: pour vérification des droits */) {
-//     if (!this.isSuperAdmin(user)) { // Ou une autre logique de permission
-//       throw new ForbiddenException("Action non autorisée pour supprimer cette structure.");
-//     }
-
-//     // const structure = await this.structureRepo.findOne({ where: { idStructs } });
-//     // const structures = await this.structureRepo.find( {where:{id in idstructus}});
-//     // console.log(structures)
-//     if (!idStructs||idStructs.length==0) {
-//       throw new NotFoundException(HttpStatus.BAD_REQUEST);
-//     }
-//     try {
-//       const softDeleteResult = await this.structureRepo.softDelete(idStructs);
-
-//       if (softDeleteResult.affected !== idStructs.length) {
-//         throw new NotFoundException(`une structure dans les Id non trouvées`);
-//       }
-//       return { message: `Structure avec l'ID ${idStructs} marquée comme supprimée avec succès.` };
-//     } catch (err) {
-//       if (err instanceof HttpException) throw err;
-//       throw new HttpException(`Erreur lors du soft delete de la structure ${idStructs}.`, HttpStatus.BAD_REQUEST);
-//     }
-// }
-
-
 async softDeleteStructure(idStructs: string[], user: any) {
   if (!this.isSuperAdmin(user)) {
     throw new ForbiddenException("Action non autorisée pour supprimer cette structure.");
   }
 
   if (!idStructs || idStructs.length === 0) {
-    throw new HttpException('Aucun id passé en paramètre', HttpStatus.BAD_REQUEST);
+    throw new HttpException('Aucun id passé en paramètre', 701);
   }
 
   try {
@@ -634,7 +606,7 @@ async softDeleteStructure(idStructs: string[], user: any) {
     if (notFoundIds.length > 0) {
       throw new HttpException(
         `Les structures suivantes sont introuvables : ${notFoundIds.join(', ')}`,
-        HttpStatus.BAD_REQUEST
+       702
       );
     }
 
@@ -645,7 +617,7 @@ async softDeleteStructure(idStructs: string[], user: any) {
 
   } catch (err) {
     if (err instanceof HttpException) throw err;
-    throw new HttpException(`Erreur lors du soft delete des structures.`, HttpStatus.BAD_REQUEST);
+    throw new HttpException(`Erreur lors du soft delete des structures.`, HttpStatus.NOT_FOUND);
   }
 }
 

@@ -86,7 +86,7 @@ export class SourceDonneesService implements OnModuleInit {
   }
 
 
-  @Cron(CronExpression.EVERY_10_MINUTES,{ name: 'sync' }) // Si ce service est aussi le scheduler
+  @Cron(CronExpression.EVERY_MINUTE,{ name: 'sync' }) // Si ce service est aussi le scheduler
   async handleCron() {
     this.logger.log('CRON: Démarrage du rafraîchissement automatique des sources de données.');
     await this.refreshSourcesAuto2(); // Appel de la méthode de ce service
@@ -114,7 +114,6 @@ export class SourceDonneesService implements OnModuleInit {
       
       const unitefrequence = libelleunite ? await this.unitefrequence.getoneBylibelle(libelleunite) : null;
       const enquetedata = await this.enqueteservice.getenqueteByID(idenquete);
-
       let fichier = data.fichier; 
       let formatFichier = null; 
 
@@ -491,13 +490,12 @@ async refreshSourcesAuto2(): Promise<void> {
     this.logger.log(`Vérification de ${sources.length} source(s) de données potentielle(s) pour rafraîchissement.`);
 
     for (const sourceDonnee of sources) {
-      // L'entité SourceDonnee a déjà `updatedAt` qui sera mis à jour par TypeORM lors du save()
-      // Si vous avez ajouté derniereTentativeMiseAJourSource, mettez-le à jour ici:
+    
       sourceDonnee.derniereMiseAJourReussieSource = new Date();
 
       if (!this.isTimeToUpdate(sourceDonnee)) {
         // Pas besoin de sauvegarder si on ne fait rien, sauf si vous voulez mettre à jour derniereTentativeMiseAJourSource
-        //if (sourceDonnee.derniereMiseAJourReussieSource) await this.sourcededonneesrepo.save(sourceDonnee);
+        if (sourceDonnee.derniereMiseAJourReussieSource) await this.sourcededonneesrepo.save(sourceDonnee);
         continue;
       }
       
@@ -800,7 +798,7 @@ async getSourceWithFilteredData(idsourceDonnes: string): Promise<SourceDonnee> {
 
 async getBdsByProjetWithFilter(
   idprojet: string,
-  bdType: 'normales' | 'jointes' | 'tous'
+  bdType: 'normales' | 'jointes' | 'tous'|'archive'
 ): Promise<any[]> {
   // Récupérer toutes les sources du projet
   const sources = await this.sourcededonneesrepo.find({
@@ -809,37 +807,19 @@ async getBdsByProjetWithFilter(
   });
 
   // Appliquer le filtre en fonction du paramètre `bdType`
-  if (bdType === 'normales') {
+  if (bdType === 'normales' ||"jointes"||"tous"||"archive") {
     return sources
       .filter((source) => source.bd_normales)
       .map((source) => ({
         nomSource: source.nomSource,
         idsource:source.idsourceDonnes
-        // bd_jointes: source.bd_normales,
       }));
   }
 
-  if (bdType === 'jointes') {
-    return sources
-      .filter((source) => source.bd_jointes)
-      .map((source) => ({
-        nomSource: source.nomSource,
-        idsource:source.idsourceDonnes
-        // bd_jointes: source.bd_jointes,
-      }));;
-  }
-
-  if (bdType === 'tous') {
-    return sources.map((source) => ({
-      nomSource: source.nomSource,
-      // bd_normales: source.bd_normales || null,
-      idsource:source.idsourceDonnes
-      // bd_jointes: source.bd_jointes || null,
-    }));
-  }
-
-  throw new HttpException(`Type "${bdType}" non supporté. Utilisez "normales", "jointes", ou "tous".`, 800);
+  throw new HttpException(`Type "${bdType}" non supporté. Utilisez "normales", "jointes", "tous" ou "archive".`, 800);
 }
+
+
 
 
 //get bdByproject where InStudio est true
@@ -2005,6 +1985,31 @@ async getOneConfigurationSource(
       this.logger.error(`Erreur lors du soft delete de la source de données ${idsourceDonnes}`, err.stack);
       throw new HttpException('Erreur interne du serveur lors de la suppression de la source de données.', HttpStatus.INTERNAL_SERVER_ERROR);
     }
+  }
+
+
+
+  //archiver une bd
+
+  async archive(idSource:string,user:any){
+try{
+ const source= await this.sourcededonneesrepo.findOne({where:{idsourceDonnes:idSource}})
+  if(user.role==UserRole.Client){
+    throw new ForbiddenException("seul le SuperAdmin peut archivé une source de données!")
+  }
+  if(!source){
+      throw new HttpException(`aucune source trouvé pour la source `,HttpStatus.NOT_FOUND)
+  }
+
+
+  source.bd_archive=true
+return this.sourcededonneesrepo.save(source)
+
+}
+catch(err){
+
+}
+   
   }
 
 

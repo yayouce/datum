@@ -115,7 +115,7 @@ export class SourceDonneesController {
   @Get('getbdbyprojet/:idprojet')
     async getBdsByProjet(
       @Param('idprojet') idprojet: string,
-      @Query('bd') bdType: 'normales' | 'jointes' | 'tous'
+      @Query('bd') bdType: 'normales' | 'jointes' | 'tous'|"archive"
     ): Promise<any[]> {
       return await this.sourceDonneesService.getBdsByProjetWithFilter(idprojet, bdType || 'tous');
     }
@@ -341,5 +341,15 @@ async getAllFeuillesFiltrees(
   }
 
 
+
+@UseGuards(JwtAuthGuard)
+  @Post('archive/:idsource')
+  async archive(
+    @Param("idsource") idsource:string,
+    @User() user:any
+  ){
+
+    return this.sourceDonneesService.archive(idsource,user)
+  }
 
 }

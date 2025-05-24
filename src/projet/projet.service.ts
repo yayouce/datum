@@ -170,7 +170,7 @@ export class ProjetService {
     }
 
     if (!idprojets || idprojets.length === 0) {
-      throw new HttpException('Aucun id passé en paramètre', HttpStatus.BAD_REQUEST);
+      throw new HttpException('Aucun id passé en paramètre', 701);
     }
 
     const notFoundIds: string[] = [];
@@ -191,7 +191,7 @@ export class ProjetService {
     if (notFoundIds.length > 0) {
       throw new HttpException(
         `Les projets suivants sont introuvables : ${notFoundIds.join(', ')}`,
-        HttpStatus.BAD_REQUEST
+        702
       );
     }
 
@@ -201,13 +201,11 @@ export class ProjetService {
     };
 
   } catch (err) {
-    throw new HttpException(err.message, HttpStatus.BAD_REQUEST);
+    throw new HttpException(err.message, HttpStatus.NOT_FOUND);
   }
 }
 
 
-
-  
 
 
   // --- Méthodes pour le Dashboard ---

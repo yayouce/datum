@@ -884,11 +884,11 @@ async createMapFromFile(idsource: string, dto: ImportMapFileDto, file: Express.M
 // deleted graph
 async softDeleteGraphs(ids: string[], user: any) {
  if (user.role === UserRole.Client) {
-      throw new HttpException("Seul le superAdmin peut supprimer un projet", HttpStatus.FORBIDDEN);
+      throw new HttpException("Seul le superAdmin peut supprimer un projet", 701);
     }
 
   if (!ids || ids.length === 0) {
-    throw new HttpException('Aucun id passé en paramètre', HttpStatus.BAD_REQUEST);
+    throw new HttpException('Aucun id passé en paramètre', 702);
   }
   try {
     const notFoundIds: string[] = [];
@@ -909,7 +909,7 @@ async softDeleteGraphs(ids: string[], user: any) {
     if (notFoundIds.length > 0) {
       throw new HttpException(
         `Les graphes suivants sont introuvables : ${notFoundIds.join(', ')}`,
-        HttpStatus.BAD_REQUEST
+        703
       );
     }
 
@@ -925,9 +925,7 @@ async softDeleteGraphs(ids: string[], user: any) {
 
 
 }
-  isSuperAdmin(user: any) {
-    throw new Error('Method not implemented.');
-  }
+  
 }
 
 
