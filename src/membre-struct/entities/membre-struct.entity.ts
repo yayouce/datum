@@ -13,7 +13,7 @@ MembreStruct extends UserEntity {
         type:"enum",
         enum:roleMembreEnum,
     })
-    roleMembre:string
+    roleMembre:string 
 
 
     @Column()

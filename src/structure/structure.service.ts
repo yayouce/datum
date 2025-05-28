@@ -316,42 +316,100 @@ export class StructureService {
 
 
 
-  async findAllStructsConditional(user: any /* UserEntity ou type spécifique si vous avez */): Promise<Structure[]> {
-    try {
-      // Utilisez la valeur de l'enum si vous en avez une, sinon la chaîne littérale.
-      // Exemple avec chaîne littérale comme demandé:
-      if (user.role === "client") {
-        if (!user.nomStruct) {
-          // Il est crucial que nomStruct soit présent pour un client.
-          // Vous pourriez lancer une erreur BadRequest si ce n'est pas le cas.
-          console.warn("findAllStructsConditional: Rôle client mais nomStruct manquant sur l'objet user.");
-          throw new BadRequestException("Informations utilisateur client incomplètes (nomStruct manquant).");
-          // Ou retourner un tableau vide si c'est le comportement préféré :
-          // return [];
-        }
+  // async findAllStructsConditional(user: any /* UserEntity ou type spécifique si vous avez */): Promise<Structure[]> {
+  //   try {
+    
+  //     if (user.role === UserRole.Client) {
+  //       if (!user.nomStruct) {
+  //         // Il est crucial que nomStruct soit présent pour un client.
+  //         // Vous pourriez lancer une erreur BadRequest si ce n'est pas le cas.
+  //         console.warn("findAllStructsConditional: Rôle client mais nomStruct manquant sur l'objet user.");
+  //         throw new BadRequestException("Informations utilisateur client incomplètes (nomStruct manquant).");
+  //         // Ou retourner un tableau vide si c'est le comportement préféré :
+  //         // return [];
+  //       }
 
-        // Recherche la structure spécifique du client
-        const clientStructure = await this.structureRepo.findOne({
-          where: { nomStruct: user.nomStruct },
-        });
+  //       // Recherche la structure spécifique du client
+  //       const clientStructure = await this.structureRepo.findOne({
+  //         where: { nomStruct: user.nomStruct },
+  //       });
 
-        if (!clientStructure) {
-          return [];
-        }
-        return [clientStructure];
+        
 
-      } else {
-        return await this.structureRepo.find();
+  //       if (!clientStructure) {
+  //         return [];
+  //       }
+  //       return [clientStructure];
+
+  //     } else {
+  //       return await this.structureRepo.find();
+  //     }
+  //   } catch (err) {
+  //     if (err instanceof HttpException) {
+  //       throw err;
+  //     }
+  //     // Pour les autres erreurs (ex: erreur de base de données)
+  //     console.error("Erreur lors de la récupération des structures (findAllStructsConditional):", err.message);
+  //     throw new HttpException(err.message, 500);
+  //   }
+  // }
+
+async findAllStructsConditional(user: any): Promise<any[]> {
+  try {
+    let structures: Structure[];
+
+    if (user.role === UserRole.Client) {
+      if (!user.nomStruct) {
+        console.warn("findAllStructsConditional: Rôle client mais nomStruct manquant.");
+        throw new BadRequestException("Informations utilisateur client incomplètes (nomStruct manquant).");
       }
-    } catch (err) {
-      if (err instanceof HttpException) {
-        throw err;
+
+      const clientStructure = await this.structureRepo.findOne({
+        where: { nomStruct: user.nomStruct, adhesion: true },
+        relations: ['membres'],
+      });
+
+      if (!clientStructure) {
+        return [];
       }
-      // Pour les autres erreurs (ex: erreur de base de données)
-      console.error("Erreur lors de la récupération des structures (findAllStructsConditional):", err.message);
-      throw new HttpException(err.message, 500);
+
+      structures = [clientStructure];
+    } else {
+      structures = await this.structureRepo.find({
+        where: { adhesion: true },
+        relations: ['membres'],
+      });
     }
+
+    // Construction du résultat avec uniquement les infos souhaitées
+    return structures.map((structure) => {
+      const responsable = structure.membres.find(
+        (m) => m.roleMembre === roleMembreEnum.TOPMANAGER
+      );
+
+      return {
+        createdAt: structure.createdAt,
+        updatedAt: structure.updatedAt,
+        deletedAt: structure.deletedAt,
+        idStruct: structure.idStruct,
+        nomStruct: structure.nomStruct,
+        descStruct: structure.descStruct,
+        contactStruct: structure.contactStruct,
+        emailStruct: structure.emailStruct,
+        localisationStruc: structure.localisationStruc,
+        adhesion: structure.adhesion,
+        nomresponsable: responsable ? `${responsable.name} ${responsable.firstname}` : null,
+        emailresponsable: responsable ? responsable.email : null,
+      };
+    });
+  } catch (err) {
+    if (err instanceof HttpException) throw err;
+    console.error("Erreur findAllStructsConditional:", err.message);
+    throw new HttpException(err.message, 500);
   }
+}
+
+
 
 
 

@@ -30,7 +30,7 @@ import { evaluate,compare  } from 'mathjs'
 import { ApplyfunctionDto2 } from './dto/Applyfunction.dto';
 import { MasqueColumnToggleDto } from './dto/masquercolonne.dto';
 import { UpdateAutorisationsDto } from './dto/update-autorisations.dto';
-import { detectFileFormat, processCsvFile, processExcelFile, processJsonFile } from '@/utils/conversionFichier';
+
 import { AutorisationsSourceDonnee } from '@/utils/autorisation';
 import { MembreStruct } from '@/membre-struct/entities/membre-struct.entity';
 import { StructureService } from '@/structure/structure.service';
@@ -41,6 +41,7 @@ import { checkAdminAccess } from '@/utils/auth.utils';
 import { roleMembreEnum } from '@/generique/rolemembre.enum';
 import { UserPermissionToggleDto } from './dto/update-autorisation.dto';
 import { UserRole } from '@/generique/userroleEnum';
+import { detectFileFormat, processCsvFile, processExcelFile, processJsonFile } from './utils/conversionFichier';
 
 
 type AuthenticatedUser = {
@@ -97,7 +98,7 @@ export class SourceDonneesService implements OnModuleInit {
 
   onModuleInit() {
     console.log('🚀 [INIT] SourceDonneesService initialisé. Lancement de la première synchronisation...');
-    this.refreshSourcesAuto();
+    this.refreshSourcesAuto2();
   }
   async findOneById(id: string): Promise<SourceDonnee | null> {
     // Implémentation avec votre ORM
@@ -426,6 +427,7 @@ async updateSourceDonnees(
 
 private isTimeToUpdate(sourceDonnee: SourceDonnee): boolean {
     if (!sourceDonnee.frequence || !sourceDonnee.libelleunite) {
+      this.logger.log(`Mise à jour en cours pour ${sourceDonnee.nomSource}`);
       // this.logger.verbose(`Source ${sourceDonnee.nomSource} (ID: ${sourceDonnee.idsourceDonnes}) : configuration de fréquence manquante.`);
       return false;
     }
@@ -459,7 +461,7 @@ private isTimeToUpdate(sourceDonnee: SourceDonnee): boolean {
         break;
       case 'Seconds':
       case 'seconds':
-        prochainCheck.setDate(derniereMajDate.getDate() + frequence);
+        prochainCheck.setSeconds(derniereMajDate.getDate() + frequence);
         break;
       default:
         this.logger.warn(`Unité de fréquence '${unite}' non reconnue pour ${sourceDonnee.nomSource} (ID: ${sourceDonnee.idsourceDonnes}).`);
@@ -491,13 +493,15 @@ async refreshSourcesAuto2(): Promise<void> {
 
     for (const sourceDonnee of sources) {
     
-      sourceDonnee.derniereMiseAJourReussieSource = new Date();
+      // sourceDonnee.derniereMiseAJourReussieSource = new Date();
 
       if (!this.isTimeToUpdate(sourceDonnee)) {
         // Pas besoin de sauvegarder si on ne fait rien, sauf si vous voulez mettre à jour derniereTentativeMiseAJourSource
         if (sourceDonnee.derniereMiseAJourReussieSource) await this.sourcededonneesrepo.save(sourceDonnee);
         continue;
       }
+
+      
       
       this.logger.log(`Traitement de la source: ${sourceDonnee.nomSource} (ID: ${sourceDonnee.idsourceDonnes}, URL: ${sourceDonnee.source})`);
 
@@ -545,9 +549,12 @@ async refreshSourcesAuto2(): Promise<void> {
           continue;
         }
 
-        fs.unlinkSync(filePath);
-        this.logger.log(`Fichier temporaire supprimé: ${filePath}`);
-
+        try {
+              fs.unlinkSync(filePath);
+              this.logger.log(`Fichier temporaire supprimé: ${filePath}`);
+            } catch (err) {
+              this.logger.warn(`Impossible de supprimer le fichier temporaire ${filePath}: ${err.message}`);
+            }
         // Utilisez votre service pour récupérer l'entité Formatfichier
         const format = await this.formatservice.getoneByLibelle(formatFichier); 
         if (!format) {
@@ -557,7 +564,7 @@ async refreshSourcesAuto2(): Promise<void> {
         }
 
         // Mettre à jour uniquement les champs liés au fichier
-        sourceDonnee.bd_normales = fichierTraite; // ou sourceDonnee.fichier, selon celui que vous voulez mettre à jour
+        sourceDonnee.fichier = fichierTraite; // ou sourceDonnee.fichier, selon celui que vous voulez mettre à jour
         sourceDonnee.format = format;
         sourceDonnee.libelleformat = format.libelleFormat; // Assurez-vous que 'libelleFormat' est le bon nom de propriété sur Formatfichier
 
@@ -634,65 +641,6 @@ async refreshSourcesAuto2(): Promise<void> {
     console.log('Rafraîchissement automatique terminé.');
   }
   
-  
-
-  // async updateSourceDonnees(
-  //   idsourceDonnes: string,
-  //   data: UpdateSourceDonneeDto
-  // ) {
-  //   try {
-  //     // 1. Vérifier si la source de données existe
-  //     const sourceExistante = await this.sourcededonneesrepo.findOne({
-  //       where: { idsourceDonnes },
-  //       relations: ["format", "typedonnes", "unitefrequence", "enquete"],
-  //     });
-  
-  //     if (!sourceExistante) {
-  //       throw new HttpException("Source de données non trouvée", 701);
-  //     }
-  
-  //     // 2. Récupérer les nouvelles valeurs des entités associées si elles sont fournies
-  //     const { libelleformat, libelletypedonnees, libelleunite, ...reste } = data;
-  
-  //     if (libelletypedonnees) {
-  //       const typedonnees = await this.datatypeservice.getoneByLibelle(libelletypedonnees);
-  //       if (!typedonnees) throw new HttpException("Type de données introuvable", 703);
-  //       sourceExistante.typedonnes = typedonnees;
-  //     }
-  
-  //     if (libelleformat) {
-  //       const format = await this.formatservice.getoneByLibelle(libelleformat);
-  //       if (!format) throw new HttpException("Format introuvable", 704);
-  //       sourceExistante.format = format;
-  //     }
-  
-  //     if (libelleunite) {
-  //       const unitefrequence = await this.unitefrequence.getoneBylibelle(libelleunite);
-  //       if (!unitefrequence) throw new HttpException("Unité de fréquence introuvable", 702);
-  //       sourceExistante.unitefrequence = unitefrequence;
-  //     }
-
-  //     console.log(sourceExistante)
-  
-  //     // 3. Mise à jour des champs sans `save()`
-  //     await this.sourcededonneesrepo.update(idsourceDonnes, {
-  //       ...reste,
-  //       typedonnes: sourceExistante.typedonnes,
-  //       format: sourceExistante.format,
-  //       unitefrequence: sourceExistante.unitefrequence,
-  //     });
-  
-  //     // 4. Retourner l'entité mise à jour
-  //     return await this.sourcededonneesrepo.findOne({ where: { idsourceDonnes } });
-  
-  //   } catch (err) {
-  //     throw new HttpException(err.message, 705);
-  //   }
-  // }
-  
-    
-
-
     async getAllsource(){
       try{
          return await this.sourcededonneesrepo.find()
