@@ -91,7 +91,7 @@ export class SourceDonneesService implements OnModuleInit {
   @Cron(CronExpression.EVERY_MINUTE,{ name: 'sync' }) // Si ce service est aussi le scheduler
   async handleCron() {
     this.logger.log('CRON: Démarrage du rafraîchissement automatique des sources de données.');
-    await this.refreshSourcesAuto2(); // Appel de la méthode de ce service
+    await this.refreshSourcesAuto3(); // Appel de la méthode de ce service
     this.logger.log('CRON: Rafraîchissement automatique des sources de données terminé.');
   }
 
@@ -99,7 +99,7 @@ export class SourceDonneesService implements OnModuleInit {
 
   onModuleInit() {
     console.log('🚀 [INIT] SourceDonneesService initialisé. Lancement de la première synchronisation...');
-    this.refreshSourcesAuto2();
+    this.refreshSourcesAuto3();
   }
   async findOneById(id: string): Promise<SourceDonnee | null> {
     // Implémentation avec votre ORM
