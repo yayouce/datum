@@ -56,8 +56,8 @@ type AuthenticatedUser = {
 export class SourceDonneesService implements OnModuleInit {
   membreStructRepository: any;
 
-  private readonly logger = new Logger(SourceDonneesService.name); // Ou le nom exact de votre classe
-  private readonly tempDir: string; // <--- 1. DÉCLARATION DE LA PROPRIÉT Produits
+  private readonly logger = new Logger(SourceDonneesService.name); 
+  private readonly tempDir: string; 
   constructor(
     @InjectRepository(SourceDonnee)
     private sourcededonneesrepo: Repository<SourceDonnee>,
