@@ -42,6 +42,7 @@ import { roleMembreEnum } from '@/generique/rolemembre.enum';
 import { UserPermissionToggleDto } from './dto/update-autorisation.dto';
 import { UserRole } from '@/generique/userroleEnum';
 import { detectFileFormat, processCsvFile, processExcelFile, processJsonFile } from './utils/conversionFichier';
+import { getExcelColumnName } from './utils/generernomcolonne';
 
 
 type AuthenticatedUser = {
@@ -581,6 +582,182 @@ async refreshSourcesAuto2(): Promise<void> {
     }
     this.logger.log('Fin de la vérification des sources de données pour rafraîchissement.');
   }
+
+
+  async refreshSourcesAuto3(): Promise<void> {
+    const sources = await this.sourcededonneesrepo.find({
+      where: { source: Not(IsNull()), frequence: Not(IsNull()), libelleunite: Not(IsNull()) },
+      relations: ['format', 'typedonnes', 'unitefrequence'],
+    });
+
+    this.logger.log(`Vérification de ${sources.length} source(s) pour rafraîchissement.`);
+
+    for (const sourceDonnee of sources) {
+      if (!this.isTimeToUpdate(sourceDonnee)) {
+        continue;
+      }
+      this.logger.log(`Traitement source: ${sourceDonnee.nomSource} (ID: ${sourceDonnee.idsourceDonnes})`);
+
+      if (!sourceDonnee.source || !sourceDonnee.source.startsWith('http')) {
+        this.logger.warn(`URL invalide pour ${sourceDonnee.nomSource}: ${sourceDonnee.source}.`);
+        continue;
+      }
+
+      let filePath = '';
+      try {
+        const response = await firstValueFrom(
+          this.httpService.get(sourceDonnee.source, { responseType: 'arraybuffer', timeout: 60000 })
+        );
+
+        if (!response?.data?.byteLength) {
+          this.logger.warn(`Aucune donnée pour ${sourceDonnee.nomSource}.`);
+          continue;
+        }
+
+        const formatFichier = detectFileFormat(sourceDonnee.source);
+        if (!formatFichier) {
+          this.logger.error(`Format non détecté pour ${sourceDonnee.source}.`);
+          continue;
+        }
+
+        const tempFileName = `temp_refresh_${sourceDonnee.idsourceDonnes}_${Date.now()}.${formatFichier}`;
+        filePath = path.join(this.tempDir, tempFileName);
+        fs.writeFileSync(filePath, Buffer.from(response.data));
+
+        let fichierTelechargeTraite = null;
+        if (formatFichier === 'xlsx') fichierTelechargeTraite = processExcelFile(filePath);
+        else if (formatFichier === 'csv') fichierTelechargeTraite = await processCsvFile(filePath);
+        else if (formatFichier === 'json') fichierTelechargeTraite = processJsonFile(filePath);
+        else {
+          this.logger.error(`Format '${formatFichier}' non supporté (source: ${sourceDonnee.source}).`);
+          continue;
+        }
+
+        const formatEntite = await this.formatservice.getoneByLibelle(formatFichier);
+        if (!formatEntite) {
+          this.logger.error(`Entité Format introuvable pour: '${formatFichier}'.`);
+          continue;
+        }
+
+        // ----- DÉBUT DE LA LOGIQUE DE FUSION BASÉE SUR LES EN-TÊTES DE COLONNES -----
+        if ((formatFichier === 'xlsx' || formatFichier === 'csv') && fichierTelechargeTraite) {
+            const ancienFichierComplet = sourceDonnee.fichier || {};
+            const fichierResultatFusion = {};
+
+            const extraireInfosFeuille = (sheetData) => {
+                if (!sheetData?.donnees?.length) {
+                    return { headerNames: [], headerMap: new Map(), dataRows: [], excelColIds: [] };
+                }
+                const headerRowObj = sheetData.donnees[0] || {};
+                const headerMap = new Map(); // Map: "Nom En-tête Réel" -> "Identifiant Colonne Excel (A, B..)"
+                const headerNames = [];
+                const excelColIds = sheetData.colonnes || [];
+
+                excelColIds.forEach(colId => {
+                    const headerCellKey = `${colId}1`;
+                    if (headerRowObj.hasOwnProperty(headerCellKey) && headerRowObj[headerCellKey] !== null && headerRowObj[headerCellKey] !== undefined) {
+                        const name = String(headerRowObj[headerCellKey]);
+                        headerMap.set(name, colId);
+                        headerNames.push(name);
+                    }
+                });
+                return { headerNames, headerMap, dataRows: sheetData.donnees.slice(1), excelColIds };
+            };
+
+            for (const sheetName in fichierTelechargeTraite) {
+                if (!fichierTelechargeTraite.hasOwnProperty(sheetName)) continue;
+                this.logger.log(`Début fusion feuille '${sheetName}' pour ${sourceDonnee.nomSource}`);
+
+                const infosNouveau = extraireInfosFeuille(fichierTelechargeTraite[sheetName]);
+                const infosAncien = extraireInfosFeuille(ancienFichierComplet[sheetName]);
+
+                if (infosNouveau.headerNames.length === 0) {
+                    this.logger.warn(`Nouvelle feuille '${sheetName}' est vide ou sans en-têtes. Conservation de l'ancienne si existante.`);
+                    fichierResultatFusion[sheetName] = ancienFichierComplet[sheetName] || fichierTelechargeTraite[sheetName];
+                    continue;
+                }
+
+                const setNomsEntetesNouveaux = new Set(infosNouveau.headerNames);
+                const setNomsEntetesAnciens = new Set(infosAncien.headerNames);
+
+                const entetesCommuns = infosNouveau.headerNames.filter(name => setNomsEntetesAnciens.has(name));
+                const entetesSeulementNouveaux = infosNouveau.headerNames.filter(name => !setNomsEntetesAnciens.has(name));
+                const entetesLocauxConservés = infosAncien.headerNames.filter(name => !setNomsEntetesNouveaux.has(name));
+                
+                // Définir l'ordre final des en-têtes
+                const ordreFinalNomsEntetes = [
+                    ...infosNouveau.headerNames, // D'abord toutes les colonnes du nouveau fichier, dans leur ordre
+                    ...entetesLocauxConservés    // Puis les colonnes locales non présentes dans le nouveau
+                ].filter((value, index, self) => self.indexOf(value) === index); // Assurer l'unicité et l'ordre
+
+                const resultatFeuille = { colonnes: [], donnees: [] };
+                const mapNomEnteteFinalVersColIdExcel = new Map();
+                const headerRowFinal = {};
+
+                ordreFinalNomsEntetes.forEach((nomEntete, idx) => {
+                    const finalColId = getExcelColumnName(idx);
+                    resultatFeuille.colonnes.push(finalColId);
+                    headerRowFinal[`${finalColId}1`] = nomEntete;
+                    mapNomEnteteFinalVersColIdExcel.set(nomEntete, finalColId);
+                });
+                resultatFeuille.donnees.push(headerRowFinal);
+
+                const nombreLignesDataFinal = infosNouveau.dataRows.length; // Le nombre de lignes est dicté par le nouveau fichier
+
+                for (let i = 0; i < nombreLignesDataFinal; i++) {
+                    const ligneDataCouranteResultat = {};
+                    const numLigneExcel = i + 2; // Pour les clés de cellule comme A2, B2...
+
+                    ordreFinalNomsEntetes.forEach(nomEntete => {
+                        const finalColId = mapNomEnteteFinalVersColIdExcel.get(nomEntete);
+                        let valeurCellule = null;
+
+                        if (setNomsEntetesNouveaux.has(nomEntete)) { // Colonne présente dans le nouveau fichier (commune ou seulement nouvelle)
+                            const colIdNouveauSrc = infosNouveau.headerMap.get(nomEntete);
+                            if (colIdNouveauSrc && infosNouveau.dataRows[i]) { // Vérifier que la ligne i existe
+                                valeurCellule = infosNouveau.dataRows[i][`${colIdNouveauSrc}${numLigneExcel}`];
+                            }
+                        } else if (setNomsEntetesAnciens.has(nomEntete)) { // Colonne locale conservée (seulement ancienne)
+                            const colIdAncienSrc = infosAncien.headerMap.get(nomEntete);
+                            if (colIdAncienSrc && infosAncien.dataRows[i]) { // Vérifier que la ligne i existe dans l'ancien
+                                valeurCellule = infosAncien.dataRows[i][`${colIdAncienSrc}${numLigneExcel}`];
+                            }
+                        }
+                        ligneDataCouranteResultat[`${finalColId}${numLigneExcel}`] = (valeurCellule !== undefined) ? valeurCellule : null;
+                    });
+                    resultatFeuille.donnees.push(ligneDataCouranteResultat);
+                }
+                fichierResultatFusion[sheetName] = resultatFeuille;
+                this.logger.log(`Fusion feuille '${sheetName}' terminée. ${nombreLignesDataFinal} lignes de données.`);
+            }
+            sourceDonnee.fichier = fichierResultatFusion;
+        } else { // JSON ou autre format non fusionné, ou fichierTelechargeTraite est null
+            sourceDonnee.fichier = fichierTelechargeTraite; // Écrase avec le nouveau, ou avec null si parsing a échoué
+            if (formatFichier === 'json') this.logger.log(`Format JSON pour ${sourceDonnee.nomSource}. Écrasement.`);
+            else if (fichierTelechargeTraite) this.logger.warn(`Format ${formatFichier} non géré pour fusion. Écrasement.`);
+            else this.logger.warn(`Aucun fichier traité à fusionner pour ${sourceDonnee.nomSource}. L'ancien fichier sera écrasé par null si pas de JSON.`);
+        }
+        // ----- FIN DE LA LOGIQUE DE FUSION -----
+
+        sourceDonnee.format = formatEntite;
+        sourceDonnee.libelleformat = formatEntite.libelleFormat;
+        sourceDonnee.derniereMiseAJourReussieSource = new Date();
+
+        await this.sourcededonneesrepo.save(sourceDonnee);
+        this.logger.log(`SUCCÈS: Source ${sourceDonnee.nomSource} mise à jour.`);
+
+      } catch (error) {
+        this.logger.error(`ERREUR source ${sourceDonnee.nomSource} (ID: ${sourceDonnee.idsourceDonnes}): ${error.message}`, error.stack);
+      } finally {
+        if (filePath && fs.existsSync(filePath)) {
+          try { fs.unlinkSync(filePath); }
+          catch (e) { this.logger.warn(`Échec suppression temp ${filePath}: ${e.message}`); }
+        }
+      }
+    }
+    this.logger.log('Fin rafraîchissement des sources.');
+  }
+
 
 
 
