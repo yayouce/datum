@@ -2,6 +2,10 @@ Login: ADM0007
 mot de passe:vRuLE
 
 
+bduser: datumuser
+mdp:d@tum_bdPassw0rd
+
+
 
 -----------------graphique-----------------
 titre_graphique

@@ -128,11 +128,11 @@ async getGraphByNameAndProject(@Param('name') name: string, @Param('projectId') 
     @Post('import-map/:idsource')
   @UseInterceptors(FileInterceptor('fichier'))
   async importMapFile(
-    @Param('idsource') idsource: string, // <<< Get idsource from URL
+    @Param('idsource') idsource: string,
     @Body() importMapFileDto: ImportMapFileDto,
-    @UploadedFile(/*... ParseFilePipe etc. remain the same ...*/) file: Express.Multer.File,
+    @UploadedFile() file: Express.Multer.File,
   ) {
-    // File validation (extension, etc.) remains the same
+    // File validation (extension) 
     const allowedExtensions = ['.geojson', '.json', '.kml', '.kmz', '.zip'];
     const fileExt = '.' + file.originalname.split('.').pop()?.toLowerCase();
     if (!allowedExtensions.includes(fileExt)) {
@@ -143,7 +143,7 @@ async getGraphByNameAndProject(@Param('name') name: string, @Param('projectId') 
      }
 
     try {
-      // Call the service method, now passing idsource
+
       return await this.graphService.createMapFromFile(idsource, importMapFileDto, file); // <<< Pass idsource
     } catch (error) {
        console.error("Erreur contrôleur import-map:", error);
