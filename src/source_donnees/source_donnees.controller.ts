@@ -176,7 +176,7 @@ async getBdsCountByProjet(
 
 
   @UseGuards(JwtAuthGuard)
-  @Delete('delete/:id') // ex: DELETE /source-donnees/uuid-de-la-source
+  @Post('delete/:id') // ex: DELETE /source-donnees/uuid-de-la-source
   async softDeleteSourceDonnee(
     @Param('id') idsourceDonnes: string,
     @User() currentUser: UserEntity|MembreStruct,
@@ -293,7 +293,7 @@ async getAllFeuillesFiltrees(
   ): Promise<any[]> {
     const bdTypeToUse = bdTypeParam || 'tous'; 
     if (bdTypeParam && !['normales', 'jointes', 'tous'].includes(bdTypeParam)) {
-      throw new BadRequestException('Invalid bdType query parameter. Must be "normales", "jointes", or "tous".');
+      throw new BadRequestException('query non disponible "normales", "jointes", or "tous".');
     }
     
     console.log(`[Controller] Request for getSourceConfigurations - ProjetID: ${projetId}, BdType: ${bdTypeToUse}`);
@@ -301,7 +301,7 @@ async getAllFeuillesFiltrees(
     return this.sourceDonneesService.getOneConfigurationSource(
       projetId,
       sourceId,
-      bdTypeToUse, // This will be 'normales', 'jointes', or 'tous'
+      bdTypeToUse, // 'normales', 'jointes', or 'tous'
       loggedInUser,
     );
   }
@@ -311,11 +311,10 @@ async getAllFeuillesFiltrees(
   async addUsersToAutorisation(
     @Param('idSourceDonnee', ParseUUIDPipe) idSourceDonnee: string,    @User() loggedInUser,  
     @Body(new ValidationPipe({ transform: true, whitelist: true, forbidNonWhitelisted: true }))
-     toggleDto: TogglePermissionsArrayDto, // Use the new DTO
+     toggleDto: TogglePermissionsArrayDto, 
   ): Promise<SourceDonnee> {
-    return this.sourceDonneesService.togglePermissionsFromArray( // Call the new service method
+    return this.sourceDonneesService.togglePermissionsFromArray( 
       idSourceDonnee,
-      // updateAutorisationsDto.userIds, // Pass the array of userIds
       toggleDto.permissions,
       loggedInUser
     );
@@ -324,11 +323,11 @@ async getAllFeuillesFiltrees(
   @Post('autorisations/remove/:idSourceDonnee')
   async removeUsersFromAutorisation(
     @Param('idSourceDonnee', ParseUUIDPipe) idSourceDonnee: string,
-    @Body() updateAutorisationsDto: UpdateAutorisationsDto, // Use the updated DTO
+    @Body() updateAutorisationsDto: UpdateAutorisationsDto, 
   ): Promise<SourceDonnee> {
-    return this.sourceDonneesService.removeUsersFromAutorisation( // Call the new service method
+    return this.sourceDonneesService.removeUsersFromAutorisation( 
       idSourceDonnee,
-      updateAutorisationsDto.userIds, // Pass the array of userIds
+      updateAutorisationsDto.userIds, 
       updateAutorisationsDto.action,
     );
   }
