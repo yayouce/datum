@@ -39,7 +39,7 @@ export class SourceDonneesController {
 
 
 
-  @Patch("update/:idSource")
+  @Post("update/:idSource")
   async updateSourceDonnees(
     @Param('idSource') idsourceDonnes: string,
     @Body() updateSourceDonneeDto: UpdateSourceDonneeDto
@@ -59,13 +59,6 @@ export class SourceDonneesController {
   }
 
 
-  // @Post('/join-create/:idprojet')
-  // async joinAndCreateSource(
-  //   @Param('idprojet') idprojet: string, // ✅ Récupération depuis l'URL
-  //   @Body() joinData: JoinSourcesDto
-  // ) {
-  //   return this.sourceDonneesService.joinSources(idprojet, joinData);
-  // }
 
   @Post('/jointure/:idprojet')
   async joinAndCreateSource2(
