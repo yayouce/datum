@@ -102,8 +102,7 @@ export class SourceDonneesService implements OnModuleInit {
     this.refreshSourcesAuto3();
   }
   async findOneById(id: string): Promise<SourceDonnee | null> {
-    // Implémentation avec votre ORM
-    // Assurez-vous que le champ contenant les données parsées (ex: bd_normales) est sélectionné
+  
     return this.sourcededonneesrepo.findOne({ where: { idsourceDonnes: id } });
 }
 
@@ -127,10 +126,7 @@ export class SourceDonneesService implements OnModuleInit {
           if (!response.data) {
             throw new HttpException(`L'API ${source} ne retourne pas de fichier valide`, 803);
           }
-
-
           formatFichier = detectFileFormat(source);
-
           // Convertir le buffer en fichier temporaire
           const filePath = path.join(__dirname, `temp.${formatFichier}`);
           fs.writeFileSync(filePath, response.data);
@@ -280,23 +276,24 @@ async joinSources2(
     }, {});
   });
 
-  const newDbName = source1 === source2
-    ? `Jointure_${sheet1}_${sheet2}`
-    : `Jointure_${source1}_${source2}`;
+  const newDbName =`Jointure_${sheet1}_${sheet2}`
+;
 
   const newSource = new SourceDonnee();
   newSource.nomSource = `jointure_${source1}-${source2}`;
-  newSource.commentaire = `jointure_${source1}-${source2}`;
+  newSource.commentaire =  `une jointure de la base ${source1} et de la base ${source2}`
   newSource.libelleformat = sourceData1.libelleformat;
   newSource.libelletypedonnees = sourceData1.libelletypedonnees;
   newSource.format = sourceData1.format;
   newSource.enquete = sourceData1.enquete;
   newSource.fichier = {
-    [newDbName]: {
+    ["sheet_fusion"]: {
       donnees: [headerMapping, ...transformedData],
       colonnes: columns,
     },
   };
+
+  //pour l'affichage pour voir quelle source et quelle sheet on participé
   newSource.bd_jointes = {
     source1: sourceData1.idsourceDonnes,
     source2: sourceData2.idsourceDonnes,
@@ -320,7 +317,7 @@ async getBdsByJointureOne(idSourceJointe: string): Promise<{ source1: SourceDonn
     throw new HttpException(`Aucune base de données jointe trouvée pour l'ID ${idSourceJointe}`,805);
   }
 
-  // 🔍 Vérifier que la base jointe contient bien des références `bd_jointes`
+  // Vérifier que la base jointe contient bien des références `bd_jointes`
   if (!sourceJointe.bd_jointes || !sourceJointe.bd_jointes.source1 || !sourceJointe.bd_jointes.source2) {
     throw new HttpException(`Les bases de données sources ne sont pas disponibles pour cette jointure.`,805);
   }
@@ -920,31 +917,95 @@ async getSourceWithFilteredData(idsourceDonnes: string): Promise<SourceDonnee> {
   };
 }
 
+//pour la pagination
+// async getBdsByProjetWithFilter(
+//   idprojet: string,
+//   bdType: 'normales' | 'jointes' | 'tous' | 'archive',
+//   page: number = 1,
+//   limit: number = 10 // Limite par page
+// ): Promise<{ data: any[], total: number }> {
+//   const queryBuilder = this.sourcededonneesrepo.createQueryBuilder('source')
+//     .select(['source.nomSource', 'source.idsource'])
+//     .innerJoin('source.enquete', 'enquete')
+//     .innerJoin('enquete.projet', 'projet')
+//     .where('projet.idprojet = :idprojet', { idprojet });
+
+//   switch (bdType) {
+//     case 'normales':
+//       queryBuilder.andWhere('source.bd_normales = :value', { value: true });
+//       break;
+//     case 'jointes':
+//       queryBuilder.andWhere('source.bd_jointes = :value', { value: true });
+//       break;
+//     case 'archive':
+//       queryBuilder.andWhere('source.bd_archive = :value', { value: true });
+//       break;
+//     case 'tous':
+//       break;
+//     default:
+//       throw new HttpException(
+//         `Type "${bdType}" non supporté. Utilisez "normales", "jointes", "tous" ou "archive".`,
+//         400
+//       );
+//   }
+
+//   // Appliquer la pagination
+//   const skip = (page - 1) * limit;
+//   queryBuilder.skip(skip).take(limit);
+
+//   // Récupérer les résultats et le total
+//   const [sources, total] = await queryBuilder.getManyAndCount();
+
+//   // Mapper les résultats
+//   const data = sources.map((source) => ({
+//     nomSource: source.nomSource,
+//     idsource: source.idsourceDonnes,
+//   }));
+
+//   return { data, total };
+// }
+
 
 async getBdsByProjetWithFilter(
   idprojet: string,
-  bdType: 'normales' | 'jointes' | 'tous'|'archive'
+  bdType: 'normales' | 'jointes' | 'tous' | 'archive'
 ): Promise<any[]> {
-  // Récupérer toutes les sources du projet
-  const sources = await this.sourcededonneesrepo.find({
-    where: { enquete: { projet: { idprojet } } },
-    relations: ['enquete', 'enquete.projet'], // Charge les relations nécessaires
-  });
+  // Créer un QueryBuilder pour la table sourcededonnees
+  const queryBuilder = this.sourcededonneesrepo.createQueryBuilder('source')
+    .select(['source.nomSource', 'source.idsourceDonnes']) // Sélectionner uniquement les champs nécessaires
+    .innerJoin('source.enquete', 'enquete')
+    .innerJoin('enquete.projet', 'projet')
+    .where('projet.idprojet = :idprojet', { idprojet });
 
-  // Appliquer le filtre en fonction du paramètre `bdType`
-  if (bdType === 'normales' ||"jointes"||"tous"||"archive") {
-    return sources
-      .filter((source) => source.bd_normales)
-      .map((source) => ({
-        nomSource: source.nomSource,
-        idsource:source.idsourceDonnes
-      }));
+  switch (bdType) {
+    case 'normales':
+      queryBuilder.andWhere('source.bd_normales');
+      break;
+    case 'jointes':
+      queryBuilder.andWhere('source.bd_jointes',);
+      break;
+    case 'archive':
+      queryBuilder.andWhere('source.bd_archive = :value', { value: true });
+      break;
+    case 'tous':
+      // Pas de filtre supplémentaire
+      break;
+    default:
+      throw new HttpException(
+        `Type "${bdType}" non supporté. Utilisez "normales", "jointes", "tous" ou "archive".`,
+        400
+      );
   }
 
-  throw new HttpException(`Type "${bdType}" non supporté. Utilisez "normales", "jointes", "tous" ou "archive".`, 800);
+  
+  const sources = await queryBuilder.getMany();
+
+  // Mapper les résultats
+  return sources.map((source) => ({
+    nomSource: source.nomSource,
+    idsource: source.idsourceDonnes, 
+  }));
 }
-
-
 
 
 //get bdByproject where InStudio est true
@@ -1125,7 +1186,7 @@ async modifyCell(
 ): Promise<SourceDonnee> {
   const { nomFeuille, cellule, nouvelleValeur } = body;
 
-// 1️⃣ Récupérer la source de données
+// Récupérer la source de données
   const source = await this.getSourceById(idsourceDonnes);
   const fichier = source.fichier;
 
@@ -1133,7 +1194,7 @@ async modifyCell(
     throw new HttpException("Les données de fichier sont invalides.", 500);
   }
 
-// 2️⃣ Récupérer la feuille directement
+// Récupérer la feuille directement
   const targetSheetName = nomFeuille && nomFeuille.trim() ? nomFeuille : Object.keys(fichier)[0];
   const sheet = fichier[targetSheetName];
 
@@ -1815,7 +1876,6 @@ async getOneConfigurationSource(
       query.andWhere('source.bd_normales IS NOT NULL');
     } else if (bdType === 'jointes') {
       query.andWhere('source.bd_jointes IS NOT NULL');
-      // Similar considerations for JSON emptiness apply here if 'IS NOT NULL' isn't sufficient.
     } else if (bdType !== 'tous') {
      
       throw new BadRequestException(`Type de BD "${bdType}" non supporté. Utilisez "normales", "jointes", ou "tous".`);

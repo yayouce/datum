@@ -62,7 +62,7 @@ export class SourceDonneesController {
 
   @Post('/jointure/:idprojet')
   async joinAndCreateSource2(
-    @Param('idprojet') idprojet: string, // ✅ Récupération depuis l'URL
+    @Param('idprojet') idprojet: string,
     @Body() joinData: JoinSourcesDto
   ) {
     return this.sourceDonneesService.joinSources2(idprojet, joinData);
@@ -275,7 +275,7 @@ async getAllFeuillesFiltrees(
 
     return this.sourceDonneesService.getConfigurationSources(
       projetId,
-      bdTypeToUse, // This will be 'normales', 'jointes', or 'tous'
+      bdTypeToUse, 
       loggedInUser,
     );
   }
@@ -301,7 +301,7 @@ async getAllFeuillesFiltrees(
     return this.sourceDonneesService.getOneConfigurationSource(
       projetId,
       sourceId,
-      bdTypeToUse, // 'normales', 'jointes', or 'tous'
+      bdTypeToUse, // 'normales', 'jointes', ou 'tous'
       loggedInUser,
     );
   }
