@@ -156,47 +156,14 @@ async getGraphByNameAndProject(@Param('name') name: string, @Param('projectId') 
 
 
 
-//   @Post('import-map/:idsource')
-// @UseInterceptors(FileInterceptor('fichier'))
-// async importMapFile(
-//   @Param('idsource') idsource: string,
-//   @Body() importMapFileDto: ImportMapFileDto,
-//   @UploadedFile() file: Express.Multer.File,
-//   @Query('existingGraphId') existingGraphId?: string, // Paramètre de requête facultatif
-// ) {
-//   // Validation de l'extension du fichier
-//   const allowedExtensions = ['.geojson', '.json', '.kml', '.kmz', '.zip'];
-//   const fileExt = '.' + file.originalname.split('.').pop()?.toLowerCase();
-//   if (!allowedExtensions.includes(fileExt)) {
-//     throw new BadRequestException(`Type de fichier non supporté : ${fileExt}. Attendus : ${allowedExtensions.join(', ')}`);
-//   }
-//   if (fileExt === '.zip' && file.mimetype !== 'application/zip') {
-//     console.warn(`Fichier .zip avec mimetype ${file.mimetype} reçu. Attendu application/zip. Traitement tenté.`);
-//   }
-
-//   try {
-//     return await this.graphService.createMapFromFile(idsource, importMapFileDto, file, existingGraphId); // Passer l'ID existant
-//   } catch (error) {
-//     console.error("Erreur contrôleur import-map:", error);
-//     if (error instanceof HttpException) {
-//       throw error;
-//     }
-//     throw new InternalServerErrorException("Erreur serveur lors de l'importation de la carte.");
-//   }
-// }
-@Post('import-map/:idsource')
+  @Post('import-map/:idsource')
 @UseInterceptors(FileInterceptor('fichier'))
 async importMapFile(
   @Param('idsource') idsource: string,
   @Body() importMapFileDto: ImportMapFileDto,
   @UploadedFile() file: Express.Multer.File,
-  @Query('existingGraphId') existingGraphId?: string,
+  @Query('existingGraphId') existingGraphId?: string, // Paramètre de requête facultatif
 ) {
-  // Vérifier si le fichier est défini
-  if (!file) {
-    throw new BadRequestException('Aucun fichier n\'a été téléchargé. Veuillez inclure un fichier avec le champ "fichier".');
-  }
-
   // Validation de l'extension du fichier
   const allowedExtensions = ['.geojson', '.json', '.kml', '.kmz', '.zip'];
   const fileExt = '.' + file.originalname.split('.').pop()?.toLowerCase();
@@ -208,7 +175,7 @@ async importMapFile(
   }
 
   try {
-    return await this.graphService.createMapFromFile(idsource, importMapFileDto, file, existingGraphId);
+    return await this.graphService.createMapFromFile(idsource, importMapFileDto, file, existingGraphId); // Passer l'ID existant
   } catch (error) {
     console.error("Erreur contrôleur import-map:", error);
     if (error instanceof HttpException) {
@@ -217,6 +184,7 @@ async importMapFile(
     throw new InternalServerErrorException("Erreur serveur lors de l'importation de la carte.");
   }
 }
+
 
 
   @UseGuards(JwtAuthGuard) 
