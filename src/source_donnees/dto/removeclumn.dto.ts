@@ -1,4 +1,4 @@
-import { IsOptional, IsString } from "class-validator";
+import { IsArray, IsOptional, IsString } from "class-validator";
 
 export class removeColumnDto {
 
@@ -7,8 +7,7 @@ export class removeColumnDto {
         nomFeuille:string;
 
         @IsOptional()
-        @IsString()
-        nomColonne:string
-    
-    
+        @IsArray()
+        nomColonnes:string[]
+
     }

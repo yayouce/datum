@@ -164,8 +164,6 @@ async getBdsCountByProjet(
     @Param('idsource') idsource:string
   
   ) {
- 
-
     // Appel du service pour modifier une colonne
     return await this.sourceDonneesService.modifyColumn(
       idsource,
@@ -195,7 +193,7 @@ async modifyCell(
 }
 
 
-//masque toggle
+//masque toggle :  masquer une colonne
 @Post('togglecolumns/:idsourceDonnes')
 async toggleColumns(
   @Param('idsourceDonnes') idsourceDonnes: string,
@@ -213,23 +211,32 @@ async getAllFeuillesFiltrees(
 
 
 
-
   //suppression
 
-  @Post('remove-column/:idsource')
-  async removeColumn(
-    @Body() body: removeColumnDto,
-    @Param('idsource') idsource:string
+  // @Post('remove-column/:idsource')
+  // async removeColumn(
+  //   @Body() body: removeColumnDto,
+  //   @Param('idsource') idsource:string
   
-  ) {
+  // ) {
 
-    // Appel du service pour supprimer une colonne
-    return await this.sourceDonneesService.removeColumn(
-      idsource,
-      body
-    );
+  //   // Appel du service pour supprimer une colonne
+  //   return await this.sourceDonneesService.removeColumn(
+  //     idsource,
+  //     body
+  //   );
+  // }
+
+ @UseGuards(JwtAuthGuard) 
+ @Post('remove-column/:idsource')
+  async removeColumns(
+    @Param('idsource') idsource: string,
+    @Body() body: removeColumnDto,
+    @User() user: any, 
+  ): Promise<SourceDonnee> {
+    // Appel du service pour supprimer plusieurs colonnes
+    return await this.sourceDonneesService.removeColumns(idsource, body,user);
   }
-
 
 
 

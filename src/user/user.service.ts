@@ -7,6 +7,7 @@ import { MembreStructService } from 'src/membre-struct/membre-struct.service';
 import * as bcrypt from "bcrypt"
 import { UserRole } from '@/generique/userroleEnum';
 import { MembreStruct } from '@/membre-struct/entities/membre-struct.entity';
+import { SourceDonnee } from '@/source_donnees/entities/source_donnee.entity';
 
 @Injectable()
 export class UserService {
@@ -17,7 +18,10 @@ export class UserService {
       private membreStructService : MembreStructService,
 
         @InjectRepository(MembreStruct)
-      private membrestructrepo: Repository<MembreStruct>
+      private membrestructrepo: Repository<MembreStruct>,
+
+      @InjectRepository(SourceDonnee)
+    private sourcededonneesrepo: Repository<SourceDonnee>,
     ){}
   
   
@@ -277,6 +281,12 @@ export class UserService {
   console.log('[UserService.findby] Success: All users found across both repositories.');
   return allFoundUsers;
 }
+
+
+
+
+
+
 
 
 

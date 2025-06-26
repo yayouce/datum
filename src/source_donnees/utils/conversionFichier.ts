@@ -14,44 +14,85 @@ export function detectFileFormat(url: string): string {
 /**
  *  Convertit un fichier Excel en JSON formaté
  */
+// export function processExcelFile(filePath: string): any {
+//   const workbook = xlsx.readFile(filePath);
+//   const result = {};
+
+//   for (const sheetName of workbook.SheetNames) {
+//     const worksheet = workbook.Sheets[sheetName];
+//     const rows: any[][] = xlsx.utils.sheet_to_json(worksheet, { header: 1 }); // any[][] pour plus de flexibilité
+
+//     const sheetData = { donnees: [], colonnes: [] };
+//     if (rows.length > 0) {
+//       const headers = rows[0] as string[];
+//       const columnCount = headers.length;
+
+//       // Utiliser la nouvelle fonction pour générer les noms de colonnes
+//       sheetData.colonnes = Array.from({ length: columnCount }, (_, j) => getExcelColumnName(j));
+
+//       const headerRow = {};
+//       for (let j = 0; j < columnCount; j++) {
+//         // Utiliser la nouvelle fonction pour les clés
+//         const colKey = `${getExcelColumnName(j)}1`;
+//         headerRow[colKey] = headers[j] || null;
+//       }
+//       sheetData.donnees.push(headerRow);
+
+//       for (let i = 1; i < rows.length; i++) {
+//         const row = rows[i];
+//         const rowData = {};
+
+//         // Assurez-vous que row est bien un tableau, sinon il faut adapter
+//         // Si row[j] n'est pas défini pour toutes les colonnes, on peut avoir des erreurs.
+//         // Il faut s'assurer que row a une valeur pour chaque colonne ou gérer l'absence.
+//         for (let j = 0; j < columnCount; j++) { // Itérer jusqu'à columnCount défini par les headers
+//           // Utiliser la nouvelle fonction pour les clés
+//           const colKey = `${getExcelColumnName(j)}${i + 1}`;
+//           rowData[colKey] = (row && row[j] !== undefined) ? row[j] : null; // Gérer les cellules vides/manquantes
+//         }
+//         sheetData.donnees.push(rowData);
+//       }
+//     }
+//     result[sheetName] = sheetData;
+//   }
+//   return result;
+// }
+
+
+
 export function processExcelFile(filePath: string): any {
   const workbook = xlsx.readFile(filePath);
   const result = {};
 
   for (const sheetName of workbook.SheetNames) {
     const worksheet = workbook.Sheets[sheetName];
-    const rows: any[][] = xlsx.utils.sheet_to_json(worksheet, { header: 1 }); // any[][] pour plus de flexibilité
-
+    // Extraire les données avec les en-têtes automatiques basés sur les colonnes
+    const jsonData:any = xlsx.utils.sheet_to_json(worksheet, { header: 1, blankrows: false });
     const sheetData = { donnees: [], colonnes: [] };
-    if (rows.length > 0) {
-      const headers = rows[0] as string[];
-      const columnCount = headers.length;
 
-      // Utiliser la nouvelle fonction pour générer les noms de colonnes
-      sheetData.colonnes = Array.from({ length: columnCount }, (_, j) => getExcelColumnName(j));
+    if (jsonData.length > 0) {
+      // Déterminer les colonnes à partir de la première ligne (si elle contient des en-têtes)
+      const headers = jsonData[0];
+      sheetData.colonnes = headers.map((_, idx) => getExcelColumnName(idx));
 
-      const headerRow = {};
-      for (let j = 0; j < columnCount; j++) {
-        // Utiliser la nouvelle fonction pour les clés
-        const colKey = `${getExcelColumnName(j)}1`;
-        headerRow[colKey] = headers[j] || null;
-      }
-      sheetData.donnees.push(headerRow);
-
-      for (let i = 1; i < rows.length; i++) {
-        const row = rows[i];
+      // Construire les données avec des clés basées sur les colonnes Excel
+      jsonData.forEach((row:any, rowIdx) => {
         const rowData = {};
-
-        // Assurez-vous que row est bien un tableau, sinon il faut adapter
-        // Si row[j] n'est pas défini pour toutes les colonnes, on peut avoir des erreurs.
-        // Il faut s'assurer que row a une valeur pour chaque colonne ou gérer l'absence.
-        for (let j = 0; j < columnCount; j++) { // Itérer jusqu'à columnCount défini par les headers
-          // Utiliser la nouvelle fonction pour les clés
-          const colKey = `${getExcelColumnName(j)}${i + 1}`;
-          rowData[colKey] = (row && row[j] !== undefined) ? row[j] : null; // Gérer les cellules vides/manquantes
+        if (rowIdx === 0) {
+          // Première ligne : en-têtes (optionnel, si tu veux les garder comme texte)
+          row.forEach((cell, colIdx) => {
+            const colKey = `${getExcelColumnName(colIdx)}${rowIdx + 1}`;
+            rowData[colKey] = cell || null;
+          });
+        } else {
+          // Lignes de données
+          row.forEach((cell, colIdx) => {
+            const colKey = `${getExcelColumnName(colIdx)}${rowIdx + 1}`;
+            rowData[colKey] = cell !== undefined ? cell : null;
+          });
         }
         sheetData.donnees.push(rowData);
-      }
+      });
     }
     result[sheetName] = sheetData;
   }

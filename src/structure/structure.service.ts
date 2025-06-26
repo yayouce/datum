@@ -73,16 +73,38 @@ export class StructureService {
     }
 
    }
-   async getStructureByname(nomStruct:string){
-    try{
-      return await this.structureRepo.findOne({
-        where:{nomStruct}
-      })
+  //  async getStructureByname(nomStruct:string){
+  //   try{
+  //     return await this.structureRepo.findOne({
+  //       where:{nomStruct}
+  //     })
+  //   }
+  //   catch(err){
+  //     throw err
+  //   }
+  //  }
+
+
+   async getStructureByname(nomStruct: string) {
+  try {
+    const structure = await this.structureRepo.findOne({
+      where: { nomStruct, adhesion: true }, // Inclut le filtre adhesion si nécessaire
+    });
+
+    if (!structure) {
+      throw new NotFoundException(`Aucune structure dont l'adhesion est est vrai trouvée avec le nom "${nomStruct}" `);
     }
-    catch(err){
-      throw err
+
+    return structure;
+  } catch (err) {
+    // Si l'erreur est déjà une NotFoundException, la relancer directement
+    if (err instanceof NotFoundException) {
+      throw err;
     }
-   }
+    // Gérer les autres erreurs
+    throw new Error(`Erreur lors de la récupération de la structure : ${err.message}`);
+  }
+}
 
 
    async findAllStruct(){
@@ -103,22 +125,47 @@ export class StructureService {
         throw err;
     }
 }
+// async findAllstructurename() {
+//   try {
+//     const resultat = await this.structureRepo.createQueryBuilder('structure')
+//       .select("structure.nomStruct", "nomstructure")
+//       .where("structure.adhesion = :adhesion", { adhesion: true })
+//       .getRawMany();
 
-
-   async findAllstructurename(){
-    try{
-      const resultat= await this.structureRepo.createQueryBuilder('structure')
-      .select("structure.nomStruct","nomstructure")
-      .getRawMany();
-
-      return  resultat.map(row => row.nomstructure);
-    }
-    catch(err){
-
-    }
-   }
+//     return resultat.map(row => row.nomstructure);
+//   } catch (err) {
+//     // Gérer l'erreur, par exemple :
+//     throw new Error(`Erreur lors de la récupération des structures : ${err.message}`);
+//   }
+// }
 
  
+ async findAllstructurename(user: any): Promise<string[]> {
+  try {
+    // Initialisation du query builder
+    const query = this.structureRepo.createQueryBuilder('structure')
+      .select('structure.nomStruct', 'nomstructure')
+      .where('structure.adhesion = :adhesion', { adhesion: true });
+
+    // Si l'utilisateur est un client, restreindre à sa structure
+    if (user.role === UserRole.Client) {
+      if (!user.nomStruct) {
+        console.warn("findAllStructureName: Rôle client mais nomStruct manquant.");
+        throw new BadRequestException("Informations utilisateur client incomplètes (nomStruct manquant).");
+      }
+      // Ajouter une condition pour limiter à la structure du client
+      query.andWhere('structure.nomStruct = :nomStruct', { nomStruct: user.nomStruct });
+    }
+
+    // Exécuter la requête
+    const resultat = await query.getRawMany();
+
+    // Retourner uniquement les noms des structures
+    return resultat.map(row => row.nomstructure);
+  } catch (err) {
+    throw new Error(`Erreur lors de la récupération des noms de structures : ${err.message}`);
+  }
+}
 
    async mapStructureWithmembers(){
     try{

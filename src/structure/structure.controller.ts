@@ -44,9 +44,12 @@ export class StructureController {
   }
 
 
+  @UseGuards(JwtAuthGuard)
   @Get("find/name")
-  async findAllstructurename(){
-    return await this.structureService.findAllstructurename()
+  async findAllstructurename(
+    @User() user:any
+  ){
+    return await this.structureService.findAllstructurename(user)
   }
 
 

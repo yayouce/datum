@@ -4,6 +4,7 @@ import { TimestampEntites } from "src/generique/timestamp";
 import { TypeGeometrieMap, typegraphiqueEnum } from "@/generique/cartes.enum"; // Assurez-vous que cet enum est à jour
 import { SourceDonnee } from "src/source_donnees/entities/source_donnee.entity";
 import { Column, Entity, JoinColumn, ManyToOne, PrimaryGeneratedColumn } from "typeorm";
+import { boolean } from "mathjs";
 
 // ==================================================================
 // == DEFINITIONS DES TYPES GEOSPATIAUX (AJOUTEES ET EXPORTEES) ==
@@ -115,8 +116,14 @@ ordre:number
  // --- importation en enregistrement en geojson ---
  @Column({ type: 'json', nullable: true })
  geoJsonData: any | null; 
-
+@Column({ type: 'json', nullable: true })
+  importHistory: { importId: string; timestamp: Date; fileName: string }[];
+  @Column({ type: 'boolean', default: false })
+  isHidden: boolean;
 }
+
+
+
 
 
 

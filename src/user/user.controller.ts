@@ -35,9 +35,8 @@ export class UserController {
 
 
 
-  @Post('delete/:idUserToDelete') // ex: DELETE /users/uuid-a-supprimer
+  @Post('delete/:idUserToDelete')
   @UseGuards(JwtAuthGuard)
-  // @HttpCode(HttpStatus.OK) // Ou 204 si vous ne retournez rien
   async deleteUserOrMember(
     @Param('idUserToDelete') idUserToDelete: string,
     @User() currentUser: MembreStruct, // L'utilisateur qui effectue l'action

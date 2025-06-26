@@ -69,7 +69,8 @@ export class SourceDonneesService implements OnModuleInit {
     private fileHandlerService: FileHandlerService,
     private readonly httpService: HttpService,
     private structureservice:StructureService,
-
+  @InjectRepository(UserEntity)
+    private userrepo: Repository<UserEntity>,
     private userservice:UserService,
     @InjectRepository(Projet)
     private readonly projetRepo: Repository<Projet>,
@@ -642,24 +643,88 @@ async refreshSourcesAuto2(): Promise<void> {
             const fichierResultatFusion = {};
 
             const extraireInfosFeuille = (sheetData) => {
-                if (!sheetData?.donnees?.length) {
-                    return { headerNames: [], headerMap: new Map(), dataRows: [], excelColIds: [] };
-                }
-                const headerRowObj = sheetData.donnees[0] || {};
-                const headerMap = new Map(); // Map: "Nom En-tête Réel" -> "Identifiant Colonne Excel (A, B..)"
-                const headerNames = [];
-                const excelColIds = sheetData.colonnes || [];
+  if (!sheetData?.donnees?.length) {
+    return { headerNames: [], headerMap: new Map(), dataRows: [], excelColIds: [] };
+  }
+  const headerRowObj = sheetData.donnees[0] || {};
+  const headerMap = new Map();
+  const headerNames = [];
+  const excelColIds = sheetData.colonnes || [];
 
-                excelColIds.forEach(colId => {
-                    const headerCellKey = `${colId}1`;
-                    if (headerRowObj.hasOwnProperty(headerCellKey) && headerRowObj[headerCellKey] !== null && headerRowObj[headerCellKey] !== undefined) {
-                        const name = String(headerRowObj[headerCellKey]);
-                        headerMap.set(name, colId);
-                        headerNames.push(name);
-                    }
-                });
-                return { headerNames, headerMap, dataRows: sheetData.donnees.slice(1), excelColIds };
-            };
+  excelColIds.forEach((colId, index) => {
+    const headerCellKey = `${colId}1`;
+    if (headerRowObj.hasOwnProperty(headerCellKey) && headerRowObj[headerCellKey] !== null && headerRowObj[headerCellKey] !== undefined) {
+      const name = String(headerRowObj[headerCellKey]); // Garder le nom exact tel quel
+      headerMap.set(name, colId); // Utiliser le nom original comme clé
+      headerNames.push(name); // Utiliser le nom original pour la comparaison
+    }
+  });
+  return { headerNames, headerMap, dataRows: sheetData.donnees.slice(1), excelColIds };
+};
+
+// Dans la boucle de fusion
+for (const sheetName in fichierTelechargeTraite) {
+  if (!fichierTelechargeTraite.hasOwnProperty(sheetName)) continue;
+  this.logger.log(`Début fusion feuille '${sheetName}' pour ${sourceDonnee.nomSource}`);
+
+  const infosNouveau = extraireInfosFeuille(fichierTelechargeTraite[sheetName],);
+  const infosAncien = extraireInfosFeuille(ancienFichierComplet[sheetName] || {}, );
+
+  if (infosNouveau.headerNames.length === 0) {
+    this.logger.warn(`Nouvelle feuille '${sheetName}' est vide ou sans en-têtes. Conservation de l'ancienne si existante.`);
+    fichierResultatFusion[sheetName] = ancienFichierComplet[sheetName] || fichierTelechargeTraite[sheetName];
+    continue;
+  }
+
+  const setNomsEntetesNouveaux = new Set(infosNouveau.headerNames);
+  const setNomsEntetesAnciens = new Set(infosAncien.headerNames);
+
+  // Conserver toutes les colonnes distinctes, même similaires
+  const ordreFinalNomsEntetes = [
+    ...infosNouveau.headerNames, // Toutes les colonnes du nouveau fichier
+    ...infosAncien.headerNames.filter(name => !setNomsEntetesNouveaux.has(name)) // Ajouter celles de l'ancien absentes du nouveau
+  ].filter((value, index, self) => self.indexOf(value) === index); // Éviter les doublons exacts
+
+  const resultatFeuille = { colonnes: [], donnees: [] };
+  const mapNomEnteteFinalVersColIdExcel = new Map();
+  const headerRowFinal = {};
+
+  ordreFinalNomsEntetes.forEach((nomEntete, idx) => {
+    const finalColId = getExcelColumnName(idx);
+    resultatFeuille.colonnes.push(finalColId);
+    headerRowFinal[`${finalColId}1`] = nomEntete; // Garder le nom exact
+    mapNomEnteteFinalVersColIdExcel.set(nomEntete, finalColId);
+  });
+  resultatFeuille.donnees.push(headerRowFinal);
+
+  const nombreLignesDataFinal = Math.max(infosNouveau.dataRows.length, infosAncien.dataRows.length || 0);
+
+  for (let i = 0; i < nombreLignesDataFinal; i++) {
+    const ligneDataCouranteResultat = {};
+    const numLigneExcel = i + 2;
+
+    ordreFinalNomsEntetes.forEach(nomEntete => {
+      const finalColId = mapNomEnteteFinalVersColIdExcel.get(nomEntete);
+      let valeurCellule = null;
+
+      if (setNomsEntetesNouveaux.has(nomEntete)) {
+        const colIdNouveauSrc = infosNouveau.headerMap.get(nomEntete);
+        if (colIdNouveauSrc && infosNouveau.dataRows[i]) {
+          valeurCellule = infosNouveau.dataRows[i][`${colIdNouveauSrc}${numLigneExcel}`];
+        }
+      } else if (setNomsEntetesAnciens.has(nomEntete)) {
+        const colIdAncienSrc = infosAncien.headerMap.get(nomEntete);
+        if (colIdAncienSrc && infosAncien.dataRows[i]) {
+          valeurCellule = infosAncien.dataRows[i][`${colIdAncienSrc}${numLigneExcel}`];
+        }
+      }
+      ligneDataCouranteResultat[`${finalColId}${numLigneExcel}`] = (valeurCellule !== undefined) ? valeurCellule : null;
+    });
+    resultatFeuille.donnees.push(ligneDataCouranteResultat);
+  }
+  fichierResultatFusion[sheetName] = resultatFeuille;
+  this.logger.log(`Fusion feuille '${sheetName}' terminée. ${nombreLignesDataFinal} lignes de données.`);
+}
 
             for (const sheetName in fichierTelechargeTraite) {
                 if (!fichierTelechargeTraite.hasOwnProperty(sheetName)) continue;
@@ -1305,71 +1370,152 @@ async modifyCell(
 
 // suppression
 
-async removeColumn(
-  idsource: string,
-  body: removeColumnDto
-): Promise<SourceDonnee> {
-  const { nomFeuille, nomColonne } = body;
+// async removeColumn(
+//   idsource: string,
+//   body: removeColumnDto
+// ): Promise<SourceDonnee> {
+//   const { nomFeuille, nomColonne } = body;
 
-  // Étape 1 : Récupérer la source de données
-  const source = await this.getSourceById(idsource);
-  const fichier = source.fichier;
+//   // Étape 1 : Récupérer la source de données
+//   const source = await this.getSourceById(idsource);
+//   const fichier = source.fichier;
 
-  // Étape 2 : Récupérer la feuille ou la première feuille par défaut
-  const sheet = getSheetOrDefault(fichier, nomFeuille);
+//   // Étape 2 : Récupérer la feuille ou la première feuille par défaut
+//   const sheet = getSheetOrDefault(fichier, nomFeuille);
 
-  // Vérifier si la feuille est valide
-  if (!sheet?.donnees || sheet.donnees.length === 0) {
-    throw new HttpException(
-      `La feuille spécifiée est vide ou mal initialisée.`,
-      806
-    );
+//   // Vérifier si la feuille est valide
+//   if (!sheet?.donnees || sheet.donnees.length === 0) {
+//     throw new HttpException(
+//       `La feuille spécifiée est vide ou mal initialisée.`,
+//       806
+//     );
+//   }
+
+//   // Étape 3 : Identifier la lettre de la colonne
+//   const columnLetter = nomColonne.replace(/\d/g, ''); // Extraire la lettre de colonne
+//   if (!sheet.colonnes.includes(columnLetter)) {
+//     throw new HttpException(`La colonne référencée "${nomColonne}" n'existe pas.`, 803);
+//   }
+
+//   // Étape 4 : Supprimer l'entête et les données associées
+//   const headers = sheet.donnees[0]; // Première ligne contient les entêtes
+//   const headerKey = Object.keys(headers).find((key) =>
+//     key.startsWith(columnLetter)
+//   );
+//   if (!headerKey) {
+//     throw new HttpException(
+//       `Impossible de trouver l'entête correspondant à "${nomColonne}".`,
+//       803
+//     );
+//   }
+
+//   delete headers[headerKey]; // Supprimer l'entête
+//   sheet.donnees.slice(1).forEach((row, index) => {
+//     delete row[`${columnLetter}${index + 2}`]; // Supprimer les données ligne par ligne
+//   });
+
+//   // Mettre à jour la liste des colonnes
+//   sheet.colonnes = sheet.colonnes.filter((col) => col !== columnLetter);
+
+//   // Étape 5 : Sauvegarder les modifications
+//   if (Array.isArray(fichier)) {
+//     const sheetIndex = fichier.findIndex(
+//       (sheetObj) => sheetObj[nomFeuille || Object.keys(sheetObj)[0]]
+//     );
+//     if (sheetIndex >= 0) {
+//       fichier[sheetIndex][nomFeuille || Object.keys(fichier[sheetIndex])[0]] =
+//         sheet;
+//     }
+//   } else {
+//     fichier[nomFeuille || Object.keys(fichier)[0]] = sheet;
+//   }
+
+//   source.fichier = fichier;
+
+//   return await this.sourcededonneesrepo.save(source);
+// }
+
+
+
+async removeColumns(idsource: string, body: removeColumnDto,user:any): Promise<SourceDonnee> {
+    const { nomFeuille, nomColonnes } = body;
+
+     if (user.role === UserRole.Client) {
+    throw new HttpException("Seul le superAdmin peut supprimer des colonnes", 701);
   }
-
-  // Étape 3 : Identifier la lettre de la colonne
-  const columnLetter = nomColonne.replace(/\d/g, ''); // Extraire la lettre de colonne
-  if (!sheet.colonnes.includes(columnLetter)) {
-    throw new HttpException(`La colonne référencée "${nomColonne}" n'existe pas.`, 803);
-  }
-
-  // Étape 4 : Supprimer l'entête et les données associées
-  const headers = sheet.donnees[0]; // Première ligne contient les entêtes
-  const headerKey = Object.keys(headers).find((key) =>
-    key.startsWith(columnLetter)
-  );
-  if (!headerKey) {
-    throw new HttpException(
-      `Impossible de trouver l'entête correspondant à "${nomColonne}".`,
-      803
-    );
-  }
-
-  delete headers[headerKey]; // Supprimer l'entête
-  sheet.donnees.slice(1).forEach((row, index) => {
-    delete row[`${columnLetter}${index + 2}`]; // Supprimer les données ligne par ligne
-  });
-
-  // Mettre à jour la liste des colonnes
-  sheet.colonnes = sheet.colonnes.filter((col) => col !== columnLetter);
-
-  // Étape 5 : Sauvegarder les modifications
-  if (Array.isArray(fichier)) {
-    const sheetIndex = fichier.findIndex(
-      (sheetObj) => sheetObj[nomFeuille || Object.keys(sheetObj)[0]]
-    );
-    if (sheetIndex >= 0) {
-      fichier[sheetIndex][nomFeuille || Object.keys(fichier[sheetIndex])[0]] =
-        sheet;
+    // Vérifier que la liste des colonnes n'est pas vide
+    if (!nomColonnes || nomColonnes.length === 0) {
+      throw new HttpException('Aucune colonne spécifiée pour la suppression.', 702);
     }
-  } else {
-    fichier[nomFeuille || Object.keys(fichier)[0]] = sheet;
+
+    // Étape 1 : Récupérer la source de données
+    const source = await this.getSourceById(idsource);
+    const fichier = source.fichier;
+
+    // Étape 2 : Récupérer la feuille ou la première feuille par défaut
+    const sheet = getSheetOrDefault(fichier, nomFeuille);
+
+    // Vérifier si la feuille est valide
+    if (!sheet?.donnees || sheet.donnees.length === 0) {
+      throw new HttpException(
+        `La feuille spécifiée est vide ou mal initialisée.`,
+        806
+      );
+    }
+
+    // Étape 3 : Identifier les colonnes à supprimer et vérifier leur existence
+    const notFoundColumns: string[] = [];
+    const headers = sheet.donnees[0]; // Première ligne contient les entêtes
+    const columnLetters: string[] = [];
+
+    for (const nomColonne of nomColonnes) {
+      const columnLetter = nomColonne.replace(/\d/g, ''); // Extraire la lettre de colonne
+      if (!sheet.colonnes.includes(columnLetter)) {
+        notFoundColumns.push(nomColonne);
+        continue;
+      }
+      columnLetters.push(columnLetter);
+    }
+
+    if (notFoundColumns.length > 0) {
+      throw new HttpException(
+        `Les colonnes suivantes sont introuvables : ${notFoundColumns.join(', ')}`,
+        803
+      );
+    }
+
+    // Étape 4 : Supprimer les entêtes et les données associées pour chaque colonne
+    for (const columnLetter of columnLetters) {
+      const headerKey = Object.keys(headers).find((key) =>
+        key.startsWith(columnLetter)
+      );
+      if (headerKey) {
+        delete headers[headerKey]; // Supprimer l'entête
+        sheet.donnees.slice(1).forEach((row, index) => {
+          delete row[`${columnLetter}${index + 2}`]; // Supprimer les données ligne par ligne
+        });
+      }
+    }
+
+    // Mettre à jour la liste des colonnes
+    sheet.colonnes = sheet.colonnes.filter((col) => !columnLetters.includes(col));
+
+    // Étape 5 : Sauvegarder les modifications
+    if (Array.isArray(fichier)) {
+      const sheetIndex = fichier.findIndex(
+        (sheetObj) => sheetObj[nomFeuille || Object.keys(sheetObj)[0]]
+      );
+      if (sheetIndex >= 0) {
+        fichier[sheetIndex][nomFeuille || Object.keys(fichier[sheetIndex])[0]] = sheet;
+      }
+    } else {
+      fichier[nomFeuille || Object.keys(fichier)[0]] = sheet;
+    }
+
+    source.fichier = fichier;
+
+    return await this.sourcededonneesrepo.save(source);
   }
-
-  source.fichier = fichier;
-
-  return await this.sourcededonneesrepo.save(source);
-}
-
 
 
 
@@ -1736,148 +1882,693 @@ async findoneById(id: string): Promise<SourceDonnee> { // Assurez-vous que cette
 
 
 
+
+
+
+// async getOneConfigurationSource(
+//     projetId: string,
+//     sourceId: string,
+//     bdType: 'normales' | 'jointes' | 'tous',
+//     loggedInUser: MembreStruct,
+//   ): Promise<any> {
+//     console.log(`[getOneConfigurationSource] START - ProjetID: ${projetId}, SourceID: ${sourceId}, BdType: ${bdType}`);
+
+//     const projetExists = await this.projetRepo.findOneBy({ idprojet: projetId });
+//     if (!projetExists) {
+//       throw new NotFoundException(`Projet with ID ${projetId} not found.`);
+//     }
+
+//     const query = this.sourcededonneesrepo
+//       .createQueryBuilder('source')
+//       .innerJoin('source.enquete', 'enqueteFilter')
+//       .innerJoin('enqueteFilter.projet', 'projetFilter', 'projetFilter.idprojet = :projetId', { projetId })
+//       .leftJoinAndSelect('source.enquete', 'enqueteDetails')
+//       .leftJoinAndSelect('enqueteDetails.projet', 'projetDetails')
+//       .leftJoinAndSelect('projetDetails.structure', 'structure')
+//       .leftJoinAndSelect('structure.membres', 'structureMembres')
+//       .where('source.idsourceDonnes = :sourceId', { sourceId });
+
+//     if (bdType === 'normales') {
+//       query.andWhere('source.bd_normales IS NOT NULL');
+//     } else if (bdType === 'jointes') {
+//       query.andWhere('source.bd_jointes IS NOT NULL');
+//     } else if (bdType !== 'tous') {
+//       throw new BadRequestException(`Type de BD "${bdType}" non supporté. Utilisez "normales", "jointes", ou "tous".`);
+//     }
+
+//     const source = await query.getOne();
+//     if (!source) {
+//       throw new NotFoundException(`Aucune source trouvée avec l'ID ${sourceId} pour le projet ${projetId}`);
+//     }
+
+//     // Traitement des autorisations
+//     const allUserIdsFromAutorisations = new Set<string>();
+//     if (source.autorisations) {
+//       (Object.keys(source.autorisations) as Array<keyof AutorisationsSourceDonnee>).forEach(key => {
+//         const ids = source.autorisations![key];
+//         if (Array.isArray(ids)) {
+//           ids.forEach(uid => allUserIdsFromAutorisations.add(uid));
+//         }
+//       });
+//     }
+
+//     let usersFromAutorisationsMap: Map<string, UserEntity> = new Map();
+//     let modified = false;
+//     if (allUserIdsFromAutorisations.size > 0) {
+//       try {
+//         const userDetailsArray = await this.userservice.findby(Array.from(allUserIdsFromAutorisations));
+//         userDetailsArray.forEach(user => {
+//           if (user && user.iduser) {
+//             usersFromAutorisationsMap.set(user.iduser, user);
+//           }
+//         });
+//       } catch (error) {
+//         console.warn(`[getOneConfigurationSource] Certains utilisateurs non trouvés : ${error.message}`);
+//         // Extraire les IDs introuvables de l'erreur
+//         const errorMessage = error.message || '';
+//         const missingIdsMatch = errorMessage.match(/Users not found: ([\w-, ]+)/);
+//         if (missingIdsMatch) {
+//           const missingIds = missingIdsMatch[1].split(', ');
+//           // Supprimer les IDs introuvables des autorisations
+//           if (source.autorisations) {
+//             (Object.keys(source.autorisations) as Array<keyof AutorisationsSourceDonnee>).forEach(key => {
+//               if (Array.isArray(source.autorisations![key])) {
+//                 const initialLength = source.autorisations![key].length;
+//                 source.autorisations![key] = source.autorisations![key].filter(id => !missingIds.includes(id));
+//                 if (source.autorisations![key].length !== initialLength) {
+//                   modified = true;
+//                 }
+//               }
+//             });
+//             // Sauvegarder la source si des modifications ont été faites
+//             if (modified) {
+//               console.log(`[getOneConfigurationSource] Mise à jour des autorisations pour la source ${source.idsourceDonnes}`);
+//               await this.sourcededonneesrepo.save(source);
+//             }
+//           }
+//         }
+//         // Continuer le traitement même en cas d'erreur
+//       }
+//     }
+
+//     const structureEntity = source.enquete?.projet?.structure;
+//     const membresDeStructure: MembreStruct[] = structureEntity?.membres ?? [];
+
+//     const usersDeStructure = membresDeStructure.map((m) => ({
+//       user: m.iduser,
+//       username: `${m.name || ''} ${m.firstname || ''}`.trim(),
+//       role: m.roleMembre,
+//     }));
+
+//     const formatAutorisationsPourOptionB = (type: keyof AutorisationsSourceDonnee) => {
+//       const idsFromSourceAuth = source.autorisations?.[type] ?? [];
+//       return idsFromSourceAuth
+//         .map(userId => {
+//           const userDetail = usersFromAutorisationsMap.get(userId);
+//           if (userDetail) {
+//             const structureMemberInfo = usersDeStructure.find(sm => sm.user === userDetail.iduser);
+//             const roleToDisplay = structureMemberInfo
+//               ? structureMemberInfo.role
+//               : (userDetail as any).roleMembre || (userDetail as any).role || null;
+
+//             return {
+//               user: userDetail.iduser,
+//               username: `${userDetail.name || ''} ${userDetail.firstname || ''}`.trim(),
+//               role: roleToDisplay,
+//             };
+//           }
+//           return null;
+//         })
+//         .filter(user => user !== null);
+//     };
+
+//     const result = {
+//       id: source.idsourceDonnes,
+//       nombd: source.nomSource,
+//       users: usersDeStructure,
+//       autorisation: {
+//         modifier: formatAutorisationsPourOptionB('modifier'),
+//         visualiser: formatAutorisationsPourOptionB('visualiser'),
+//         telecharger: formatAutorisationsPourOptionB('telecharger'),
+//       },
+//     };
+
+//     return result;
+//   }
+
+
+// async getOneConfigurationSource(
+//     projetId: string,
+//     sourceId: string,
+//     bdType: 'normales' | 'jointes' | 'tous',
+//     loggedInUser: MembreStruct,
+//   ): Promise<any> {
+//     console.log(`[getOneConfigurationSource] START - ProjetID: ${projetId}, SourceID: ${sourceId}, BdType: ${bdType}`);
+
+//     // 1. Verify project existence
+//     const projetExists = await this.projetRepo.findOneBy({ idprojet: projetId });
+//     if (!projetExists) {
+//       throw new NotFoundException(`Projet with ID ${projetId} not found.`);
+//     }
+
+//     // 2. Fetch SuperAdmin
+//     const superAdmin = await this.userrepo.findOne({ where: { role: UserRole.SuperAdmin } });
+//     if (!superAdmin) {
+//       console.warn('[getOneConfigurationSource] No SuperAdmin found in the database.');
+//     }
+
+//     // 3. Build the query for the source
+//     const query = this.sourcededonneesrepo
+//       .createQueryBuilder('source')
+//       .innerJoin('source.enquete', 'enqueteFilter')
+//       .innerJoin('enqueteFilter.projet', 'projetFilter', 'projetFilter.idprojet = :projetId', { projetId })
+//       .leftJoinAndSelect('source.enquete', 'enqueteDetails')
+//       .leftJoinAndSelect('enqueteDetails.projet', 'projetDetails')
+//       .leftJoinAndSelect('projetDetails.structure', 'structure')
+//       .leftJoinAndSelect('structure.membres', 'structureMembres')
+//       .where('source.idsourceDonnes = :sourceId', { sourceId });
+
+//     if (bdType === 'normales') {
+//       query.andWhere('source.bd_normales IS NOT NULL');
+//     } else if (bdType === 'jointes') {
+//       query.andWhere('source.bd_jointes IS NOT NULL');
+//     } else if (bdType !== 'tous') {
+//       throw new BadRequestException(`Type de BD "${bdType}" non supporté. Utilisez "normales", "jointes", ou "tous".`);
+//     }
+
+//     const source = await query.getOne();
+//     if (!source) {
+//       throw new NotFoundException(`Aucune source trouvée avec l'ID ${sourceId} pour le projet ${projetId}`);
+//     }
+
+//     // 4. Collect user IDs from autorisations
+//     const allUserIdsFromAutorisations = new Set<string>();
+//     if (source.autorisations) {
+//       (Object.keys(source.autorisations) as Array<keyof AutorisationsSourceDonnee>).forEach(key => {
+//         const ids = source.autorisations![key];
+//         if (Array.isArray(ids)) {
+//           ids.forEach(uid => allUserIdsFromAutorisations.add(uid));
+//         }
+//       });
+//     }
+
+//     // 5. Fetch user details and handle missing IDs
+//     let usersFromAutorisationsMap: Map<string, UserEntity> = new Map();
+//     if (allUserIdsFromAutorisations.size > 0) {
+//       try {
+//         const userDetailsArray = await this.userservice.findby(Array.from(allUserIdsFromAutorisations));
+//         userDetailsArray.forEach(user => {
+//           if (user && user.iduser) {
+//             usersFromAutorisationsMap.set(user.iduser, user);
+//           }
+//         });
+//       } catch (error) {
+//         console.warn(`[getOneConfigurationSource] Certains utilisateurs non trouvés : ${error.message}`);
+//         // Continue without throwing to avoid breaking the response
+//       }
+//     }
+
+//     // 6. Build users array, including SuperAdmin
+//     const structureEntity = source.enquete?.projet?.structure;
+//     const membresDeStructure: MembreStruct[] = structureEntity?.membres ?? [];
+
+//     const usersDeStructure = membresDeStructure.map((m) => ({
+//       user: m.iduser,
+//       username: `${m.name || ''} ${m.firstname || ''}`.trim(),
+//       role: m.roleMembre,
+//     }));
+
+//     // Add SuperAdmin to users if not already included
+//     if (superAdmin && !usersDeStructure.some(u => u.user === superAdmin.iduser)) {
+//       usersDeStructure.push({
+//         user: superAdmin.iduser,
+//         username: `${superAdmin.name || ''} ${superAdmin.firstname || ''}`.trim(),
+//         role: UserRole.SuperAdmin,
+//       });
+//     }
+
+//     const formatAutorisationsPourOptionB = (type: keyof AutorisationsSourceDonnee) => {
+//       const idsFromSourceAuth = source.autorisations?.[type] ?? [];
+//       return idsFromSourceAuth
+//         .map(userId => {
+//           const userDetail = usersFromAutorisationsMap.get(userId) || (userId === superAdmin?.iduser ? superAdmin : null);
+//           if (userDetail) {
+//             const structureMemberInfo = usersDeStructure.find(sm => sm.user === userDetail.iduser);
+//             const roleToDisplay = structureMemberInfo
+//               ? structureMemberInfo.role
+//               : (userDetail as any).roleMembre || (userDetail as any).role || null;
+
+//             return {
+//               user: userDetail.iduser,
+//               username: `${userDetail.name || ''} ${userDetail.firstname || ''}`.trim(),
+//               role: roleToDisplay,
+//             };
+//           }
+//           return null;
+//         })
+//         .filter(user => user !== null);
+//     };
+
+//     const result = {
+//       id: source.idsourceDonnes,
+//       nombd: source.nomSource,
+//       users: usersDeStructure,
+//       autorisation: {
+//         modifier: formatAutorisationsPourOptionB('modifier'),
+//         visualiser: formatAutorisationsPourOptionB('visualiser'),
+//         telecharger: formatAutorisationsPourOptionB('telecharger'),
+//       },
+//     };
+
+//     console.log(`[getOneConfigurationSource] END - Returning processed source for ProjetID: ${projetId}, SourceID: ${sourceId}`);
+//     return result;
+//   }
+
+
+//   async getConfigurationSources(
+//     projetId: string,
+//     bdType: 'normales' | 'jointes' | 'tous',
+//     loggedInUser: MembreStruct, // Still present, potentially for future authorization logic
+//   ): Promise<any[]> {
+//     console.log(`[getConfigurationSources] START - ProjetID: ${projetId}, BdType: ${bdType}`);
+
+//     // Verify project existence
+//     const projetExists = await this.projetRepo.findOneBy({ idprojet: projetId }); // Adjust 'idprojet' if PK name is different
+//     if (!projetExists) {
+//       throw new NotFoundException(`Projet with ID ${projetId} not found.`);
+//     }
+
+//     // 1. Build the initial query for sources
+//     const query = this.sourcededonneesrepo
+//       .createQueryBuilder('source')
+//       // Join to filter by project ID. 'projetRel' is used for the join condition.
+//       .innerJoin('source.enquete', 'enqueteFilter') 
+//       .innerJoin('enqueteFilter.projet', 'projetFilter', 'projetFilter.idprojet = :projetId', { projetId })
+//       .leftJoinAndSelect('source.enquete', 'enqueteDetails')
+//       .leftJoinAndSelect('enqueteDetails.projet', 'projetDetails') // This will be the same project as projetFilter
+//       .leftJoinAndSelect('projetDetails.structure', 'structure')
+//       .leftJoinAndSelect('structure.membres', 'structureMembres');
+
+//     // Add conditions for bdType
+//     if (bdType === 'normales') {
+//       query.andWhere('source.bd_normales IS NOT NULL');
+//     } else if (bdType === 'jointes') {
+//       query.andWhere('source.bd_jointes IS NOT NULL');
+//     } else if (bdType !== 'tous') {
+     
+//       throw new BadRequestException(`Type de BD "${bdType}" non supporté. Utilisez "normales", "jointes", ou "tous".`);
+//     }
+
+//     const sources = await query.getMany();
+
+//     if (sources.length === 0) {
+//       console.log(`[getConfigurationSources] No sources found for ProjetID: ${projetId} and BdType: ${bdType}. Returning empty array.`);
+//       return [];
+//     }
+//     console.log(`[getConfigurationSources] Fetched ${sources.length} sources for ProjetID: ${projetId}, BdType: ${bdType}.`);
+
+//     // 2. Collect all unique user IDs from all source.autorisations (for the filtered sources)
+//     const allUserIdsFromAutorisations = new Set<string>();
+//     sources.forEach(source => {
+//       if (source.autorisations) {
+//         // Iterate over known keys of AutorisationsSourceDonnee
+//         (Object.keys(source.autorisations) as Array<keyof AutorisationsSourceDonnee>).forEach(key => {
+//           const userIdsForPermission = source.autorisations![key];
+//           if (userIdsForPermission && Array.isArray(userIdsForPermission)) {
+//             userIdsForPermission.forEach(userId => allUserIdsFromAutorisations.add(userId));
+//           }
+//         });
+//       }
+//     });
+
+//     // 3. Fetch details for all these users in one batch
+//     let usersFromAutorisationsMap: Map<string, UserEntity> = new Map();
+//     if (allUserIdsFromAutorisations.size > 0) {
+//       const userDetailsArray = await this.userservice.findby(Array.from(allUserIdsFromAutorisations));
+//       userDetailsArray.forEach(user => {
+//         // Ensure user and user.iduser are valid before adding to map
+//         if (user && user.iduser) {
+//             usersFromAutorisationsMap.set(user.iduser, user);
+//         }
+//       });
+//     }
+
+//     // 4. Mapper les sources to the desired output format
+//     const result = sources.map((source) => {
+//       // Get members of the current source's structure
+//       // The path source.enquete.projet.structure should be valid due to the leftJoinAndSelect strategy
+//       const structureEntity = source.enquete?.projet?.structure;
+//       const membresDeStructure: MembreStruct[] = structureEntity?.membres ?? [];
+      
+//       const usersDeStructure = membresDeStructure.map((m) => ({
+//         user: m.iduser,
+//         username: `${m.name || ''} ${m.firstname || ''}`.trim(), // Handle potential null/undefined names
+//         role: m.roleMembre,
+//       }));
+
+// // Function to format the 'autorisation' part based on Option B
+//       const formatAutorisationsPourOptionB = (type: keyof AutorisationsSourceDonnee) => {
+//         const idsFromSourceAuth = source.autorisations?.[type] ?? [];
+//         return idsFromSourceAuth
+//           .map(userId => {
+//             const userDetail = usersFromAutorisationsMap.get(userId);
+//             if (userDetail) {
+//               // Attempt to find if this user is also a structure member to get their specific roleMembre
+//               const structureMemberInfo = usersDeStructure.find(sm => sm.user === userDetail.iduser);
+//               // Prioritize roleMembre if they are a structure member, otherwise use a general role from UserEntity if available
+//               const roleToDisplay = structureMemberInfo 
+//                                     ? structureMemberInfo.role 
+//                                     : (userDetail as any).roleMembre || (userDetail as any).role || null; 
+
+//               return {
+//                 user: userDetail.iduser,
+//                 username: `${userDetail.name || ''} ${userDetail.firstname || ''}`.trim(),
+//                 role: roleToDisplay,
+//               };
+//             }
+//             return null; // User ID was in autorisations but no details found (e.g., deleted user)
+//           })
+//           .filter(user => user !== null); // Remove nulls for users not found
+//       };
+
+//       return {
+//         id: source.idsourceDonnes,
+//         nombd: source.nomSource,
+//         users: usersDeStructure, // Users from the source's specific structure
+//         autorisation: { // Users specifically granted permission in source.autorisations (globally fetched)
+//           modifier: formatAutorisationsPourOptionB('modifier'),
+//           visualiser: formatAutorisationsPourOptionB('visualiser'),
+//           telecharger: formatAutorisationsPourOptionB('telecharger'),
+//         },
+//       };
+//     });
+
+//     // console.log(`[getConfigurationSources] END - Returning ${result.length} processed sources for ProjetID: ${projetId}, BdType: ${bdType}`);
+//     return result;
+//   }
+
+
+
+// async getConfigurationSources(
+//     projetId: string,
+//     bdType: 'normales' | 'jointes' | 'tous',
+//     loggedInUser: MembreStruct,
+//   ): Promise<any[]> {
+//     console.log(`[getConfigurationSources] START - ProjetID: ${projetId}, BdType: ${bdType}`);
+
+//     // 1. Verify project existence
+//     const projetExists = await this.projetRepo.findOneBy({ idprojet: projetId });
+//     if (!projetExists) {
+//       throw new NotFoundException(`Projet with ID ${projetId} not found.`);
+//     }
+
+//     // 2. Fetch SuperAdmin
+//     const superAdmin = await this.userrepo.findOne({ where: { role: UserRole.SuperAdmin } });
+//     if (!superAdmin) {
+//       console.warn('[getConfigurationSources] No SuperAdmin found in the database.');
+//     }
+
+//     // 3. Build the query for sources
+//     const query = this.sourcededonneesrepo
+//       .createQueryBuilder('source')
+//       .innerJoin('source.enquete', 'enqueteFilter')
+//       .innerJoin('enqueteFilter.projet', 'projetFilter', 'projetFilter.idprojet = :projetId', { projetId })
+//       .leftJoinAndSelect('source.enquete', 'enqueteDetails')
+//       .leftJoinAndSelect('enqueteDetails.projet', 'projetDetails')
+//       .leftJoinAndSelect('projetDetails.structure', 'structure')
+//       .leftJoinAndSelect('structure.membres', 'structureMembres');
+
+//     if (bdType === 'normales') {
+//       query.andWhere('source.bd_normales IS NOT NULL');
+//     } else if (bdType === 'jointes') {
+//       query.andWhere('source.bd_jointes IS NOT NULL');
+//     } else if (bdType !== 'tous') {
+//       throw new BadRequestException(`Type de BD "${bdType}" non supporté. Utilisez "normales", "jointes", ou "tous".`);
+//     }
+
+//     const sources = await query.getMany();
+
+//     if (sources.length === 0) {
+//       console.log(`[getConfigurationSources] No sources found for ProjetID: ${projetId} and BdType: ${bdType}. Returning empty array.`);
+//       return [];
+//     }
+//     console.log(`[getConfigurationSources] Fetched ${sources.length} sources for ProjetID: ${projetId}, BdType: ${bdType}.`);
+
+//     // 4. Collect all unique user IDs from autorisations
+//     const allUserIdsFromAutorisations = new Set<string>();
+//     sources.forEach(source => {
+//       if (source.autorisations) {
+//         (Object.keys(source.autorisations) as Array<keyof AutorisationsSourceDonnee>).forEach(key => {
+//           const userIdsForPermission = source.autorisations![key];
+//           if (userIdsForPermission && Array.isArray(userIdsForPermission)) {
+//             userIdsForPermission.forEach(userId => allUserIdsFromAutorisations.add(userId));
+//           }
+//         });
+//       }
+//     });
+
+//     // 5. Fetch user details and handle missing IDs
+//     let usersFromAutorisationsMap: Map<string, UserEntity> = new Map();
+//     if (allUserIdsFromAutorisations.size > 0) {
+//       try {
+//         const userDetailsArray = await this.userservice.findby(Array.from(allUserIdsFromAutorisations));
+//         userDetailsArray.forEach(user => {
+//           if (user && user.iduser) {
+//             usersFromAutorisationsMap.set(user.iduser, user);
+//           }
+//         });
+//       } catch (error) {
+//         console.warn(`[getConfigurationSources] Certains utilisateurs non trouvés : ${error.message}`);
+//         // Continue without throwing to avoid breaking the response
+//       }
+//     }
+
+//     // 6. Map sources to the desired output format
+//     const result = sources.map((source) => {
+//       const structureEntity = source.enquete?.projet?.structure;
+//       const membresDeStructure: MembreStruct[] = structureEntity?.membres ?? [];
+
+//       const usersDeStructure = membresDeStructure.map((m) => ({
+//         user: m.iduser,
+//         username: `${m.name || ''} ${m.firstname || ''}`.trim(),
+//         role: m.roleMembre,
+//       }));
+
+//       // Add SuperAdmin to users if not already included
+//       if (superAdmin && !usersDeStructure.some(u => u.user === superAdmin.iduser)) {
+//         usersDeStructure.push({
+//           user: superAdmin.iduser,
+//           username: `${superAdmin.name || ''} ${superAdmin.firstname || ''}`.trim(),
+//           role: UserRole.SuperAdmin,
+//         });
+//       }
+
+//       const formatAutorisationsPourOptionB = (type: keyof AutorisationsSourceDonnee) => {
+//         const idsFromSourceAuth = source.autorisations?.[type] ?? [];
+//         return idsFromSourceAuth
+//           .map(userId => {
+//             const userDetail = usersFromAutorisationsMap.get(userId) || (userId === superAdmin?.iduser ? superAdmin : null);
+//             if (userDetail) {
+//               const structureMemberInfo = usersDeStructure.find(sm => sm.user === userDetail.iduser);
+//               const roleToDisplay = structureMemberInfo
+//                 ? structureMemberInfo.role
+//                 : (userDetail as any).roleMembre || (userDetail as any).role || null;
+
+//               return {
+//                 user: userDetail.iduser,
+//                 username: `${userDetail.name || ''} ${userDetail.firstname || ''}`.trim(),
+//                 role: roleToDisplay,
+//               };
+//             }
+//             return null;
+//           })
+//           .filter(user => user !== null);
+//       };
+
+//       return {
+//         id: source.idsourceDonnes,
+//         nombd: source.nomSource,
+//         users: usersDeStructure,
+//         autorisation: {
+//           modifier: formatAutorisationsPourOptionB('modifier'),
+//           visualiser: formatAutorisationsPourOptionB('visualiser'),
+//           telecharger: formatAutorisationsPourOptionB('telecharger'),
+//         },
+//       };
+//     });
+
+//     console.log(`[getConfigurationSources] END - Returning ${result.length} processed sources for ProjetID: ${projetId}, BdType: ${bdType}`);
+//     return result;
+//   }
+
 async getOneConfigurationSource(
-  projetId: string,
-  sourceId: string,
-  bdType: 'normales' | 'jointes' | 'tous',
-  loggedInUser: MembreStruct,
-): Promise<any> {
-  console.log(`[getOneConfigurationSource] START - ProjetID: ${projetId}, SourceID: ${sourceId}, BdType: ${bdType}`);
-
-  const projetExists = await this.projetRepo.findOneBy({ idprojet: projetId });
-  if (!projetExists) {
-    throw new NotFoundException(`Projet with ID ${projetId} not found.`);
-  }
-
-  const query = this.sourcededonneesrepo
-    .createQueryBuilder('source')
-    .innerJoin('source.enquete', 'enqueteFilter')
-    .innerJoin('enqueteFilter.projet', 'projetFilter', 'projetFilter.idprojet = :projetId', { projetId })
-    .leftJoinAndSelect('source.enquete', 'enqueteDetails')
-    .leftJoinAndSelect('enqueteDetails.projet', 'projetDetails')
-    .leftJoinAndSelect('projetDetails.structure', 'structure')
-    .leftJoinAndSelect('structure.membres', 'structureMembres')
-    .where('source.idsourceDonnes = :sourceId', { sourceId });
-
-  if (bdType === 'normales') {
-    query.andWhere('source.bd_normales IS NOT NULL');
-  } else if (bdType === 'jointes') {
-    query.andWhere('source.bd_jointes IS NOT NULL');
-  } else if (bdType !== 'tous') {
-    throw new BadRequestException(`Type de BD "${bdType}" non supporté. Utilisez "normales", "jointes", ou "tous".`);
-  }
-
-  const source = await query.getOne();
-  if (!source) {
-    throw new NotFoundException(`Aucune source trouvée avec l'ID ${sourceId} pour le projet ${projetId}`);
-  }
-
-  // Traitement des autorisations
-  const allUserIdsFromAutorisations = new Set<string>();
-  if (source.autorisations) {
-    (Object.keys(source.autorisations) as Array<keyof AutorisationsSourceDonnee>).forEach(key => {
-      const ids = source.autorisations![key];
-      if (Array.isArray(ids)) {
-        ids.forEach(uid => allUserIdsFromAutorisations.add(uid));
-      }
-    });
-  }
-
-  let usersFromAutorisationsMap: Map<string, UserEntity> = new Map();
-  if (allUserIdsFromAutorisations.size > 0) {
-    const userDetailsArray = await this.userservice.findby(Array.from(allUserIdsFromAutorisations));
-    userDetailsArray.forEach(user => {
-      if (user && user.iduser) {
-        usersFromAutorisationsMap.set(user.iduser, user);
-      }
-    });
-  }
-
-  const structureEntity = source.enquete?.projet?.structure;
-  const membresDeStructure: MembreStruct[] = structureEntity?.membres ?? [];
-
-  const usersDeStructure = membresDeStructure.map((m) => ({
-    user: m.iduser,
-    username: `${m.name || ''} ${m.firstname || ''}`.trim(),
-    role: m.roleMembre,
-  }));
-
-  const formatAutorisationsPourOptionB = (type: keyof AutorisationsSourceDonnee) => {
-    const idsFromSourceAuth = source.autorisations?.[type] ?? [];
-    return idsFromSourceAuth
-      .map(userId => {
-        const userDetail = usersFromAutorisationsMap.get(userId);
-        if (userDetail) {
-          const structureMemberInfo = usersDeStructure.find(sm => sm.user === userDetail.iduser);
-          const roleToDisplay = structureMemberInfo
-            ? structureMemberInfo.role
-            : (userDetail as any).roleMembre || (userDetail as any).role || null;
-
-          return {
-            user: userDetail.iduser,
-            username: `${userDetail.name || ''} ${userDetail.firstname || ''}`.trim(),
-            role: roleToDisplay,
-          };
-        }
-        return null;
-      })
-      .filter(user => user !== null);
-  };
-
-  const result = {
-    id: source.idsourceDonnes,
-    nombd: source.nomSource,
-    users: usersDeStructure,
-    autorisation: {
-      modifier: formatAutorisationsPourOptionB('modifier'),
-      visualiser: formatAutorisationsPourOptionB('visualiser'),
-      telecharger: formatAutorisationsPourOptionB('telecharger'),
-    },
-  };
-
-  return result;
-}
-
-
-
-
-
-
-
-
-  async getConfigurationSources(
     projetId: string,
+    sourceId: string,
     bdType: 'normales' | 'jointes' | 'tous',
-    loggedInUser: MembreStruct, // Still present, potentially for future authorization logic
-  ): Promise<any[]> {
-    console.log(`[getConfigurationSources] START - ProjetID: ${projetId}, BdType: ${bdType}`);
+    loggedInUser: MembreStruct,
+  ): Promise<any> {
+    console.log(`[getOneConfigurationSource] START - ProjetID: ${projetId}, SourceID: ${sourceId}, BdType: ${bdType}`);
 
-    // Verify project existence
-    const projetExists = await this.projetRepo.findOneBy({ idprojet: projetId }); // Adjust 'idprojet' if PK name is different
+    // 1. Verify project existence
+    const projetExists = await this.projetRepo.findOneBy({ idprojet: projetId });
     if (!projetExists) {
       throw new NotFoundException(`Projet with ID ${projetId} not found.`);
     }
 
-    // 1. Build the initial query for sources
+    // 2. Fetch SuperAdmin
+    const superAdmin = await this.userrepo.findOne({ where: { role: UserRole.SuperAdmin } });
+    if (!superAdmin) {
+      console.warn('[getOneConfigurationSource] No SuperAdmin found in the database.');
+    }
+
+    // 3. Build the query for the source
     const query = this.sourcededonneesrepo
       .createQueryBuilder('source')
-      // Join to filter by project ID. 'projetRel' is used for the join condition.
-      .innerJoin('source.enquete', 'enqueteFilter') 
+      .innerJoin('source.enquete', 'enqueteFilter')
       .innerJoin('enqueteFilter.projet', 'projetFilter', 'projetFilter.idprojet = :projetId', { projetId })
-      // Now, select all necessary related entities for data loading.
-      // Use different aliases if there's any ambiguity or to be explicit.
       .leftJoinAndSelect('source.enquete', 'enqueteDetails')
-      .leftJoinAndSelect('enqueteDetails.projet', 'projetDetails') // This will be the same project as projetFilter
+      .leftJoinAndSelect('enqueteDetails.projet', 'projetDetails')
       .leftJoinAndSelect('projetDetails.structure', 'structure')
-      .leftJoinAndSelect('structure.membres', 'structureMembres');
+      .leftJoinAndSelect('structure.membres', 'structureMembres')
+      .where('source.idsourceDonnes = :sourceId', { sourceId });
 
-    // Add conditions for bdType
     if (bdType === 'normales') {
       query.andWhere('source.bd_normales IS NOT NULL');
     } else if (bdType === 'jointes') {
       query.andWhere('source.bd_jointes IS NOT NULL');
     } else if (bdType !== 'tous') {
-     
+      throw new BadRequestException(`Type de BD "${bdType}" non supporté. Utilisez "normales", "jointes", ou "tous".`);
+    }
+
+    const source = await query.getOne();
+    if (!source) {
+      throw new NotFoundException(`Aucune source trouvée avec l'ID ${sourceId} pour le projet ${projetId}`);
+    }
+
+    // Debug: Log structure and members to diagnose empty users
+    console.log(`[getOneConfigurationSource] Structure: ${JSON.stringify(source.enquete?.projet?.structure)}`);
+    console.log(`[getOneConfigurationSource] Membres: ${JSON.stringify(source.enquete?.projet?.structure?.membres)}`);
+
+    // 4. Collect user IDs from autorisations
+    const allUserIdsFromAutorisations = new Set<string>();
+    if (source.autorisations) {
+      (Object.keys(source.autorisations) as Array<keyof AutorisationsSourceDonnee>).forEach(key => {
+        const ids = source.autorisations![key];
+        if (Array.isArray(ids)) {
+          ids.forEach(uid => allUserIdsFromAutorisations.add(uid));
+        }
+      });
+    }
+
+    // 5. Fetch user details and handle missing IDs
+    let usersFromAutorisationsMap: Map<string, UserEntity> = new Map();
+    if (allUserIdsFromAutorisations.size > 0) {
+      try {
+        const userDetailsArray = await this.userservice.findby(Array.from(allUserIdsFromAutorisations));
+        userDetailsArray.forEach(user => {
+          if (user && user.iduser) {
+            usersFromAutorisationsMap.set(user.iduser, user);
+          }
+        });
+      } catch (error) {
+        console.warn(`[getOneConfigurationSource] Certains utilisateurs non trouvés : ${error.message}`);
+      }
+    }
+
+    // 6. Build users array, including structure members and SuperAdmin
+    const structureEntity = source.enquete?.projet?.structure;
+    const membresDeStructure: MembreStruct[] = structureEntity?.membres ?? [];
+
+    const usersDeStructure = membresDeStructure.map((m) => ({
+      user: m.iduser,
+      username: `${m.name || ''} ${m.firstname || ''}`.trim(),
+      role: m.roleMembre,
+    }));
+
+    // Add SuperAdmin to users if not already included
+    if (superAdmin && !usersDeStructure.some(u => u.user === superAdmin.iduser)) {
+      usersDeStructure.push({
+        user: superAdmin.iduser,
+        username: `${superAdmin.name || ''} ${superAdmin.firstname || ''}`.trim(),
+        role: UserRole.SuperAdmin,
+      });
+    }
+
+    // Debug: Log usersDeStructure to verify content
+    console.log(`[getOneConfigurationSource] usersDeStructure: ${JSON.stringify(usersDeStructure)}`);
+
+    const formatAutorisationsPourOptionB = (type: keyof AutorisationsSourceDonnee) => {
+      const idsFromSourceAuth = source.autorisations?.[type] ?? [];
+      return idsFromSourceAuth
+        .map(userId => {
+          const userDetail = usersFromAutorisationsMap.get(userId) || (userId === superAdmin?.iduser ? superAdmin : null);
+          if (userDetail) {
+            const structureMemberInfo = usersDeStructure.find(sm => sm.user === userDetail.iduser);
+            const roleToDisplay = structureMemberInfo
+              ? structureMemberInfo.role
+              : (userDetail as any).roleMembre || (userDetail as any).role || null;
+
+            return {
+              user: userDetail.iduser,
+              username: `${userDetail.name || ''} ${userDetail.firstname || ''}`.trim(),
+              role: roleToDisplay,
+            };
+          }
+          return null;
+        })
+        .filter(user => user !== null);
+    };
+
+    const result = {
+      id: source.idsourceDonnes,
+      nombd: source.nomSource,
+      users: usersDeStructure,
+      autorisation: {
+        modifier: formatAutorisationsPourOptionB('modifier'),
+        visualiser: formatAutorisationsPourOptionB('visualiser'),
+        telecharger: formatAutorisationsPourOptionB('telecharger'),
+      },
+    };
+
+    console.log(`[getOneConfigurationSource] END - Returning processed source for ProjetID: ${projetId}, SourceID: ${sourceId}`);
+    return result;
+  }
+
+
+async getConfigurationSources(
+    projetId: string,
+    bdType: 'normales' | 'jointes' | 'tous',
+    loggedInUser: MembreStruct,
+  ): Promise<any[]> {
+    console.log(`[getConfigurationSources] START - ProjetID: ${projetId}, BdType: ${bdType}`);
+
+    // 1. Verify project existence
+    const projetExists = await this.projetRepo.findOneBy({ idprojet: projetId });
+    if (!projetExists) {
+      throw new NotFoundException(`Projet with ID ${projetId} not found.`);
+    }
+
+    // 2. Fetch SuperAdmin
+    const superAdmin = await this.userrepo.findOne({ where: { role: UserRole.SuperAdmin } });
+    if (!superAdmin) {
+      console.warn('[getConfigurationSources] No SuperAdmin found in the database.');
+    }
+
+    // 3. Build the query for sources
+    const query = this.sourcededonneesrepo
+      .createQueryBuilder('source')
+      .innerJoin('source.enquete', 'enqueteFilter')
+      .innerJoin('enqueteFilter.projet', 'projetFilter', 'projetFilter.idprojet = :projetId', { projetId })
+      .leftJoinAndSelect('source.enquete', 'enqueteDetails')
+      .leftJoinAndSelect('enqueteDetails.projet', 'projetDetails')
+      .leftJoinAndSelect('projetDetails.structure', 'structure')
+      .leftJoinAndSelect('structure.membres', 'structureMembres');
+
+    if (bdType === 'normales') {
+      query.andWhere('source.bd_normales IS NOT NULL');
+    } else if (bdType === 'jointes') {
+      query.andWhere('source.bd_jointes IS NOT NULL');
+    } else if (bdType !== 'tous') {
       throw new BadRequestException(`Type de BD "${bdType}" non supporté. Utilisez "normales", "jointes", ou "tous".`);
     }
 
@@ -1889,11 +2580,16 @@ async getOneConfigurationSource(
     }
     console.log(`[getConfigurationSources] Fetched ${sources.length} sources for ProjetID: ${projetId}, BdType: ${bdType}.`);
 
-    // 2. Collect all unique user IDs from all source.autorisations (for the filtered sources)
+    // Debug: Log sources and their structures
+    sources.forEach(source => {
+      console.log(`[getConfigurationSources] Source ${source.idsourceDonnes} Structure: ${JSON.stringify(source.enquete?.projet?.structure)}`);
+      console.log(`[getConfigurationSources] Source ${source.idsourceDonnes} Membres: ${JSON.stringify(source.enquete?.projet?.structure?.membres)}`);
+    });
+
+    // 4. Collect all unique user IDs from autorisations
     const allUserIdsFromAutorisations = new Set<string>();
     sources.forEach(source => {
       if (source.autorisations) {
-        // Iterate over known keys of AutorisationsSourceDonnee
         (Object.keys(source.autorisations) as Array<keyof AutorisationsSourceDonnee>).forEach(key => {
           const userIdsForPermission = source.autorisations![key];
           if (userIdsForPermission && Array.isArray(userIdsForPermission)) {
@@ -1903,44 +2599,54 @@ async getOneConfigurationSource(
       }
     });
 
-    // 3. Fetch details for all these users in one batch
+    // 5. Fetch user details and handle missing IDs
     let usersFromAutorisationsMap: Map<string, UserEntity> = new Map();
     if (allUserIdsFromAutorisations.size > 0) {
-      const userDetailsArray = await this.userservice.findby(Array.from(allUserIdsFromAutorisations));
-      userDetailsArray.forEach(user => {
-        // Ensure user and user.iduser are valid before adding to map
-        if (user && user.iduser) {
+      try {
+        const userDetailsArray = await this.userservice.findby(Array.from(allUserIdsFromAutorisations));
+        userDetailsArray.forEach(user => {
+          if (user && user.iduser) {
             usersFromAutorisationsMap.set(user.iduser, user);
-        }
-      });
+          }
+        });
+      } catch (error) {
+        console.warn(`[getConfigurationSources] Certains utilisateurs non trouvés : ${error.message}`);
+      }
     }
 
-    // 4. Mapper les sources to the desired output format
+    // 6. Map sources to the desired output format
     const result = sources.map((source) => {
-      // Get members of the current source's structure
-      // The path source.enquete.projet.structure should be valid due to the leftJoinAndSelect strategy
       const structureEntity = source.enquete?.projet?.structure;
       const membresDeStructure: MembreStruct[] = structureEntity?.membres ?? [];
-      
+
       const usersDeStructure = membresDeStructure.map((m) => ({
         user: m.iduser,
-        username: `${m.name || ''} ${m.firstname || ''}`.trim(), // Handle potential null/undefined names
+        username: `${m.name || ''} ${m.firstname || ''}`.trim(),
         role: m.roleMembre,
       }));
 
-      // Function to format the 'autorisation' part based on Option B
+      // Add SuperAdmin to users if not already included
+      if (superAdmin && !usersDeStructure.some(u => u.user === superAdmin.iduser)) {
+        usersDeStructure.push({
+          user: superAdmin.iduser,
+          username: `${superAdmin.name || ''} ${superAdmin.firstname || ''}`.trim(),
+          role: UserRole.SuperAdmin,
+        });
+      }
+
+      // Debug: Log usersDeStructure for this source
+      console.log(`[getConfigurationSources] Source ${source.idsourceDonnes} usersDeStructure: ${JSON.stringify(usersDeStructure)}`);
+
       const formatAutorisationsPourOptionB = (type: keyof AutorisationsSourceDonnee) => {
         const idsFromSourceAuth = source.autorisations?.[type] ?? [];
         return idsFromSourceAuth
           .map(userId => {
-            const userDetail = usersFromAutorisationsMap.get(userId);
+            const userDetail = usersFromAutorisationsMap.get(userId) || (userId === superAdmin?.iduser ? superAdmin : null);
             if (userDetail) {
-              // Attempt to find if this user is also a structure member to get their specific roleMembre
               const structureMemberInfo = usersDeStructure.find(sm => sm.user === userDetail.iduser);
-              // Prioritize roleMembre if they are a structure member, otherwise use a general role from UserEntity if available
-              const roleToDisplay = structureMemberInfo 
-                                    ? structureMemberInfo.role 
-                                    : (userDetail as any).roleMembre || (userDetail as any).role || null; 
+              const roleToDisplay = structureMemberInfo
+                ? structureMemberInfo.role
+                : (userDetail as any).roleMembre || (userDetail as any).role || null;
 
               return {
                 user: userDetail.iduser,
@@ -1948,16 +2654,16 @@ async getOneConfigurationSource(
                 role: roleToDisplay,
               };
             }
-            return null; // User ID was in autorisations but no details found (e.g., deleted user)
+            return null;
           })
-          .filter(user => user !== null); // Remove nulls for users not found
+          .filter(user => user !== null);
       };
 
       return {
         id: source.idsourceDonnes,
         nombd: source.nomSource,
-        users: usersDeStructure, // Users from the source's specific structure
-        autorisation: { // Users specifically granted permission in source.autorisations (globally fetched)
+        users: usersDeStructure,
+        autorisation: {
           modifier: formatAutorisationsPourOptionB('modifier'),
           visualiser: formatAutorisationsPourOptionB('visualiser'),
           telecharger: formatAutorisationsPourOptionB('telecharger'),
@@ -1965,10 +2671,9 @@ async getOneConfigurationSource(
       };
     });
 
-    // console.log(`[getConfigurationSources] END - Returning ${result.length} processed sources for ProjetID: ${projetId}, BdType: ${bdType}`);
+    console.log(`[getConfigurationSources] END - Returning ${result.length} processed sources for ProjetID: ${projetId}, BdType: ${bdType}`);
     return result;
   }
-
 
 
 
@@ -2123,6 +2828,7 @@ async getOneConfigurationSource(
 
 
 
+ 
 
 //_______________suppression
 
@@ -2197,6 +2903,17 @@ catch(err){
    
   }
 
+
+
+
+
+
+
+
+
+
+
+ 
 
 }
 
