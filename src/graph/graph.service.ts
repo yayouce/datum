@@ -1057,13 +1057,13 @@ async createMapFromFile(idsource: string, dto: ImportMapFileDto, file: Express.M
 }
 
 // Méthode pour fusionner les GeoJSON
-private mergeGeoJsonData(existingGeoJson: FeatureCollection, newGeoJson: FeatureCollection): FeatureCollection {
-  const mergedFeatures = [...(existingGeoJson.features || []), ...(newGeoJson.features || [])];
-  return {
-    type: 'FeatureCollection',
-    features: mergedFeatures,
-  };
-}
+// private mergeGeoJsonData(existingGeoJson: FeatureCollection, newGeoJson: FeatureCollection): FeatureCollection {
+//   const mergedFeatures = [...(existingGeoJson.features || []), ...(newGeoJson.features || [])];
+//   return {
+//     type: 'FeatureCollection',
+//     features: mergedFeatures,
+//   };
+// }
 
 // Méthode pour fusionner les GeoJSON
 private mergeGeoJsonData(existingGeoJson: FeatureCollection, newGeoJson: FeatureCollection): FeatureCollection {
