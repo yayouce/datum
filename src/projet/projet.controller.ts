@@ -74,7 +74,7 @@ export class ProjetController {
     @Body() body: { idprojects: string[] },
     @User() user:UserEntity|MembreStruct
   ){
-    return this.projetService.softDeleteProjet(body.idprojects,user)
+    return this.projetService.DeleteProjet(body.idprojects,user)
     
   }
 }

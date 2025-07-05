@@ -44,6 +44,7 @@ import { UserRole } from '@/generique/userroleEnum';
 import { detectFileFormat, processCsvFile, processExcelFile, processJsonFile } from './utils/conversionFichier';
 import { getExcelColumnName } from './utils/generernomcolonne';
 
+import * as JoinHelpers from './utils/join.helpers';
 
 type AuthenticatedUser = {
   iduser: string;
@@ -175,136 +176,58 @@ export class SourceDonneesService implements OnModuleInit {
 
 
 async joinSources2(
-  idprojet: string,
-  joinSourcesDto: JoinSourcesDto,
-): Promise<SourceDonnee> {
-  const { source1, source2, sheet1, sheet2, key1, key2 } = joinSourcesDto;
+    idprojet: string,
+    joinSourcesDto: JoinSourcesDto,
+  ): Promise<SourceDonnee> {
+    const { source1, source2, sheet1, sheet2, key1, key2 } = joinSourcesDto;
 
-  const sourceData1 = await this.sourcededonneesrepo.findOne({
-    where: { nomSource: source1, enquete: { projet: { idprojet } } },
-    relations: ["enquete", "enquete.projet", "format"],
-  });
+    // ÉTAPE 1: EXTRACTION
+    const { sourceData1, sourceData2 } = await JoinHelpers.fetchSourcePair(this.sourcededonneesrepo, source1, source2, idprojet);
+    
+    const fichierA = sourceData1.fichier;
+    const fichierB = sourceData2.fichier;
 
-  const sourceData2 = await this.sourcededonneesrepo.findOne({
-    where: { nomSource: source2, enquete: { projet: { idprojet } } },
-    relations: ["enquete", "enquete.projet"],
-  });
-
-  if (!sourceData1 || !sourceData2) {
-    throw new HttpException("Une des sources n'a pas été trouvée dans le projet", 404);
-  }
-
-  const fichierA = sourceData1.fichier;
-  const fichierB = sourceData2.fichier;
-
-  if (!fichierA[sheet1] || !fichierB[sheet2]) {
-    throw new HttpException("Une des feuilles sélectionnées n'existe pas dans la source.", 804);
-  }
-
-  async function extractSheetData(sheetData: any[], keyColumnRef: string) {
-    if (!sheetData || sheetData.length < 2) {
-      throw new Error("La feuille ne contient pas assez de données.");
+    if (!fichierA[sheet1] || !fichierB[sheet2]) {
+      throw new HttpException("Une des feuilles sélectionnées n'existe pas dans la source.", 804);
     }
 
-    const headers = sheetData[0];
-    if (!headers[keyColumnRef]) {
-      throw new Error(`La clé de jointure "${keyColumnRef}" n'existe pas dans la feuille.`);
+    // ÉTAPE 2: PRÉPARATION DES DONNÉES
+    const { headerNames: headerNamesA, rows: dataA, keyColumnName: keyColumnA } = JoinHelpers.extractSheetData(fichierA[sheet1].donnees, key1);
+    const { headerNames: headerNamesB, rows: dataB, keyColumnName: keyColumnB } = JoinHelpers.extractSheetData(fichierB[sheet2].donnees, key2);
+
+    // ÉTAPE 3: LOGIQUE DE JOINTURE
+    const joinedData = JoinHelpers.performFullOuterJoin({
+      dataA, keyColumnA, headerNamesA,
+      dataB, keyColumnB, headerNamesB,
+    });
+
+    if (joinedData.length === 0) {
+      throw new HttpException("La jointure n'a produit aucun résultat.", 805);
     }
 
-    const keyColumn = headers[keyColumnRef];
+    // ÉTAPE 4: REFORMATAGE POUR STOCKAGE
+    const { donnees, colonnes } = JoinHelpers.formatJoinedDataForStorage(joinedData, headerNamesA, headerNamesB);
 
-    const rows = await Promise.all(sheetData.slice(1).map(async row => {
-      const formattedRow: Record<string, any> = {};
-      for (const cell in row) {
-        const columnLetter = cell.replace(/\d+/g, '');
-        const columnName = headers[columnLetter + "1"];
-        formattedRow[columnName] = row[cell];
-      }
-      return formattedRow;
-    }));
+    // ÉTAPE 5: CRÉATION ET SAUVEGARDE DE L'ENTITÉ
+    const newSource = new SourceDonnee();
+    newSource.nomSource = `jointure_full_${source1}-${source2}`;
+    newSource.commentaire = `Jointure complète (FULL OUTER) de la base ${source1} et de la base ${source2}`;
+    newSource.libelleformat = sourceData1.libelleformat;
+    newSource.libelletypedonnees = sourceData1.libelletypedonnees;
+    newSource.format = sourceData1.format;
+    newSource.enquete = sourceData1.enquete;
+    newSource.fichier = {
+      ["sheet_fusion"]: { donnees, colonnes },
+    };
+    newSource.bd_jointes = {
+      source1: sourceData1.idsourceDonnes,
+      source2: sourceData2.idsourceDonnes,
+      key1: `${key1}_${sheet1}`,
+      key2: `${key2}_${sheet2}`,
+    };
 
-    return { headers, rows, keyColumn };
+    return await this.sourcededonneesrepo.save(newSource);
   }
-
-  const { rows: dataA, keyColumn: keyColumnA } = await extractSheetData(fichierA[sheet1].donnees, key1);
-  const { rows: dataB, keyColumn: keyColumnB } = await extractSheetData(fichierB[sheet2].donnees, key2);
-
-  const joinedData = dataA
-    .map(rowA => {
-      const matchingRowB = dataB.find(rowB =>
-        rowA[keyColumnA] === rowB[keyColumnB]
-      );
-      if (!matchingRowB) return null;
-
-      const rowAFormatted = Object.fromEntries(
-        Object.entries(rowA).map(([k, v]) => [`${k}_source1`, v])
-      );
-
-      const rowBFormatted = Object.fromEntries(
-        Object.entries(matchingRowB).map(([k, v]) => [`${k}_source2`, v])
-      );
-
-      return {
-        ...rowAFormatted,
-        ...rowBFormatted,
-        index_jointure: rowA[keyColumnA],
-      };
-    })
-    .filter(Boolean);
-
-  if (joinedData.length === 0) {
-    throw new HttpException("Aucune correspondance trouvée.", 805);
-  }
-
-  // Ordre clair : source1 → source2 → clé
-  const headers = [
-    ...Object.keys(joinedData[0]).filter(k => k.endsWith('_source1')),
-    ...Object.keys(joinedData[0]).filter(k => k.endsWith('_source2')),
-    'index_jointure'
-  ];
-
-  const columns = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("").slice(0, headers.length);
-
-  const headerMapping = headers.reduce((acc, header, index) => {
-    acc[`${columns[index]}1`] = header;
-    return acc;
-  }, {});
-
-  const transformedData = joinedData.map((row, rowIndex) => {
-    return headers.reduce((acc, header, colIndex) => {
-      acc[`${columns[colIndex]}${rowIndex + 2}`] = row[header] ?? null;
-      return acc;
-    }, {});
-  });
-
-  const newDbName =`Jointure_${sheet1}_${sheet2}`
-;
-
-  const newSource = new SourceDonnee();
-  newSource.nomSource = `jointure_${source1}-${source2}`;
-  newSource.commentaire =  `une jointure de la base ${source1} et de la base ${source2}`
-  newSource.libelleformat = sourceData1.libelleformat;
-  newSource.libelletypedonnees = sourceData1.libelletypedonnees;
-  newSource.format = sourceData1.format;
-  newSource.enquete = sourceData1.enquete;
-  newSource.fichier = {
-    ["sheet_fusion"]: {
-      donnees: [headerMapping, ...transformedData],
-      colonnes: columns,
-    },
-  };
-
-  //pour l'affichage pour voir quelle source et quelle sheet on participé
-  newSource.bd_jointes = {
-    source1: sourceData1.idsourceDonnes,
-    source2: sourceData2.idsourceDonnes,
-    key1: key1+"_"+sheet1,
-    key2: key2+"_"+sheet2,
-  };
-
-  return await this.sourcededonneesrepo.save(newSource);
-}
-
 
 
 
@@ -478,109 +401,108 @@ private isTimeToUpdate(sourceDonnee: SourceDonnee): boolean {
 
 
 
-async refreshSourcesAuto2(): Promise<void> {
-    const sources = await this.sourcededonneesrepo.find({
-      where: { 
-        source: Not(IsNull()),      // Doit avoir une URL source
-        frequence: Not(IsNull()),   // Et une fréquence
-        libelleunite: Not(IsNull()) // Et une unité
-      },
-      relations: ['format', 'typedonnes', 'unitefrequence' /* Ajoutez d'autres relations si besoin pour le traitement */],
-    });
+// async refreshSourcesAuto2(): Promise<void> {
+//     const sources = await this.sourcededonneesrepo.find({
+//       where: { 
+//         source: Not(IsNull()),      // Doit avoir une URL source
+//         frequence: Not(IsNull()),   // Et une fréquence
+//         libelleunite: Not(IsNull()) // Et une unité
+//       },
+//       relations: ['format', 'typedonnes', 'unitefrequence' /* Ajoutez d'autres relations si besoin pour le traitement */],
+//     });
 
-    this.logger.log(`Vérification de ${sources.length} source(s) de données potentielle(s) pour rafraîchissement.`);
+//     this.logger.log(`Vérification de ${sources.length} source(s) de données potentielle(s) pour rafraîchissement.`);
 
-    for (const sourceDonnee of sources) {
+//     for (const sourceDonnee of sources) {
     
-      // sourceDonnee.derniereMiseAJourReussieSource = new Date();
+//       // sourceDonnee.derniereMiseAJourReussieSource = new Date();
 
-      if (!this.isTimeToUpdate(sourceDonnee)) {
-        // Pas besoin de sauvegarder si on ne fait rien, sauf si vous voulez mettre à jour derniereTentativeMiseAJourSource
-        if (sourceDonnee.derniereMiseAJourReussieSource) await this.sourcededonneesrepo.save(sourceDonnee);
-        continue;
-      }
+//       if (!this.isTimeToUpdate(sourceDonnee)) {
+//         // Pas besoin de sauvegarder si on ne fait rien, sauf si vous voulez mettre à jour derniereTentativeMiseAJourSource
+//         if (sourceDonnee.derniereMiseAJourReussieSource) await this.sourcededonneesrepo.save(sourceDonnee);
+//         continue;
+//       }
 
       
       
-      this.logger.log(`Traitement de la source: ${sourceDonnee.nomSource} (ID: ${sourceDonnee.idsourceDonnes}, URL: ${sourceDonnee.source})`);
+//       this.logger.log(`Traitement de la source: ${sourceDonnee.nomSource} (ID: ${sourceDonnee.idsourceDonnes}, URL: ${sourceDonnee.source})`);
 
-      if (!sourceDonnee.source || !sourceDonnee.source.startsWith('http')) {
-        this.logger.warn(`URL source invalide pour ${sourceDonnee.nomSource}: ${sourceDonnee.source}. Mise à jour de la date de tentative.`);
-        //await this.sourcededonneesrepo.save(sourceDonnee); // Sauvegarder la date de tentative
-        continue;
-      }
+//       if (!sourceDonnee.source || !sourceDonnee.source.startsWith('http')) {
+//         this.logger.warn(`URL source invalide pour ${sourceDonnee.nomSource}: ${sourceDonnee.source}. Mise à jour de la date de tentative.`);
+//         //await this.sourcededonneesrepo.save(sourceDonnee); // Sauvegarder la date de tentative
+//         continue;
+//       }
 
-      try {
-        const response = await firstValueFrom(
-          this.httpService.get(sourceDonnee.source, { responseType: 'arraybuffer', timeout: 60000 }) // Timeout 60s
-        );
+//       try {
+//         const response = await firstValueFrom(
+//           this.httpService.get(sourceDonnee.source, { responseType: 'arraybuffer', timeout: 60000 }) // Timeout 60s
+//         );
 
-        if (!response || !response.data || response.data.byteLength === 0) {
-          this.logger.warn(`Aucune donnée ou fichier vide pour ${sourceDonnee.nomSource} depuis ${sourceDonnee.source}.`);
-          await this.sourcededonneesrepo.save(sourceDonnee); // Sauvegarder la date de tentative
-          continue;
-        }
+//         if (!response || !response.data || response.data.byteLength === 0) {
+//           this.logger.warn(`Aucune donnée ou fichier vide pour ${sourceDonnee.nomSource} depuis ${sourceDonnee.source}.`);
+//           await this.sourcededonneesrepo.save(sourceDonnee); // Sauvegarder la date de tentative
+//           continue;
+//         }
 
-        const formatFichier = detectFileFormat(sourceDonnee.source);
-        if (!formatFichier) {
-            this.logger.error(`Format de fichier non détecté ou non supporté pour ${sourceDonnee.source}.`);
-             await this.sourcededonneesrepo.save(sourceDonnee);
-            continue;
-        }
+//         const formatFichier = detectFileFormat(sourceDonnee.source);
+//         if (!formatFichier) {
+//             this.logger.error(`Format de fichier non détecté ou non supporté pour ${sourceDonnee.source}.`);
+//              await this.sourcededonneesrepo.save(sourceDonnee);
+//             continue;
+//         }
 
-        const tempFileName = `temp_auto_cron_${sourceDonnee.idsourceDonnes}_${Date.now()}.${formatFichier}`;
-        const filePath = path.join(this.tempDir, tempFileName);
+//         const tempFileName = `temp_auto_cron_${sourceDonnee.idsourceDonnes}_${Date.now()}.${formatFichier}`;
+//         const filePath = path.join(this.tempDir, tempFileName);
         
-        fs.writeFileSync(filePath, Buffer.from(response.data)); // Utiliser Buffer.from
-        this.logger.log(`Fichier temporaire écrit: ${filePath} pour ${sourceDonnee.nomSource}`);
+//         fs.writeFileSync(filePath, Buffer.from(response.data)); // Utiliser Buffer.from
+//         this.logger.log(`Fichier temporaire écrit: ${filePath} pour ${sourceDonnee.nomSource}`);
 
-        let fichierTraite = null;
-        if (formatFichier === 'xlsx') {
-          fichierTraite = processExcelFile(filePath);
-        } else if (formatFichier === 'csv') {
-          fichierTraite = await processCsvFile(filePath);
-        } else if (formatFichier === 'json') {
-          fichierTraite = processJsonFile(filePath);
-        } else {
-          this.logger.error(`Format de fichier '${formatFichier}' non supporté pour traitement (source: ${sourceDonnee.source}).`);
-          fs.unlinkSync(filePath);
-          await this.sourcededonneesrepo.save(sourceDonnee);
-          continue;
-        }
+//         let fichierTraite = null;
+//         if (formatFichier === 'xlsx') {
+//           fichierTraite = processExcelFile(filePath);
+//         } else if (formatFichier === 'csv') {
+//           fichierTraite = await processCsvFile(filePath);
+//         } else if (formatFichier === 'json') {
+//           fichierTraite = processJsonFile(filePath);
+//         } else {
+//           this.logger.error(`Format de fichier '${formatFichier}' non supporté pour traitement (source: ${sourceDonnee.source}).`);
+//           fs.unlinkSync(filePath);
+//           await this.sourcededonneesrepo.save(sourceDonnee);
+//           continue;
+//         }
 
-        try {
-              fs.unlinkSync(filePath);
-              this.logger.log(`Fichier temporaire supprimé: ${filePath}`);
-            } catch (err) {
-              this.logger.warn(`Impossible de supprimer le fichier temporaire ${filePath}: ${err.message}`);
-            }
-        // Utilisez votre service pour récupérer l'entité Formatfichier
-        const format = await this.formatservice.getoneByLibelle(formatFichier); 
-        if (!format) {
-          this.logger.error(`Entité Formatfichier introuvable en base pour le libellé: '${formatFichier}'.`);
-          // await this.sourcededonneesrepo.save(sourceDonnee);
-          continue;
-        }
+//         try {
+//               fs.unlinkSync(filePath);
+//               this.logger.log(`Fichier temporaire supprimé: ${filePath}`);
+//             } catch (err) {
+//               this.logger.warn(`Impossible de supprimer le fichier temporaire ${filePath}: ${err.message}`);
+//             }
+//         // Utilisez votre service pour récupérer l'entité Formatfichier
+//         const format = await this.formatservice.getoneByLibelle(formatFichier); 
+//         if (!format) {
+//           this.logger.error(`Entité Formatfichier introuvable en base pour le libellé: '${formatFichier}'.`);
+//           // await this.sourcededonneesrepo.save(sourceDonnee);
+//           continue;
+//         }
 
-        // Mettre à jour uniquement les champs liés au fichier
-        sourceDonnee.fichier = fichierTraite; // ou sourceDonnee.fichier, selon celui que vous voulez mettre à jour
-        sourceDonnee.format = format;
-        sourceDonnee.libelleformat = format.libelleFormat; // Assurez-vous que 'libelleFormat' est le bon nom de propriété sur Formatfichier
+//         // Mettre à jour uniquement les champs liés au fichier
+//         sourceDonnee.fichier = fichierTraite; // ou sourceDonnee.fichier, selon celui que vous voulez mettre à jour
+//         sourceDonnee.format = format;
+//         sourceDonnee.libelleformat = format.libelleFormat; // Assurez-vous que 'libelleFormat' est le bon nom de propriété sur Formatfichier
 
-        // **CHOIX ICI (si vous avez ajouté derniereMiseAJourReussieSource): **
-        sourceDonnee.derniereMiseAJourReussieSource = new Date(); 
+//         // **CHOIX ICI (si vous avez ajouté derniereMiseAJourReussieSource): **
+//         sourceDonnee.derniereMiseAJourReussieSource = new Date(); 
 
-        // `updatedAt` sera mis à jour automatiquement par TypeORM grâce à TimestampEntites
-        await this.sourcededonneesrepo.save(sourceDonnee);
-        this.logger.log(`SUCCÈS: Source ${sourceDonnee.nomSource} (ID: ${sourceDonnee.idsourceDonnes}) mise à jour.`);
+//         // `updatedAt` sera mis à jour automatiquement par TypeORM grâce à TimestampEntites
+//         await this.sourcededonneesrepo.save(sourceDonnee);
+//         this.logger.log(`SUCCÈS: Source ${sourceDonnee.nomSource} (ID: ${sourceDonnee.idsourceDonnes}) mise à jour.`);
 
-      } catch (error) {
-        this.logger.error(`ERREUR lors du traitement de ${sourceDonnee.nomSource} (ID: ${sourceDonnee.idsourceDonnes}, URL: ${sourceDonnee.source}): ${error.message}`, error.stack)
-      }
-    }
-    this.logger.log('Fin de la vérification des sources de données pour rafraîchissement.');
-  }
-
+//       } catch (error) {
+//         this.logger.error(`ERREUR lors du traitement de ${sourceDonnee.nomSource} (ID: ${sourceDonnee.idsourceDonnes}, URL: ${sourceDonnee.source}): ${error.message}`, error.stack)
+//       }
+//     }
+//     this.logger.log('Fin de la vérification des sources de données pour rafraîchissement.');
+//   }
 
   async refreshSourcesAuto3(): Promise<void> {
     const sources = await this.sourcededonneesrepo.find({
@@ -639,166 +561,129 @@ async refreshSourcesAuto2(): Promise<void> {
 
         // ----- DÉBUT DE LA LOGIQUE DE FUSION BASÉE SUR LES EN-TÊTES DE COLONNES -----
         if ((formatFichier === 'xlsx' || formatFichier === 'csv') && fichierTelechargeTraite) {
-            const ancienFichierComplet = sourceDonnee.fichier || {};
-            const fichierResultatFusion = {};
+    const ancienFichierComplet = sourceDonnee.fichier || {};
+    const fichierResultatFusion = {};
 
-            const extraireInfosFeuille = (sheetData) => {
-  if (!sheetData?.donnees?.length) {
-    return { headerNames: [], headerMap: new Map(), dataRows: [], excelColIds: [] };
-  }
-  const headerRowObj = sheetData.donnees[0] || {};
-  const headerMap = new Map();
-  const headerNames = [];
-  const excelColIds = sheetData.colonnes || [];
+    // Helper 1: Génère un nom de colonne Excel (A, B, ..., Z, AA, AB, ...)
+    const getExcelColumnName = (index: number): string => {
+        let name = '';
+        let i = index;
+        while (i >= 0) {
+            name = String.fromCharCode(i % 26 + 'A'.charCodeAt(0)) + name;
+            i = Math.floor(i / 26) - 1;
+        }
+        return name;
+    };
 
-  excelColIds.forEach((colId, index) => {
-    const headerCellKey = `${colId}1`;
-    if (headerRowObj.hasOwnProperty(headerCellKey) && headerRowObj[headerCellKey] !== null && headerRowObj[headerCellKey] !== undefined) {
-      const name = String(headerRowObj[headerCellKey]); // Garder le nom exact tel quel
-      headerMap.set(name, colId); // Utiliser le nom original comme clé
-      headerNames.push(name); // Utiliser le nom original pour la comparaison
+    // Helper 2: Extrait les informations de la feuille de manière robuste
+    const extraireInfosFeuille = (sheetData: any) => {
+        if (!sheetData?.donnees?.length) {
+            return { headers: [], dataRows: [] };
+        }
+        const headerRowObj = sheetData.donnees[0] || {};
+        const headers: { name: string; colId: string }[] = [];
+        const excelColIds = sheetData.colonnes || [];
+
+        excelColIds.forEach(colId => {
+            const headerCellKey = `${colId}1`;
+            // On inclut la colonne même si son nom est vide, pour préserver la structure.
+            const name = headerRowObj.hasOwnProperty(headerCellKey) ? String(headerRowObj[headerCellKey]) : `Colonne_${colId}`;
+            headers.push({ name, colId });
+        });
+
+        return { headers, dataRows: sheetData.donnees.slice(1) };
+    };
+
+    // Helper 3: Rend les noms d'en-tête uniques en ajoutant des suffixes
+    const generateUniqueHeaders = (headers: { name: string; colId: string }[]) => {
+        const counts = new Map<string, number>();
+        return headers.map(header => {
+            const currentCount = counts.get(header.name) || 0;
+            counts.set(header.name, currentCount + 1);
+            const uniqueName = currentCount > 0 ? `${header.name}_${currentCount + 1}` : header.name;
+            return { ...header, uniqueName };
+        });
+    };
+
+    // Boucle de fusion principale
+    for (const sheetName in fichierTelechargeTraite) {
+        if (!fichierTelechargeTraite.hasOwnProperty(sheetName)) continue;
+        this.logger.log(`Début fusion feuille '${sheetName}' pour ${sourceDonnee.nomSource}`);
+
+        const infosNouveau = extraireInfosFeuille(fichierTelechargeTraite[sheetName]);
+        const infosAncien = extraireInfosFeuille(ancienFichierComplet[sheetName] || {});
+
+        if (infosNouveau.headers.length === 0) {
+            this.logger.warn(`Nouvelle feuille '${sheetName}' est vide. Conservation de l'ancienne si existante.`);
+            fichierResultatFusion[sheetName] = ancienFichierComplet[sheetName] || fichierTelechargeTraite[sheetName];
+            continue;
+        }
+
+        const uniqueHeadersNouveau = generateUniqueHeaders(infosNouveau.headers);
+        const uniqueHeadersAncien = generateUniqueHeaders(infosAncien.headers);
+
+        // Déterminer les colonnes de l'ancien fichier à conserver
+        const setNomsEntetesNouveaux = new Set(infosNouveau.headers.map(h => h.name));
+        const headersAnciensA_Conserver = uniqueHeadersAncien.filter(h => !setNomsEntetesNouveaux.has(h.name));
+
+        // Ordre final: toutes les colonnes uniques du nouveau, puis les uniques de l'ancien qui n'y étaient pas
+        const finalHeaderStructure = [...uniqueHeadersNouveau, ...headersAnciensA_Conserver];
+        
+        // Construction de la nouvelle feuille
+        const resultatFeuille = { colonnes: [], donnees: [] };
+        const headerRowFinal = {};
+
+        finalHeaderStructure.forEach((headerInfo, idx) => {
+            const finalColId = getExcelColumnName(idx);
+            resultatFeuille.colonnes.push(finalColId);
+            // On utilise le nom unique généré comme nouvel en-tête
+            headerRowFinal[`${finalColId}1`] = headerInfo.uniqueName;
+        });
+        resultatFeuille.donnees.push(headerRowFinal);
+
+        // Traitement des lignes de données
+        const nombreLignesDataFinal = infosNouveau.dataRows.length; // Le nombre de lignes est dicté par le nouveau fichier
+
+        for (let i = 0; i < nombreLignesDataFinal; i++) {
+            const ligneDataCouranteResultat = {};
+            const numLigneExcel = i + 2;
+
+            finalHeaderStructure.forEach((headerInfo, idx) => {
+                const finalColId = resultatFeuille.colonnes[idx];
+                let valeurCellule = null;
+
+                // Trouver la bonne valeur depuis sa source d'origine
+                const sourceDataRow = uniqueHeadersNouveau.includes(headerInfo) 
+                    ? infosNouveau.dataRows[i] 
+                    : (headersAnciensA_Conserver.includes(headerInfo) ? infosAncien.dataRows[i] : null);
+
+                if (sourceDataRow) {
+                    const originalCellKey = `${headerInfo.colId}${numLigneExcel}`;
+                    valeurCellule = sourceDataRow[originalCellKey];
+                }
+
+                ligneDataCouranteResultat[`${finalColId}${numLigneExcel}`] = (valeurCellule !== undefined) ? valeurCellule : null;
+            });
+            resultatFeuille.donnees.push(ligneDataCouranteResultat);
+        }
+        
+        fichierResultatFusion[sheetName] = resultatFeuille;
+        this.logger.log(`Fusion feuille '${sheetName}' terminée. ${nombreLignesDataFinal} lignes de données traitées.`);
     }
-  });
-  return { headerNames, headerMap, dataRows: sheetData.donnees.slice(1), excelColIds };
-};
 
-// Dans la boucle de fusion
-for (const sheetName in fichierTelechargeTraite) {
-  if (!fichierTelechargeTraite.hasOwnProperty(sheetName)) continue;
-  this.logger.log(`Début fusion feuille '${sheetName}' pour ${sourceDonnee.nomSource}`);
-
-  const infosNouveau = extraireInfosFeuille(fichierTelechargeTraite[sheetName],);
-  const infosAncien = extraireInfosFeuille(ancienFichierComplet[sheetName] || {}, );
-
-  if (infosNouveau.headerNames.length === 0) {
-    this.logger.warn(`Nouvelle feuille '${sheetName}' est vide ou sans en-têtes. Conservation de l'ancienne si existante.`);
-    fichierResultatFusion[sheetName] = ancienFichierComplet[sheetName] || fichierTelechargeTraite[sheetName];
-    continue;
-  }
-
-  const setNomsEntetesNouveaux = new Set(infosNouveau.headerNames);
-  const setNomsEntetesAnciens = new Set(infosAncien.headerNames);
-
-  // Conserver toutes les colonnes distinctes, même similaires
-  const ordreFinalNomsEntetes = [
-    ...infosNouveau.headerNames, // Toutes les colonnes du nouveau fichier
-    ...infosAncien.headerNames.filter(name => !setNomsEntetesNouveaux.has(name)) // Ajouter celles de l'ancien absentes du nouveau
-  ].filter((value, index, self) => self.indexOf(value) === index); // Éviter les doublons exacts
-
-  const resultatFeuille = { colonnes: [], donnees: [] };
-  const mapNomEnteteFinalVersColIdExcel = new Map();
-  const headerRowFinal = {};
-
-  ordreFinalNomsEntetes.forEach((nomEntete, idx) => {
-    const finalColId = getExcelColumnName(idx);
-    resultatFeuille.colonnes.push(finalColId);
-    headerRowFinal[`${finalColId}1`] = nomEntete; // Garder le nom exact
-    mapNomEnteteFinalVersColIdExcel.set(nomEntete, finalColId);
-  });
-  resultatFeuille.donnees.push(headerRowFinal);
-
-  const nombreLignesDataFinal = Math.max(infosNouveau.dataRows.length, infosAncien.dataRows.length || 0);
-
-  for (let i = 0; i < nombreLignesDataFinal; i++) {
-    const ligneDataCouranteResultat = {};
-    const numLigneExcel = i + 2;
-
-    ordreFinalNomsEntetes.forEach(nomEntete => {
-      const finalColId = mapNomEnteteFinalVersColIdExcel.get(nomEntete);
-      let valeurCellule = null;
-
-      if (setNomsEntetesNouveaux.has(nomEntete)) {
-        const colIdNouveauSrc = infosNouveau.headerMap.get(nomEntete);
-        if (colIdNouveauSrc && infosNouveau.dataRows[i]) {
-          valeurCellule = infosNouveau.dataRows[i][`${colIdNouveauSrc}${numLigneExcel}`];
+    // Gérer les feuilles qui n'existent que dans l'ancien fichier
+    for (const sheetName in ancienFichierComplet) {
+        if (!fichierResultatFusion.hasOwnProperty(sheetName)) {
+            this.logger.log(`Conservation de l'ancienne feuille '${sheetName}' non présente dans le nouveau fichier.`);
+            fichierResultatFusion[sheetName] = ancienFichierComplet[sheetName];
         }
-      } else if (setNomsEntetesAnciens.has(nomEntete)) {
-        const colIdAncienSrc = infosAncien.headerMap.get(nomEntete);
-        if (colIdAncienSrc && infosAncien.dataRows[i]) {
-          valeurCellule = infosAncien.dataRows[i][`${colIdAncienSrc}${numLigneExcel}`];
-        }
-      }
-      ligneDataCouranteResultat[`${finalColId}${numLigneExcel}`] = (valeurCellule !== undefined) ? valeurCellule : null;
-    });
-    resultatFeuille.donnees.push(ligneDataCouranteResultat);
-  }
-  fichierResultatFusion[sheetName] = resultatFeuille;
-  this.logger.log(`Fusion feuille '${sheetName}' terminée. ${nombreLignesDataFinal} lignes de données.`);
+    }
+
+    sourceDonnee.fichier = fichierResultatFusion;
+} else { 
+    sourceDonnee.fichier = fichierTelechargeTraite; 
+    this.logger.log(`Format non-fusionnable ou échec du parsing. Écrasement du fichier pour ${sourceDonnee.nomSource}.`);
 }
-
-            for (const sheetName in fichierTelechargeTraite) {
-                if (!fichierTelechargeTraite.hasOwnProperty(sheetName)) continue;
-                this.logger.log(`Début fusion feuille '${sheetName}' pour ${sourceDonnee.nomSource}`);
-
-                const infosNouveau = extraireInfosFeuille(fichierTelechargeTraite[sheetName]);
-                const infosAncien = extraireInfosFeuille(ancienFichierComplet[sheetName]);
-
-                if (infosNouveau.headerNames.length === 0) {
-                    this.logger.warn(`Nouvelle feuille '${sheetName}' est vide ou sans en-têtes. Conservation de l'ancienne si existante.`);
-                    fichierResultatFusion[sheetName] = ancienFichierComplet[sheetName] || fichierTelechargeTraite[sheetName];
-                    continue;
-                }
-
-                const setNomsEntetesNouveaux = new Set(infosNouveau.headerNames);
-                const setNomsEntetesAnciens = new Set(infosAncien.headerNames);
-
-                const entetesCommuns = infosNouveau.headerNames.filter(name => setNomsEntetesAnciens.has(name));
-                const entetesSeulementNouveaux = infosNouveau.headerNames.filter(name => !setNomsEntetesAnciens.has(name));
-                const entetesLocauxConservés = infosAncien.headerNames.filter(name => !setNomsEntetesNouveaux.has(name));
-                
-                // Définir l'ordre final des en-têtes
-                const ordreFinalNomsEntetes = [
-                    ...infosNouveau.headerNames, // D'abord toutes les colonnes du nouveau fichier, dans leur ordre
-                    ...entetesLocauxConservés    // Puis les colonnes locales non présentes dans le nouveau
-                ].filter((value, index, self) => self.indexOf(value) === index); // Assurer l'unicité et l'ordre
-
-                const resultatFeuille = { colonnes: [], donnees: [] };
-                const mapNomEnteteFinalVersColIdExcel = new Map();
-                const headerRowFinal = {};
-
-                ordreFinalNomsEntetes.forEach((nomEntete, idx) => {
-                    const finalColId = getExcelColumnName(idx);
-                    resultatFeuille.colonnes.push(finalColId);
-                    headerRowFinal[`${finalColId}1`] = nomEntete;
-                    mapNomEnteteFinalVersColIdExcel.set(nomEntete, finalColId);
-                });
-                resultatFeuille.donnees.push(headerRowFinal);
-
-                const nombreLignesDataFinal = infosNouveau.dataRows.length; // Le nombre de lignes est dicté par le nouveau fichier
-
-                for (let i = 0; i < nombreLignesDataFinal; i++) {
-                    const ligneDataCouranteResultat = {};
-                    const numLigneExcel = i + 2; // Pour les clés de cellule comme A2, B2...
-
-                    ordreFinalNomsEntetes.forEach(nomEntete => {
-                        const finalColId = mapNomEnteteFinalVersColIdExcel.get(nomEntete);
-                        let valeurCellule = null;
-
-                        if (setNomsEntetesNouveaux.has(nomEntete)) { // Colonne présente dans le nouveau fichier (commune ou seulement nouvelle)
-                            const colIdNouveauSrc = infosNouveau.headerMap.get(nomEntete);
-                            if (colIdNouveauSrc && infosNouveau.dataRows[i]) { // Vérifier que la ligne i existe
-                                valeurCellule = infosNouveau.dataRows[i][`${colIdNouveauSrc}${numLigneExcel}`];
-                            }
-                        } else if (setNomsEntetesAnciens.has(nomEntete)) { // Colonne locale conservée (seulement ancienne)
-                            const colIdAncienSrc = infosAncien.headerMap.get(nomEntete);
-                            if (colIdAncienSrc && infosAncien.dataRows[i]) { // Vérifier que la ligne i existe dans l'ancien
-                                valeurCellule = infosAncien.dataRows[i][`${colIdAncienSrc}${numLigneExcel}`];
-                            }
-                        }
-                        ligneDataCouranteResultat[`${finalColId}${numLigneExcel}`] = (valeurCellule !== undefined) ? valeurCellule : null;
-                    });
-                    resultatFeuille.donnees.push(ligneDataCouranteResultat);
-                }
-                fichierResultatFusion[sheetName] = resultatFeuille;
-                this.logger.log(`Fusion feuille '${sheetName}' terminée. ${nombreLignesDataFinal} lignes de données.`);
-            }
-            sourceDonnee.fichier = fichierResultatFusion;
-        } else { // JSON ou autre format non fusionné, ou fichierTelechargeTraite est null
-            sourceDonnee.fichier = fichierTelechargeTraite; // Écrase avec le nouveau, ou avec null si parsing a échoué
-            if (formatFichier === 'json') this.logger.log(`Format JSON pour ${sourceDonnee.nomSource}. Écrasement.`);
-            else if (fichierTelechargeTraite) this.logger.warn(`Format ${formatFichier} non géré pour fusion. Écrasement.`);
-            else this.logger.warn(`Aucun fichier traité à fusionner pour ${sourceDonnee.nomSource}. L'ancien fichier sera écrasé par null si pas de JSON.`);
-        }
         // ----- FIN DE LA LOGIQUE DE FUSION -----
 
         sourceDonnee.format = formatEntite;
@@ -819,11 +704,6 @@ for (const sheetName in fichierTelechargeTraite) {
     }
     this.logger.log('Fin rafraîchissement des sources.');
   }
-
-
-
-
-
 
 
 
@@ -972,13 +852,13 @@ async getSourceWithFilteredData(idsourceDonnes: string): Promise<SourceDonnee> {
 
     fichierFiltré[feuilleName] = {
       ...feuille,
-      donnees: donneesFiltrees, // ✅ données filtrées
+      donnees: donneesFiltrees, 
     };
   }
 
   return {
     ...source,
-    fichier: fichierFiltré, // ✅ remplacement par le fichier nettoyé
+    fichier: fichierFiltré, //
   };
 }
 
@@ -1075,19 +955,36 @@ async getBdsByProjetWithFilter(
 
 //get bdByproject where InStudio est true
 
-async getBdsByProjetWithFilterInStudio(idprojet: string){
+// async getBdsByProjetWithFilterInStudio(idprojet: string){
 
-  try{
-    const sources = await this.sourcededonneesrepo.find({
-    where: { enquete: { projet: { idprojet } },inStudio:true },
-    relations: ['enquete', 'enquete.projet'],
-  });
-  return sources
+//   try{
+//     const sources = await this.sourcededonneesrepo.find({
+//     where: { enquete: { projet: { idprojet } },inStudio:true },
+//     relations: ['enquete', 'enquete.projet'],
+//   });
+//   return sources
 
-}
-catch(err){
-  throw new HttpException(err.message,705)
-}
+// }
+// catch(err){
+//   throw new HttpException(err.message,705)
+// }
+// }
+
+async getBdsByProjetWithFilterInStudio(idprojet: string): Promise<SourceDonnee[]> {
+  try {
+    const query = this.sourcededonneesrepo
+      .createQueryBuilder('source') // 'source' est un alias pour la table source_donnee
+      .innerJoinAndSelect('source.enquete', 'enquete') // Joint et sélectionne les données de 'enquete'
+      .innerJoin('enquete.projet', 'projet') 
+      .where('source.inStudio = :inStudio', { inStudio: true })
+      .andWhere('projet.idprojet = :idprojet', { idprojet: idprojet });
+    return await query.getMany();
+
+  } catch (err) {
+    // Il est préférable de loguer l'erreur originale côté serveur
+    this.logger.error(`Erreur lors de la récupération des sources pour le projet ${idprojet}: ${err.message}`, err.stack);
+    throw new HttpException("Une erreur est survenue lors de la récupération des données.", 705);
+  }
 }
 
 
@@ -1337,7 +1234,7 @@ async modifyCell(
           throw new HttpException(`La feuille "${targetSheetName}" n'existe pas.`, 706);
         }
       
-        // 🔧 Initialiser les métadonnées si besoin
+      
         if (!sheet.meta) {
           sheet.meta = {};
         }
@@ -1364,77 +1261,6 @@ async modifyCell(
       
         return await this.sourcededonneesrepo.save(source);
       }
-      
-     
-
-
-// suppression
-
-// async removeColumn(
-//   idsource: string,
-//   body: removeColumnDto
-// ): Promise<SourceDonnee> {
-//   const { nomFeuille, nomColonne } = body;
-
-//   // Étape 1 : Récupérer la source de données
-//   const source = await this.getSourceById(idsource);
-//   const fichier = source.fichier;
-
-//   // Étape 2 : Récupérer la feuille ou la première feuille par défaut
-//   const sheet = getSheetOrDefault(fichier, nomFeuille);
-
-//   // Vérifier si la feuille est valide
-//   if (!sheet?.donnees || sheet.donnees.length === 0) {
-//     throw new HttpException(
-//       `La feuille spécifiée est vide ou mal initialisée.`,
-//       806
-//     );
-//   }
-
-//   // Étape 3 : Identifier la lettre de la colonne
-//   const columnLetter = nomColonne.replace(/\d/g, ''); // Extraire la lettre de colonne
-//   if (!sheet.colonnes.includes(columnLetter)) {
-//     throw new HttpException(`La colonne référencée "${nomColonne}" n'existe pas.`, 803);
-//   }
-
-//   // Étape 4 : Supprimer l'entête et les données associées
-//   const headers = sheet.donnees[0]; // Première ligne contient les entêtes
-//   const headerKey = Object.keys(headers).find((key) =>
-//     key.startsWith(columnLetter)
-//   );
-//   if (!headerKey) {
-//     throw new HttpException(
-//       `Impossible de trouver l'entête correspondant à "${nomColonne}".`,
-//       803
-//     );
-//   }
-
-//   delete headers[headerKey]; // Supprimer l'entête
-//   sheet.donnees.slice(1).forEach((row, index) => {
-//     delete row[`${columnLetter}${index + 2}`]; // Supprimer les données ligne par ligne
-//   });
-
-//   // Mettre à jour la liste des colonnes
-//   sheet.colonnes = sheet.colonnes.filter((col) => col !== columnLetter);
-
-//   // Étape 5 : Sauvegarder les modifications
-//   if (Array.isArray(fichier)) {
-//     const sheetIndex = fichier.findIndex(
-//       (sheetObj) => sheetObj[nomFeuille || Object.keys(sheetObj)[0]]
-//     );
-//     if (sheetIndex >= 0) {
-//       fichier[sheetIndex][nomFeuille || Object.keys(fichier[sheetIndex])[0]] =
-//         sheet;
-//     }
-//   } else {
-//     fichier[nomFeuille || Object.keys(fichier)[0]] = sheet;
-//   }
-
-//   source.fichier = fichier;
-
-//   return await this.sourcededonneesrepo.save(source);
-// }
-
 
 
 async removeColumns(idsource: string, body: removeColumnDto,user:any): Promise<SourceDonnee> {
@@ -1520,146 +1346,146 @@ async removeColumns(idsource: string, body: removeColumnDto,user:any): Promise<S
 
 
 
-async applyFunctionAndSave(idsourceDonnes: string,applyFunctionDto: ApplyFunctionDto): Promise<SourceDonnee> {
-  const { nomFeuille, columnReferences, operation, separator, targetColumn } = applyFunctionDto;
+// async applyFunctionAndSave(idsourceDonnes: string,applyFunctionDto: ApplyFunctionDto): Promise<SourceDonnee> {
+//   const { nomFeuille, columnReferences, operation, separator, targetColumn } = applyFunctionDto;
 
-  // Étape 1 : Récupérer la source de données
-  const source = await this.getSourceById(idsourceDonnes);
-  let fichier = source.fichier;
+//   // Étape 1 : Récupérer la source de données
+//   const source = await this.getSourceById(idsourceDonnes);
+//   let fichier = source.fichier;
 
-  // Étape 2 : Récupérer la feuille
-  const targetSheetName = nomFeuille && nomFeuille.trim() ? nomFeuille : Object.keys(fichier)[0];
-  const sheet = fichier[targetSheetName];
+//   // Étape 2 : Récupérer la feuille
+//   const targetSheetName = nomFeuille && nomFeuille.trim() ? nomFeuille : Object.keys(fichier)[0];
+//   const sheet = fichier[targetSheetName];
 
-  if (!sheet || !sheet.donnees || sheet.donnees.length <= 1) {
-    throw new HttpException(
-      `La feuille spécifiée est vide ou ne contient pas de données.`,
-      806
-    );
-  }
+//   if (!sheet || !sheet.donnees || sheet.donnees.length <= 1) {
+//     throw new HttpException(
+//       `La feuille spécifiée est vide ou ne contient pas de données.`,
+//       806
+//     );
+//   }
 
-  // Étape 3 : Valider les colonnes sélectionnées
-  const headers = sheet.donnees[0];
-  const columnLetters = columnReferences.map((reference) => {
-    const columnLetter = reference.replace(/\d/g, '');
-    if (!sheet.colonnes.includes(columnLetter)) {
-      throw new HttpException(
-        `La colonne référencée "${reference}" n'existe pas.`,
-        803
-      );
-    }
-    return columnLetter;
-  });
+//   // Étape 3 : Valider les colonnes sélectionnées
+//   const headers = sheet.donnees[0];
+//   const columnLetters = columnReferences.map((reference) => {
+//     const columnLetter = reference.replace(/\d/g, '');
+//     if (!sheet.colonnes.includes(columnLetter)) {
+//       throw new HttpException(
+//         `La colonne référencée "${reference}" n'existe pas.`,
+//         803
+//       );
+//     }
+//     return columnLetter;
+//   });
 
-  // Étape 4 : Extraire les valeurs des colonnes cibles
-  const columnValues = columnLetters.map((letter) =>
-    sheet.donnees.slice(1).map((row, index) => {
-      const cellKey = `${letter}${index + 2}`;
-      const value = row[cellKey];
-      return value !== undefined && value !== null ? parseFloat(value) : null;
-    })
-  );
+//   // Étape 4 : Extraire les valeurs des colonnes cibles
+//   const columnValues = columnLetters.map((letter) =>
+//     sheet.donnees.slice(1).map((row, index) => {
+//       const cellKey = `${letter}${index + 2}`;
+//       const value = row[cellKey];
+//       return value !== undefined && value !== null ? parseFloat(value) : null;
+//     })
+//   );
 
-  // Étape 5 : Appliquer la fonction
-  let columnResult: any[] = [];
-  try {
-    switch (operation.toLowerCase()) {
-      case 'sum': {
-        columnResult = columnValues[0].map((_, index) =>
-          columnValues.reduce((acc, col) => acc + (col[index] || 0), 0)
-        );
-        break;
-      }
-      case 'average': {
-        columnResult = columnValues[0].map((_, index) => {
-          const validValues = columnValues.map((col) => col[index] || 0);
-          const sum = validValues.reduce((acc, val) => acc + val, 0);
-          return sum / validValues.length;
-        });
-        break;
-      }
-      case 'max': {
-        columnResult = columnValues[0].map((_, index) =>
-          Math.max(...columnValues.map((col) => col[index] || 0))
-        );
-        break;
-      }
-      case 'min': {
-        columnResult = columnValues[0].map((_, index) =>
-          Math.min(...columnValues.map((col) => col[index] || 0))
-        );
-        break;
-      }
-      case 'count': {
-        columnResult = columnValues[0].map((_, index) =>
-          columnValues.map((col) => col[index]).filter((val) => val !== null && val !== undefined).length
-        );
-        break;
-      }
-      case 'concat': {
-        columnResult = columnValues[0].map((_, index) =>
-          columnLetters
-            .map((_, colIndex) => columnValues[colIndex][index]?.toString() || '')
-            .join(separator || ' ')
-        );
-        break;
-      }
-      case 'multiply': {
-        columnResult = columnValues[0].map((_, index) =>
-          columnValues.reduce((acc, col) => acc * (col[index] || 1), 1)
-        );
-        break;
-      }
-      case 'divide': {
-        columnResult = columnValues[0].map((_, index) => {
-          const validValues = columnValues.map((col) => col[index]).filter((val) => val !== null && val !== 0);
-          return validValues.reduce((acc, val) => acc / val, validValues[0] || 1);
-        });
-        break;
-      }
-      case 'subtract': {
-        columnResult = columnValues[0].map((_, index) =>
-          columnValues.reduce((acc, col) => acc - (col[index] || 0))
-        );
-        break;
-      }
-      case 'modulo': {
-        columnResult = columnValues[0].map((_, index) => {
-          const validValues = columnValues.map((col) => col[index]).filter((val) => val !== null && val !== 0);
-          return validValues.reduce((acc, val) => acc % val, validValues[0] || 1);
-        });
-        break;
-      }
-      default:
-        throw new HttpException(`L'opération "${operation}" n'est pas supportée.`, 802);
-    }
-  } catch (err) {
-    throw new HttpException(
-      `L'opération "${operation}" n'est pas possible pour les colonnes sélectionnées.`,
-      803
-    );
-  }
+//   // Étape 5 : Appliquer la fonction
+//   let columnResult: any[] = [];
+//   try {
+//     switch (operation.toLowerCase()) {
+//       case 'sum': {
+//         columnResult = columnValues[0].map((_, index) =>
+//           columnValues.reduce((acc, col) => acc + (col[index] || 0), 0)
+//         );
+//         break;
+//       }
+//       case 'average': {
+//         columnResult = columnValues[0].map((_, index) => {
+//           const validValues = columnValues.map((col) => col[index] || 0);
+//           const sum = validValues.reduce((acc, val) => acc + val, 0);
+//           return sum / validValues.length;
+//         });
+//         break;
+//       }
+//       case 'max': {
+//         columnResult = columnValues[0].map((_, index) =>
+//           Math.max(...columnValues.map((col) => col[index] || 0))
+//         );
+//         break;
+//       }
+//       case 'min': {
+//         columnResult = columnValues[0].map((_, index) =>
+//           Math.min(...columnValues.map((col) => col[index] || 0))
+//         );
+//         break;
+//       }
+//       case 'count': {
+//         columnResult = columnValues[0].map((_, index) =>
+//           columnValues.map((col) => col[index]).filter((val) => val !== null && val !== undefined).length
+//         );
+//         break;
+//       }
+//       case 'concat': {
+//         columnResult = columnValues[0].map((_, index) =>
+//           columnLetters
+//             .map((_, colIndex) => columnValues[colIndex][index]?.toString() || '')
+//             .join(separator || ' ')
+//         );
+//         break;
+//       }
+//       case 'multiply': {
+//         columnResult = columnValues[0].map((_, index) =>
+//           columnValues.reduce((acc, col) => acc * (col[index] || 1), 1)
+//         );
+//         break;
+//       }
+//       case 'divide': {
+//         columnResult = columnValues[0].map((_, index) => {
+//           const validValues = columnValues.map((col) => col[index]).filter((val) => val !== null && val !== 0);
+//           return validValues.reduce((acc, val) => acc / val, validValues[0] || 1);
+//         });
+//         break;
+//       }
+//       case 'subtract': {
+//         columnResult = columnValues[0].map((_, index) =>
+//           columnValues.reduce((acc, col) => acc - (col[index] || 0))
+//         );
+//         break;
+//       }
+//       case 'modulo': {
+//         columnResult = columnValues[0].map((_, index) => {
+//           const validValues = columnValues.map((col) => col[index]).filter((val) => val !== null && val !== 0);
+//           return validValues.reduce((acc, val) => acc % val, validValues[0] || 1);
+//         });
+//         break;
+//       }
+//       default:
+//         throw new HttpException(`L'opération "${operation}" n'est pas supportée.`, 802);
+//     }
+//   } catch (err) {
+//     throw new HttpException(
+//       `L'opération "${operation}" n'est pas possible pour les colonnes sélectionnées.`,
+//       803
+//     );
+//   }
 
-// Vérifier si la colonne cible existe
-  const targetColumnLetter = targetColumn.replace(/\d/g, '');
-  if (!sheet.colonnes.includes(targetColumnLetter)) {
-    throw new HttpException(
-      `La colonne cible "${targetColumnLetter}" n'existe pas.`,
-      804
-    );
-  }
+// // Vérifier si la colonne cible existe
+//   const targetColumnLetter = targetColumn.replace(/\d/g, '');
+//   if (!sheet.colonnes.includes(targetColumnLetter)) {
+//     throw new HttpException(
+//       `La colonne cible "${targetColumnLetter}" n'existe pas.`,
+//       804
+//     );
+//   }
 
-  // Étape 6 : Ajouter les résultats dans la colonne cible
-  sheet.donnees.slice(1).forEach((row, index) => {
-    const cellKey = `${targetColumnLetter}${index + 2}`;
-    row[cellKey] = columnResult[index];
-  });
+//   // Étape 6 : Ajouter les résultats dans la colonne cible
+//   sheet.donnees.slice(1).forEach((row, index) => {
+//     const cellKey = `${targetColumnLetter}${index + 2}`;
+//     row[cellKey] = columnResult[index];
+//   });
 
-  fichier[targetSheetName] = sheet;
-  source.fichier = { ...fichier };
+//   fichier[targetSheetName] = sheet;
+//   source.fichier = { ...fichier };
 
-  return await this.sourcededonneesrepo.save(source);
-}
+//   return await this.sourcededonneesrepo.save(source);
+// }
 
 
 async applyFunctionAndSave2(
@@ -1756,37 +1582,46 @@ async applyFunctionAndSave2(
       .replace(/OU\((.*?)\)/g, (_, values) => `(${values.replace(/;/g, ' || ')})`)
   
       // SI(condition;valeur_si_vrai;valeur_si_faux)
-      .replace(/SI\((.*?);(.*?);(.*?)\)/g, (_, condition, trueVal, falseVal) => {
-        let match = condition.match(/(>=|<=|>|<|=)/);
-        if (!match) throw new Error(`Opérateur de comparaison manquant dans la condition: ${condition}`);
+      // NOUVELLE VERSION CORRIGÉE
+.replace(/SI\((.*?);(.*?);(.*?)\)/g, (_, condition, trueVal, falseVal) => {
+    const operatorMatch = condition.match(/(>=|<=|>|<|=)/);
+    if (!operatorMatch) {
+      throw new Error(`Opérateur de comparaison manquant ou condition non gérée dans: ${condition}`);
+    }
+
+    const operator = operatorMatch[0];
+    // CORRECTION 1: Convertir le "=" d'Excel en "==" de JavaScript
+    const jsOperator = operator === '=' ? '==' : operator;
+
+    const parts = condition.split(operator);
+    const left = parts[0].trim();
+    const right = parts[1].trim();
+
+    // CORRECTION 2: Une fonction helper pour formater correctement les valeurs
+    // Si c'est un nombre, on le laisse tel quel. Sinon, on le met entre guillemets.
+    const formatAsJsValue = (val) => {
+      // isFinite gère les nombres, mais aussi les chaînes qui ne sont que des nombres
+      if (val !== '' && isFinite(Number(val))) {
+        return val; // C'est un nombre, on ne met pas de guillemets
+      }
+      // C'est une chaîne de caractères (ou vide), on met des guillemets
+      return `"${val}"`; 
+    };
+
+    const formattedLeft = formatAsJsValue(left);
+    const formattedRight = formatAsJsValue(right);
+    const formattedTrue = formatAsJsValue(trueVal.trim());
+    const formattedFalse = formatAsJsValue(falseVal.trim());
+
+    return `( ${formattedLeft} ${jsOperator} ${formattedRight} ? ${formattedTrue} : ${formattedFalse} )`;
+});
   
-        let operator = match[0];
-        let [left, right] = condition.split(operator).map(v => v.trim());
-  
-        const isLeftNumeric = /^-?\d+(\.\d+)?$/.test(left);
-        const isRightNumeric = /^-?\d+(\.\d+)?$/.test(right);
-  
-        if (!isLeftNumeric) left = `"${left}"`;
-        if (!isRightNumeric) right = `"${right}"`;
-  
-        if (isLeftNumeric && isRightNumeric) {
-          return `( ${left} ${operator} ${right} ? "${trueVal.trim()}" : "${falseVal.trim()}" )`;
-        }
-  
-        return `( ${left}.localeCompare(${right}) == 0 ? "${trueVal.trim()}" : "${falseVal.trim()}" )`;
-      });
-  
-    console.log("🔍 Formule Avant :", formula);
-    console.log("✅ Formule Après :", convertedFormula);
+    console.log(" Formule Avant :", formula);
+    console.log(" Formule Après :", convertedFormula);
   
     return convertedFormula;
   }
   
-  
-  
-  
-  
-
   // Étape 5 : Appliquer la formule ligne par ligne
   const columnResult: any[] = [];
   sheet.donnees.slice(1).forEach((row, index) => {
@@ -1804,7 +1639,7 @@ async applyFunctionAndSave2(
       // 🔍 Logs pour vérifier les formules
       console.log(`🔄 Ligne ${index + 2} - Formule Finale :`, evaluatedFormula);
 
-      // ✅ Évaluation avec `safeCompare` ajouté dans le contexte
+      //  Évaluation avec `safeCompare` ajouté dans le contexte
       // columnResult.push(evaluate(evaluatedFormula, { safeCompare }));
       const safeEval = new Function(`return ${evaluatedFormula};`);
       columnResult.push(safeEval());
@@ -2845,13 +2680,6 @@ async getConfigurationSources(
     if (!sourceDonnee) {
       throw new NotFoundException(`Source de données avec l'ID ${idsourceDonnes} non trouvée.`);
     }
-
-    // --- Logique de permission ---
-    // Qui peut supprimer une source de données ?
-    // Exemple : L'utilisateur doit être SuperAdmin, ou un membre de la structure propriétaire de l'enquête/projet
-    //          avec un rôle spécifique (ex: TOPMANAGER, ou le créateur de l'enquête/source).
-    //          Ou basé sur les `autorisations` de la source de données elle-même.
-    
     let canDelete = false;
     if (currentUser.role !== UserRole.Client) { // SuperAdmin
         canDelete = true;
@@ -2864,7 +2692,7 @@ async getConfigurationSources(
     }
 
     try {
-      const result = await this.sourcededonneesrepo.softDelete(idsourceDonnes);
+      const result = await this.sourcededonneesrepo.delete(idsourceDonnes);
 
       if (result.affected === 0) {
         throw new NotFoundException(`Source de données avec l'ID ${idsourceDonnes} non trouvée pour la suppression (après vérification).`);

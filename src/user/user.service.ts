@@ -166,60 +166,98 @@ export class UserService {
 
 
 
-  async softDeleteUserOrMember(
-    idUserToDelete: string,
-    currentUser: MembreStruct, // L'utilisateur qui effectue l'action
-  ): Promise<{ message: string }> {
+  // async softDeleteUserOrMember(
+  //   idUserToDelete: string,
+  //   currentUser: MembreStruct, // L'utilisateur qui effectue l'action
+  // ): Promise<{ message: string }> {
 
-    // --- 1. Vérification des permissions ---
-    // Seul un SuperAdmin peut supprimer n'importe quel utilisateur/membre.
-    // Un client/membre ne devrait pas pouvoir supprimer d'autres utilisateurs via cette route générique.
-    if (currentUser.role !== UserRole.SuperAdmin) {
-      throw new ForbiddenException("Vous n'avez pas les droits pour supprimer des utilisateurs.");
-    }
+  //   // --- 1. Vérification des permissions ---
+  //   // Seul un SuperAdmin peut supprimer n'importe quel utilisateur/membre.
+  //   // Un client/membre ne devrait pas pouvoir supprimer d'autres utilisateurs via cette route générique.
+  //   if (currentUser.role !== UserRole.SuperAdmin) {
+  //     throw new ForbiddenException("Vous n'avez pas les droits pour supprimer des utilisateurs.");
+  //   }
 
-    // Empêcher un SuperAdmin de se supprimer lui-même via cette fonction
-    if (idUserToDelete === currentUser.iduser) {
-      throw new ForbiddenException("Vous не pouvez pas vous supprimer vous-même de cette manière.");
-    }
+  //   // Empêcher un SuperAdmin de se supprimer lui-même via cette fonction
+  //   if (idUserToDelete === currentUser.iduser) {
+  //     throw new ForbiddenException("Vous не pouvez pas vous supprimer vous-même de cette manière.");
+  //   }
 
-    // --- 2. Essayer de trouver et supprimer comme MembreStruct d'abord ---
-    const membre = await this.membrestructrepo.findOne({
-      where: { iduser: idUserToDelete },
-      // relations: ['structure'] // Optionnel, si besoin pour des logs ou actions pré-suppression
-    });
+  //   // --- 2. Essayer de trouver et supprimer comme MembreStruct d'abord ---
+  //   const membre = await this.membrestructrepo.findOne({
+  //     where: { iduser: idUserToDelete },
+  //     // relations: ['structure'] // Optionnel, si besoin pour des logs ou actions pré-suppression
+  //   });
 
-    if (membre) {
-      try {
-        const result = await this.membrestructrepo.softDelete({ iduser: idUserToDelete });
-        if (result.affected === 0) {
-          throw new NotFoundException(`Membre avec l'ID ${idUserToDelete} trouvé mais échec du soft delete.`); // Cas étrange
-        }
-        return { message: `Membre de structure avec l'ID ${idUserToDelete} marqué comme supprimé avec succès.` };
-      } catch (error) {
-        throw new HttpException(`Erreur lors du soft delete du membre ${idUserToDelete}: ${error.message}`, HttpStatus.INTERNAL_SERVER_ERROR);
-      }
-    }
+  //   if (membre) {
+  //     try {
+  //       const result = await this.membrestructrepo.softDelete({ iduser: idUserToDelete });
+  //       if (result.affected === 0) {
+  //         throw new NotFoundException(`Membre avec l'ID ${idUserToDelete} trouvé mais échec du soft delete.`); // Cas étrange
+  //       }
+  //       return { message: `Membre de structure avec l'ID ${idUserToDelete} marqué comme supprimé avec succès.` };
+  //     } catch (error) {
+  //       throw new HttpException(`Erreur lors du soft delete du membre ${idUserToDelete}: ${error.message}`, HttpStatus.INTERNAL_SERVER_ERROR);
+  //     }
+  //   }
 
-    // --- 3. Si ce n'est pas un MembreStruct, essayer comme UserEntity global ---
-    const user = await this.userrepo.findOne({ where: { iduser: idUserToDelete } });
+  //   // --- 3. Si ce n'est pas un MembreStruct, essayer comme UserEntity global ---
+  //   const user = await this.userrepo.findOne({ where: { iduser: idUserToDelete } });
 
-    if (user) {
-      try {
-        const result = await this.userrepo.softDelete({ iduser: idUserToDelete });
-        if (result.affected === 0) {
-          throw new NotFoundException(`Utilisateur avec l'ID ${idUserToDelete} trouvé mais échec du soft delete.`); // Cas étrange
-        }
-        return { message: `Utilisateur global avec l'ID ${idUserToDelete} marqué comme supprimé avec succès.` };
-      } catch (error) {
-        throw new HttpException(`Erreur lors du soft delete de l'utilisateur ${idUserToDelete}: ${error.message}`, HttpStatus.INTERNAL_SERVER_ERROR);
-      }
-    }
+  //   if (user) {
+  //     try {
+  //       const result = await this.userrepo.softDelete({ iduser: idUserToDelete });
+  //       if (result.affected === 0) {
+  //         throw new NotFoundException(`Utilisateur avec l'ID ${idUserToDelete} trouvé mais échec du soft delete.`); // Cas étrange
+  //       }
+  //       return { message: `Utilisateur global avec l'ID ${idUserToDelete} marqué comme supprimé avec succès.` };
+  //     } catch (error) {
+  //       throw new HttpException(`Erreur lors du soft delete de l'utilisateur ${idUserToDelete}: ${error.message}`, HttpStatus.INTERNAL_SERVER_ERROR);
+  //     }
+  //   }
 
-    // --- 4. Si non trouvé du tout ---
-    throw new NotFoundException(`Utilisateur ou Membre avec l'ID ${idUserToDelete} non trouvé.`);
+  //   // --- 4. Si non trouvé du tout ---
+  //   throw new NotFoundException(`Utilisateur ou Membre avec l'ID ${idUserToDelete} non trouvé.`);
+  // }
+
+
+
+async deleteUserOrMember(
+  idUserToDelete: string,
+  currentUser: MembreStruct, // L'utilisateur qui effectue l'action
+): Promise<{ message: string }> {
+  // --- 1. Vérification des permissions ---
+  // Seul un SuperAdmin peut supprimer n'importe quel utilisateur/membre.
+  if (currentUser.role !== UserRole.SuperAdmin) {
+    throw new ForbiddenException("Vous n'avez pas les droits pour supprimer des utilisateurs.");
   }
 
+  // Empêcher un SuperAdmin de se supprimer lui-même
+  if (idUserToDelete === currentUser.iduser) {
+    throw new ForbiddenException("Vous ne pouvez pas vous supprimer vous-même de cette manière.");
+  }
+  const membre = await this.membrestructrepo.findOne({
+    where: { iduser: idUserToDelete },
+  });
+
+  if (membre) {
+    try {
+      const result = await this.membrestructrepo.delete({ iduser: idUserToDelete });
+      if (result.affected === 0) {
+        throw new NotFoundException(`Membre avec l'ID ${idUserToDelete} trouvé mais échec de la suppression.`);
+      }
+      return { message: `Membre de structure avec l'ID ${idUserToDelete} supprimé définitivement avec succès.` };
+    } catch (error) {
+      throw new HttpException(
+        `Erreur lors de la suppression du membre ${idUserToDelete}: ${error.message}`,
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
+  // --- 3. Si aucun membre n'est trouvé ---
+  throw new NotFoundException(`Aucun membre trouvé avec l'ID ${idUserToDelete}.`);
+}
 
 
   async getUserRoleCounts() {
@@ -281,13 +319,6 @@ export class UserService {
   console.log('[UserService.findby] Success: All users found across both repositories.');
   return allFoundUsers;
 }
-
-
-
-
-
-
-
 
 
 }

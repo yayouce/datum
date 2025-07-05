@@ -63,26 +63,15 @@ export class StructureService {
 
 
   async createStructure(createStructure: CreateStructureDto) {
-
-
     try{
       return await this.structureRepo.save(createStructure)
      }
     catch(err){
-     throw new HttpException(err.message,804)
+        throw new HttpException("contact, email ou nom de la structure existe dejà",804)
     }
 
    }
-  //  async getStructureByname(nomStruct:string){
-  //   try{
-  //     return await this.structureRepo.findOne({
-  //       where:{nomStruct}
-  //     })
-  //   }
-  //   catch(err){
-  //     throw err
-  //   }
-  //  }
+  
 
 
    async getStructureByname(nomStruct: string) {
@@ -98,7 +87,7 @@ export class StructureService {
     return structure;
   } catch (err) {
     // Si l'erreur est déjà une NotFoundException, la relancer directement
-    if (err instanceof NotFoundException) {
+    if (err ) {
       throw err;
     }
     // Gérer les autres erreurs
@@ -683,7 +672,7 @@ async validerAdhesionMembre(idMembre: string, user: any) {
   }
 
 
-async softDeleteStructure(idStructs: string[], user: any) {
+async DeleteStructure(idStructs: string[], user: any) {
   if (!this.isSuperAdmin(user)) {
     throw new ForbiddenException("Action non autorisée pour supprimer cette structure.");
   }
@@ -704,7 +693,7 @@ async softDeleteStructure(idStructs: string[], user: any) {
         continue;
       }
 
-      await this.structureRepo.softDelete(id);
+      await this.structureRepo.delete(id);
       nbdelete++;
     }
 

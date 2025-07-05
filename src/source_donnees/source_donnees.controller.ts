@@ -240,13 +240,13 @@ async getAllFeuillesFiltrees(
 
 
 
-  @Post('apply-function/:idsource')
-  async applyFunction(
-    @Body() applyFunctionDto: ApplyFunctionDto,
-    @Param('idsource') idsource:string
-  ) {
-    return await this.sourceDonneesService.applyFunctionAndSave(idsource,applyFunctionDto);
-  }
+  // @Post('apply-function/:idsource')
+  // async applyFunction(
+  //   @Body() applyFunctionDto: ApplyFunctionDto,
+  //   @Param('idsource') idsource:string
+  // ) {
+  //   return await this.sourceDonneesService.applyFunctionAndSave(idsource,applyFunctionDto);
+  // }
 
   @Post('apply-function2/:idsource')
   async applyFunction2(

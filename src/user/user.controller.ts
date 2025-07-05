@@ -41,7 +41,7 @@ export class UserController {
     @Param('idUserToDelete') idUserToDelete: string,
     @User() currentUser: MembreStruct, // L'utilisateur qui effectue l'action
   ): Promise<{ message: string }> {
-    return await this.userService.softDeleteUserOrMember(idUserToDelete, currentUser);
+    return await this.userService.deleteUserOrMember(idUserToDelete, currentUser);
   }
 
   // @Get('/count')

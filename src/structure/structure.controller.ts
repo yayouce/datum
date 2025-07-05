@@ -191,7 +191,7 @@ export class StructureController {
     @Body() body: {idStructs: string[]},
     @User() userReq: any, 
   ): Promise<{ message: string }> { // Le service retourne { message: string; structure?: Structure }, on prend juste le message ici
-    const result = await this.structureService.softDeleteStructure(body.idStructs, userReq);
+    const result = await this.structureService.DeleteStructure(body.idStructs, userReq);
     return { message: result.message };
   }
 

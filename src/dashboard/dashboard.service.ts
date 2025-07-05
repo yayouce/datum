@@ -71,7 +71,6 @@ private readonly structureService: StructureService,
      stats.utilisateurs.topManagers = await this.membreStructService.countMembresByRoleGlobal(roleMembreEnum.TOPMANAGER);
      stats.utilisateurs.managers = await this.membreStructService.countMembresByRoleGlobal(roleMembreEnum.MANAGER);
      stats.utilisateurs.coordinateurs = await this.membreStructService.countMembresByRoleGlobal(roleMembreEnum.COORDINATEUR);
-
      stats.projets.actifs = await this.projetService.countProjetsByEtatGlobal(etatprojetEnum.En_cours);
      stats.projets.enPause = await this.projetService.countProjetsByEtatGlobal(etatprojetEnum.En_pause);
      stats.projets.enAttente = await this.projetService.countProjetsByEtatGlobal(etatprojetEnum.En_attente);

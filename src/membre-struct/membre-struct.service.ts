@@ -29,14 +29,15 @@ async createMembreStruct(createmembre:CreateMembreStructDto){
   
   const exist = await this.findOnemembreByemail(email)
   if(exist){
-    throw new HttpException('utilisateur existe deja',705)
+    throw new HttpException('utilisateur existe deja',804)
   }
   const membres = []
-  const structureData = {nomStruct,descStruct,contactStruct,adhesion,emailStruct,localisationStruc,membres,}
+  const structureData = {nomStruct,descStruct,contactStruct,adhesion,emailStruct,localisationStruc,membres}
  const creatredStructure= await this.structureservice.createStructure(structureData)
   
   const hashedpassword =await  bcrypt.hash(createmembre.password,saltOrRounds)
-  const membreStruct=await this.membreRepository.create({
+  try{
+    const membreStruct=await this.membreRepository.create({
     ...membredata,
     password:hashedpassword,
     roleMembre:roleMembreEnum.TOPMANAGER,
@@ -48,8 +49,11 @@ async createMembreStruct(createmembre:CreateMembreStructDto){
   })
   
   return this.membreRepository.save(membreStruct) 
-
-
+  }
+  catch(err){
+throw new HttpException(`erreur lors de la creation du Top manager ${err.message}`,804)
+  }
+ 
 }
 
 

@@ -1,3 +1,4 @@
+import { Trim } from "@/decorator/trimuserinput.decorator";
 import { Type } from "class-transformer";
 import { IsBoolean, IsNotEmpty, IsOptional, IsString } from "class-validator";
 import { Structure } from "src/structure/entities/structure.entity";
@@ -26,6 +27,7 @@ contact:string;
 
 @IsNotEmpty()
 @IsString()
+@Trim()
 nomStruct : string;
 @IsNotEmpty()
 @IsString()
@@ -35,6 +37,7 @@ descStruct : string;
 contactStruct : string;
 @IsNotEmpty()
 @IsString()
+@Trim()
 emailStruct : string;
 @IsNotEmpty()
 @IsString()
@@ -42,8 +45,6 @@ localisationStruc:string
 @IsOptional()
 @IsBoolean()
 adhesion:boolean
-
-
 @Type(() =>Structure)
 structure
 }

@@ -162,7 +162,7 @@ export class ProjetService {
   }
   
 
-  async softDeleteProjet(idprojets: string[], user: UserEntity | MembreStruct) {
+  async DeleteProjet(idprojets: string[], user: UserEntity | MembreStruct) {
 
   try {
     if (user.role === UserRole.Client) {
@@ -184,7 +184,7 @@ export class ProjetService {
         continue;
       }
 
-      await this.projetRepo.softDelete(id);
+      await this.projetRepo.delete(id);
       nbdelete++;
     }
 
