@@ -198,9 +198,6 @@ export class StructureController {
 
 
   //______________________________ organigramme
-
-
-
   @Get('organigramme/:idStruct')
   async getOrganigramme(
     @Param('idStruct', ParseUUIDPipe) idStruct: string // Valide que idStruct est un UUID

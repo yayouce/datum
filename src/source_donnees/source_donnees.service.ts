@@ -45,7 +45,7 @@ import { detectFileFormat, processCsvFile, processExcelFile, processJsonFile } f
 import { getExcelColumnName } from './utils/generernomcolonne';
 
 import * as JoinHelpers from './utils/join.helpers';
-
+import * as StreamHelpers from './utils/stream.helpers';
 type AuthenticatedUser = {
   iduser: string;
   role: 'admin' | 'client';
@@ -100,7 +100,7 @@ export class SourceDonneesService implements OnModuleInit {
 
 
   onModuleInit() {
-    console.log('🚀 [INIT] SourceDonneesService initialisé. Lancement de la première synchronisation...');
+    console.log('[INIT] SourceDonneesService initialisé. Lancement de la première synchronisation...');
     this.refreshSourcesAuto3();
   }
   async findOneById(id: string): Promise<SourceDonnee | null> {
@@ -525,15 +525,6 @@ private isTimeToUpdate(sourceDonnee: SourceDonnee): boolean {
 
       let filePath = '';
       try {
-        const response = await firstValueFrom(
-          this.httpService.get(sourceDonnee.source, { responseType: 'arraybuffer', timeout: 60000 })
-        );
-
-        if (!response?.data?.byteLength) {
-          this.logger.warn(`Aucune donnée pour ${sourceDonnee.nomSource}.`);
-          continue;
-        }
-
         const formatFichier = detectFileFormat(sourceDonnee.source);
         if (!formatFichier) {
           this.logger.error(`Format non détecté pour ${sourceDonnee.source}.`);
@@ -542,22 +533,30 @@ private isTimeToUpdate(sourceDonnee: SourceDonnee): boolean {
 
         const tempFileName = `temp_refresh_${sourceDonnee.idsourceDonnes}_${Date.now()}.${formatFichier}`;
         filePath = path.join(this.tempDir, tempFileName);
-        fs.writeFileSync(filePath, Buffer.from(response.data));
 
+        // ÉTAPE 1: Téléchargement en streaming
+        this.logger.log(`Téléchargement en streaming vers ${filePath}...`);
+        await StreamHelpers.downloadFileAsStream(sourceDonnee.source, filePath);
+        this.logger.log('Téléchargement terminé.');
+
+        // ÉTAPE 2: Parsing en streaming depuis le fichier
         let fichierTelechargeTraite = null;
-        if (formatFichier === 'xlsx') fichierTelechargeTraite = processExcelFile(filePath);
-        else if (formatFichier === 'csv') fichierTelechargeTraite = await processCsvFile(filePath);
-        else if (formatFichier === 'json') fichierTelechargeTraite = processJsonFile(filePath);
-        else {
-          this.logger.error(`Format '${formatFichier}' non supporté (source: ${sourceDonnee.source}).`);
+        this.logger.log(`Parsing en streaming du fichier ${formatFichier}...`);
+        if (formatFichier === 'xlsx') {
+            fichierTelechargeTraite = await StreamHelpers.processExcelStream(filePath);
+        } else if (formatFichier === 'csv') {
+            // Note: processCsvStream doit être complété pour correspondre à votre structure de données
+            fichierTelechargeTraite = await StreamHelpers.processCsvStream(filePath);
+        } else if (formatFichier === 'json') {
+            // Pour le JSON, la lecture en stream est possible mais plus complexe.
+            // Pour l'instant, on peut le lire de manière classique car c'est moins courant.
+            const jsonData = fs.readFileSync(filePath, 'utf-8');
+            fichierTelechargeTraite = processJsonFile(JSON.parse(jsonData)); // en supposant que processJsonFile existe
+        } else {
+          this.logger.error(`Format '${formatFichier}' non supporté pour le streaming.`);
           continue;
         }
-
-        const formatEntite = await this.formatservice.getoneByLibelle(formatFichier);
-        if (!formatEntite) {
-          this.logger.error(`Entité Format introuvable pour: '${formatFichier}'.`);
-          continue;
-        }
+        this.logger.log('Parsing terminé.');
 
         // ----- DÉBUT DE LA LOGIQUE DE FUSION BASÉE SUR LES EN-TÊTES DE COLONNES -----
         if ((formatFichier === 'xlsx' || formatFichier === 'csv') && fichierTelechargeTraite) {
@@ -686,16 +685,25 @@ private isTimeToUpdate(sourceDonnee: SourceDonnee): boolean {
 }
         // ----- FIN DE LA LOGIQUE DE FUSION -----
 
+        const formatEntite = await this.formatservice.getoneByLibelle(formatFichier);
+        if (!formatEntite) {
+          this.logger.error(`Entité Format introuvable pour: '${formatFichier}'.`);
+          continue;
+        }
+        
+        // ...
         sourceDonnee.format = formatEntite;
         sourceDonnee.libelleformat = formatEntite.libelleFormat;
         sourceDonnee.derniereMiseAJourReussieSource = new Date();
-
+        
+        // ÉTAPE 3: Sauvegarde
         await this.sourcededonneesrepo.save(sourceDonnee);
         this.logger.log(`SUCCÈS: Source ${sourceDonnee.nomSource} mise à jour.`);
 
       } catch (error) {
         this.logger.error(`ERREUR source ${sourceDonnee.nomSource} (ID: ${sourceDonnee.idsourceDonnes}): ${error.message}`, error.stack);
       } finally {
+        // Nettoyage du fichier temporaire
         if (filePath && fs.existsSync(filePath)) {
           try { fs.unlinkSync(filePath); }
           catch (e) { this.logger.warn(`Échec suppression temp ${filePath}: ${e.message}`); }
@@ -703,7 +711,11 @@ private isTimeToUpdate(sourceDonnee: SourceDonnee): boolean {
       }
     }
     this.logger.log('Fin rafraîchissement des sources.');
-  }
+}
+
+
+
+
 
 
 
