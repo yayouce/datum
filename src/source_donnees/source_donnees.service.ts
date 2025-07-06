@@ -46,6 +46,7 @@ import { getExcelColumnName } from './utils/generernomcolonne';
 
 import * as JoinHelpers from './utils/join.helpers';
 import * as StreamHelpers from './utils/stream.helpers';
+import { fusionnerFichiers } from './utils/fusion_recup_ligne.helper';
 type AuthenticatedUser = {
   iduser: string;
   role: 'admin' | 'client';
@@ -504,215 +505,321 @@ private isTimeToUpdate(sourceDonnee: SourceDonnee): boolean {
 //     this.logger.log('Fin de la vérification des sources de données pour rafraîchissement.');
 //   }
 
-  async refreshSourcesAuto3(): Promise<void> {
-    const sources = await this.sourcededonneesrepo.find({
-      where: { source: Not(IsNull()), frequence: Not(IsNull()), libelleunite: Not(IsNull()) },
-      relations: ['format', 'typedonnes', 'unitefrequence'],
-    });
 
-    this.logger.log(`Vérification de ${sources.length} source(s) pour rafraîchissement.`);
 
-    for (const sourceDonnee of sources) {
-      if (!this.isTimeToUpdate(sourceDonnee)) {
-        continue;
-      }
-      this.logger.log(`Traitement source: ${sourceDonnee.nomSource} (ID: ${sourceDonnee.idsourceDonnes})`);
+//   async refreshSourcesAuto3(): Promise<void> {
+//     const sources = await this.sourcededonneesrepo.find({
+//       where: { source: Not(IsNull()), frequence: Not(IsNull()), libelleunite: Not(IsNull()) },
+//       relations: ['format', 'typedonnes', 'unitefrequence'],
+//     });
 
-      if (!sourceDonnee.source || !sourceDonnee.source.startsWith('http')) {
-        this.logger.warn(`URL invalide pour ${sourceDonnee.nomSource}: ${sourceDonnee.source}.`);
-        continue;
-      }
+//     this.logger.log(`Vérification de ${sources.length} source(s) pour rafraîchissement.`);
 
-      let filePath = '';
-      try {
-        const formatFichier = detectFileFormat(sourceDonnee.source);
-        if (!formatFichier) {
-          this.logger.error(`Format non détecté pour ${sourceDonnee.source}.`);
-          continue;
-        }
+//     for (const sourceDonnee of sources) {
+//       if (!this.isTimeToUpdate(sourceDonnee)) {
+//         continue;
+//       }
+//       this.logger.log(`Traitement source: ${sourceDonnee.nomSource} (ID: ${sourceDonnee.idsourceDonnes})`);
 
-        const tempFileName = `temp_refresh_${sourceDonnee.idsourceDonnes}_${Date.now()}.${formatFichier}`;
-        filePath = path.join(this.tempDir, tempFileName);
+//       if (!sourceDonnee.source || !sourceDonnee.source.startsWith('http')) {
+//         this.logger.warn(`URL invalide pour ${sourceDonnee.nomSource}: ${sourceDonnee.source}.`);
+//         continue;
+//       }
 
-        // ÉTAPE 1: Téléchargement en streaming
-        this.logger.log(`Téléchargement en streaming vers ${filePath}...`);
-        await StreamHelpers.downloadFileAsStream(sourceDonnee.source, filePath);
-        this.logger.log('Téléchargement terminé.');
+//       let filePath = '';
+//       try {
+//         const formatFichier = detectFileFormat(sourceDonnee.source);
+//         if (!formatFichier) {
+//           this.logger.error(`Format non détecté pour ${sourceDonnee.source}.`);
+//           continue;
+//         }
 
-        // ÉTAPE 2: Parsing en streaming depuis le fichier
-        let fichierTelechargeTraite = null;
-        this.logger.log(`Parsing en streaming du fichier ${formatFichier}...`);
-        if (formatFichier === 'xlsx') {
-            fichierTelechargeTraite = await StreamHelpers.processExcelStream(filePath);
-        } else if (formatFichier === 'csv') {
-            // Note: processCsvStream doit être complété pour correspondre à votre structure de données
-            fichierTelechargeTraite = await StreamHelpers.processCsvStream(filePath);
-        } else if (formatFichier === 'json') {
-            // Pour le JSON, la lecture en stream est possible mais plus complexe.
-            // Pour l'instant, on peut le lire de manière classique car c'est moins courant.
-            const jsonData = fs.readFileSync(filePath, 'utf-8');
-            fichierTelechargeTraite = processJsonFile(JSON.parse(jsonData)); // en supposant que processJsonFile existe
-        } else {
-          this.logger.error(`Format '${formatFichier}' non supporté pour le streaming.`);
-          continue;
-        }
-        this.logger.log('Parsing terminé.');
+//         const tempFileName = `temp_refresh_${sourceDonnee.idsourceDonnes}_${Date.now()}.${formatFichier}`;
+//         filePath = path.join(this.tempDir, tempFileName);
 
-        // ----- DÉBUT DE LA LOGIQUE DE FUSION BASÉE SUR LES EN-TÊTES DE COLONNES -----
-        if ((formatFichier === 'xlsx' || formatFichier === 'csv') && fichierTelechargeTraite) {
-    const ancienFichierComplet = sourceDonnee.fichier || {};
-    const fichierResultatFusion = {};
+//         // ÉTAPE 1: Téléchargement en streaming
+//         this.logger.log(`Téléchargement en streaming vers ${filePath}...`);
+//         await StreamHelpers.downloadFileAsStream(sourceDonnee.source, filePath);
+//         this.logger.log('Téléchargement terminé.');
 
-    // Helper 1: Génère un nom de colonne Excel (A, B, ..., Z, AA, AB, ...)
-    const getExcelColumnName = (index: number): string => {
-        let name = '';
-        let i = index;
-        while (i >= 0) {
-            name = String.fromCharCode(i % 26 + 'A'.charCodeAt(0)) + name;
-            i = Math.floor(i / 26) - 1;
-        }
-        return name;
-    };
+//         // ÉTAPE 2: Parsing en streaming depuis le fichier
+//         let fichierTelechargeTraite = null;
+//         this.logger.log(`Parsing en streaming du fichier ${formatFichier}...`);
+//         if (formatFichier === 'xlsx') {
+//             fichierTelechargeTraite = await StreamHelpers.processExcelStream(filePath);
+//         } else if (formatFichier === 'csv') {
+//             // Note: processCsvStream doit être complété pour correspondre à votre structure de données
+//             fichierTelechargeTraite = await StreamHelpers.processCsvStream(filePath);
+//         } else if (formatFichier === 'json') {
+//             // Pour le JSON, la lecture en stream est possible mais plus complexe.
+//             // Pour l'instant, on peut le lire de manière classique car c'est moins courant.
+//             const jsonData = fs.readFileSync(filePath, 'utf-8');
+//             fichierTelechargeTraite = processJsonFile(JSON.parse(jsonData)); // en supposant que processJsonFile existe
+//         } else {
+//           this.logger.error(`Format '${formatFichier}' non supporté pour le streaming.`);
+//           continue;
+//         }
+//         this.logger.log('Parsing terminé.');
 
-    // Helper 2: Extrait les informations de la feuille de manière robuste
-    const extraireInfosFeuille = (sheetData: any) => {
-        if (!sheetData?.donnees?.length) {
-            return { headers: [], dataRows: [] };
-        }
-        const headerRowObj = sheetData.donnees[0] || {};
-        const headers: { name: string; colId: string }[] = [];
-        const excelColIds = sheetData.colonnes || [];
+//         // ----- DÉBUT DE LA LOGIQUE DE FUSION BASÉE SUR LES EN-TÊTES DE COLONNES -----
+//         if ((formatFichier === 'xlsx' || formatFichier === 'csv') && fichierTelechargeTraite) {
+//     const ancienFichierComplet = sourceDonnee.fichier || {};
+//     const fichierResultatFusion = {};
 
-        excelColIds.forEach(colId => {
-            const headerCellKey = `${colId}1`;
-            // On inclut la colonne même si son nom est vide, pour préserver la structure.
-            const name = headerRowObj.hasOwnProperty(headerCellKey) ? String(headerRowObj[headerCellKey]) : `Colonne_${colId}`;
-            headers.push({ name, colId });
-        });
+//     // Helper 1: Génère un nom de colonne Excel (A, B, ..., Z, AA, AB, ...)
+//     const getExcelColumnName = (index: number): string => {
+//         let name = '';
+//         let i = index;
+//         while (i >= 0) {
+//             name = String.fromCharCode(i % 26 + 'A'.charCodeAt(0)) + name;
+//             i = Math.floor(i / 26) - 1;
+//         }
+//         return name;
+//     };
 
-        return { headers, dataRows: sheetData.donnees.slice(1) };
-    };
+//     // Helper 2: Extrait les informations de la feuille de manière robuste
+//     const extraireInfosFeuille = (sheetData: any) => {
+//         if (!sheetData?.donnees?.length) {
+//             return { headers: [], dataRows: [] };
+//         }
+//         const headerRowObj = sheetData.donnees[0] || {};
+//         const headers: { name: string; colId: string }[] = [];
+//         const excelColIds = sheetData.colonnes || [];
 
-    // Helper 3: Rend les noms d'en-tête uniques en ajoutant des suffixes
-    const generateUniqueHeaders = (headers: { name: string; colId: string }[]) => {
-        const counts = new Map<string, number>();
-        return headers.map(header => {
-            const currentCount = counts.get(header.name) || 0;
-            counts.set(header.name, currentCount + 1);
-            const uniqueName = currentCount > 0 ? `${header.name}_${currentCount + 1}` : header.name;
-            return { ...header, uniqueName };
-        });
-    };
+//         excelColIds.forEach(colId => {
+//             const headerCellKey = `${colId}1`;
+//             // On inclut la colonne même si son nom est vide, pour préserver la structure.
+//             const name = headerRowObj.hasOwnProperty(headerCellKey) ? String(headerRowObj[headerCellKey]) : `Colonne_${colId}`;
+//             headers.push({ name, colId });
+//         });
 
-    // Boucle de fusion principale
-    for (const sheetName in fichierTelechargeTraite) {
-        if (!fichierTelechargeTraite.hasOwnProperty(sheetName)) continue;
-        this.logger.log(`Début fusion feuille '${sheetName}' pour ${sourceDonnee.nomSource}`);
+//         return { headers, dataRows: sheetData.donnees.slice(1) };
+//     };
 
-        const infosNouveau = extraireInfosFeuille(fichierTelechargeTraite[sheetName]);
-        const infosAncien = extraireInfosFeuille(ancienFichierComplet[sheetName] || {});
+//     // Helper 3: Rend les noms d'en-tête uniques en ajoutant des suffixes
+//     const generateUniqueHeaders = (headers: { name: string; colId: string }[]) => {
+//         const counts = new Map<string, number>();
+//         return headers.map(header => {
+//             const currentCount = counts.get(header.name) || 0;
+//             counts.set(header.name, currentCount + 1);
+//             const uniqueName = currentCount > 0 ? `${header.name}_${currentCount + 1}` : header.name;
+//             return { ...header, uniqueName };
+//         });
+//     };
 
-        if (infosNouveau.headers.length === 0) {
-            this.logger.warn(`Nouvelle feuille '${sheetName}' est vide. Conservation de l'ancienne si existante.`);
-            fichierResultatFusion[sheetName] = ancienFichierComplet[sheetName] || fichierTelechargeTraite[sheetName];
-            continue;
-        }
+//     // Boucle de fusion principale
+//     for (const sheetName in fichierTelechargeTraite) {
+//         if (!fichierTelechargeTraite.hasOwnProperty(sheetName)) continue;
+//         this.logger.log(`Début fusion feuille '${sheetName}' pour ${sourceDonnee.nomSource}`);
 
-        const uniqueHeadersNouveau = generateUniqueHeaders(infosNouveau.headers);
-        const uniqueHeadersAncien = generateUniqueHeaders(infosAncien.headers);
+//         const infosNouveau = extraireInfosFeuille(fichierTelechargeTraite[sheetName]);
+//         const infosAncien = extraireInfosFeuille(ancienFichierComplet[sheetName] || {});
 
-        // Déterminer les colonnes de l'ancien fichier à conserver
-        const setNomsEntetesNouveaux = new Set(infosNouveau.headers.map(h => h.name));
-        const headersAnciensA_Conserver = uniqueHeadersAncien.filter(h => !setNomsEntetesNouveaux.has(h.name));
+//         if (infosNouveau.headers.length === 0) {
+//             this.logger.warn(`Nouvelle feuille '${sheetName}' est vide. Conservation de l'ancienne si existante.`);
+//             fichierResultatFusion[sheetName] = ancienFichierComplet[sheetName] || fichierTelechargeTraite[sheetName];
+//             continue;
+//         }
 
-        // Ordre final: toutes les colonnes uniques du nouveau, puis les uniques de l'ancien qui n'y étaient pas
-        const finalHeaderStructure = [...uniqueHeadersNouveau, ...headersAnciensA_Conserver];
+//         const uniqueHeadersNouveau = generateUniqueHeaders(infosNouveau.headers);
+//         const uniqueHeadersAncien = generateUniqueHeaders(infosAncien.headers);
+
+//         // Déterminer les colonnes de l'ancien fichier à conserver
+//         const setNomsEntetesNouveaux = new Set(infosNouveau.headers.map(h => h.name));
+//         const headersAnciensA_Conserver = uniqueHeadersAncien.filter(h => !setNomsEntetesNouveaux.has(h.name));
+
+//         // Ordre final: toutes les colonnes uniques du nouveau, puis les uniques de l'ancien qui n'y étaient pas
+//         const finalHeaderStructure = [...uniqueHeadersNouveau, ...headersAnciensA_Conserver];
         
-        // Construction de la nouvelle feuille
-        const resultatFeuille = { colonnes: [], donnees: [] };
-        const headerRowFinal = {};
+//         // Construction de la nouvelle feuille
+//         const resultatFeuille = { colonnes: [], donnees: [] };
+//         const headerRowFinal = {};
 
-        finalHeaderStructure.forEach((headerInfo, idx) => {
-            const finalColId = getExcelColumnName(idx);
-            resultatFeuille.colonnes.push(finalColId);
-            // On utilise le nom unique généré comme nouvel en-tête
-            headerRowFinal[`${finalColId}1`] = headerInfo.uniqueName;
+//         finalHeaderStructure.forEach((headerInfo, idx) => {
+//             const finalColId = getExcelColumnName(idx);
+//             resultatFeuille.colonnes.push(finalColId);
+//             // On utilise le nom unique généré comme nouvel en-tête
+//             headerRowFinal[`${finalColId}1`] = headerInfo.uniqueName;
+//         });
+//         resultatFeuille.donnees.push(headerRowFinal);
+
+//         // Traitement des lignes de données
+//         const nombreLignesDataFinal = infosNouveau.dataRows.length; // Le nombre de lignes est dicté par le nouveau fichier
+
+//         for (let i = 0; i < nombreLignesDataFinal; i++) {
+//             const ligneDataCouranteResultat = {};
+//             const numLigneExcel = i + 2;
+
+//             finalHeaderStructure.forEach((headerInfo, idx) => {
+//                 const finalColId = resultatFeuille.colonnes[idx];
+//                 let valeurCellule = null;
+
+//                 // Trouver la bonne valeur depuis sa source d'origine
+//                 const sourceDataRow = uniqueHeadersNouveau.includes(headerInfo) 
+//                     ? infosNouveau.dataRows[i] 
+//                     : (headersAnciensA_Conserver.includes(headerInfo) ? infosAncien.dataRows[i] : null);
+
+//                 if (sourceDataRow) {
+//                     const originalCellKey = `${headerInfo.colId}${numLigneExcel}`;
+//                     valeurCellule = sourceDataRow[originalCellKey];
+//                 }
+
+//                 ligneDataCouranteResultat[`${finalColId}${numLigneExcel}`] = (valeurCellule !== undefined) ? valeurCellule : null;
+//             });
+//             resultatFeuille.donnees.push(ligneDataCouranteResultat);
+//         }
+        
+//         fichierResultatFusion[sheetName] = resultatFeuille;
+//         this.logger.log(`Fusion feuille '${sheetName}' terminée. ${nombreLignesDataFinal} lignes de données traitées.`);
+//     }
+
+//     // Gérer les feuilles qui n'existent que dans l'ancien fichier
+//     for (const sheetName in ancienFichierComplet) {
+//         if (!fichierResultatFusion.hasOwnProperty(sheetName)) {
+//             this.logger.log(`Conservation de l'ancienne feuille '${sheetName}' non présente dans le nouveau fichier.`);
+//             fichierResultatFusion[sheetName] = ancienFichierComplet[sheetName];
+//         }
+//     }
+
+//     sourceDonnee.fichier = fichierResultatFusion;
+// } else { 
+//     sourceDonnee.fichier = fichierTelechargeTraite; 
+//     this.logger.log(`Format non-fusionnable ou échec du parsing. Écrasement du fichier pour ${sourceDonnee.nomSource}.`);
+// }
+//         // ----- FIN DE LA LOGIQUE DE FUSION -----
+
+//         const formatEntite = await this.formatservice.getoneByLibelle(formatFichier);
+//         if (!formatEntite) {
+//           this.logger.error(`Entité Format introuvable pour: '${formatFichier}'.`);
+//           continue;
+//         }
+        
+//         // ...
+//         sourceDonnee.format = formatEntite;
+//         sourceDonnee.libelleformat = formatEntite.libelleFormat;
+//         sourceDonnee.derniereMiseAJourReussieSource = new Date();
+        
+//         // ÉTAPE 3: Sauvegarde
+//         await this.sourcededonneesrepo.save(sourceDonnee);
+//         this.logger.log(`SUCCÈS: Source ${sourceDonnee.nomSource} mise à jour.`);
+
+//       } catch (error) {
+//         this.logger.error(`ERREUR source ${sourceDonnee.nomSource} (ID: ${sourceDonnee.idsourceDonnes}): ${error.message}`, error.stack);
+//       } finally {
+//         // Nettoyage du fichier temporaire
+//         if (filePath && fs.existsSync(filePath)) {
+//           try { fs.unlinkSync(filePath); }
+//           catch (e) { this.logger.warn(`Échec suppression temp ${filePath}: ${e.message}`); }
+//         }
+//       }
+//     }
+//     this.logger.log('Fin rafraîchissement des sources.');
+// }
+
+
+
+async refreshSourcesAuto3(): Promise<void> {
+        // Étape 0 : Récupérer les sources à traiter avec une sélection de colonnes optimisée
+        const sources = await this.sourcededonneesrepo.find({
+            where: { source: Not(IsNull()), frequence: Not(IsNull()), libelleunite: Not(IsNull()) },
+            select: [
+                'idsourceDonnes', 'nomSource', 'source', 'frequence', 'libelleunite',
+                'derniereMiseAJourReussieSource', 'fichier', 'format', 'typedonnes', 'unitefrequence'
+            ],
+            relations: ['format', 'typedonnes', 'unitefrequence'],
         });
-        resultatFeuille.donnees.push(headerRowFinal);
 
-        // Traitement des lignes de données
-        const nombreLignesDataFinal = infosNouveau.dataRows.length; // Le nombre de lignes est dicté par le nouveau fichier
+        this.logger.log(`[PERF-OPT] Démarrage du cycle de rafraîchissement pour ${sources.length} source(s).`);
 
-        for (let i = 0; i < nombreLignesDataFinal; i++) {
-            const ligneDataCouranteResultat = {};
-            const numLigneExcel = i + 2;
+        for (const sourceDonnee of sources) {
+            if (!this.isTimeToUpdate(sourceDonnee)) {
+                continue;
+            }
+            this.logger.log(`[PERF-OPT] Traitement de la source: ${sourceDonnee.nomSource} (ID: ${sourceDonnee.idsourceDonnes})`);
 
-            finalHeaderStructure.forEach((headerInfo, idx) => {
-                const finalColId = resultatFeuille.colonnes[idx];
-                let valeurCellule = null;
+            if (!sourceDonnee.source || !sourceDonnee.source.startsWith('http')) {
+                this.logger.warn(`[SKIP] URL invalide pour ${sourceDonnee.nomSource}: ${sourceDonnee.source}.`);
+                continue;
+            }
 
-                // Trouver la bonne valeur depuis sa source d'origine
-                const sourceDataRow = uniqueHeadersNouveau.includes(headerInfo) 
-                    ? infosNouveau.dataRows[i] 
-                    : (headersAnciensA_Conserver.includes(headerInfo) ? infosAncien.dataRows[i] : null);
-
-                if (sourceDataRow) {
-                    const originalCellKey = `${headerInfo.colId}${numLigneExcel}`;
-                    valeurCellule = sourceDataRow[originalCellKey];
+            let filePath = '';
+            try {
+                const formatFichier = detectFileFormat(sourceDonnee.source);
+                if (!formatFichier) {
+                    this.logger.error(`[FAIL] Format de fichier non détecté pour l'URL: ${sourceDonnee.source}.`);
+                    continue;
                 }
 
-                ligneDataCouranteResultat[`${finalColId}${numLigneExcel}`] = (valeurCellule !== undefined) ? valeurCellule : null;
-            });
-            resultatFeuille.donnees.push(ligneDataCouranteResultat);
+                const tempFileName = `temp_refresh_${sourceDonnee.idsourceDonnes}_${Date.now()}.${formatFichier}`;
+                filePath = path.join(this.tempDir, tempFileName);
+
+                // --- ÉTAPE 1: TÉLÉCHARGEMENT EN STREAMING (Faible utilisation mémoire) ---
+                await StreamHelpers.downloadFileAsStream(sourceDonnee.source, filePath);
+
+                // --- ÉTAPE 2: PARSING EN STREAMING (Construit un objet en mémoire, mais de manière optimisée) ---
+                let fichierTelechargeTraite: any = null;
+                if (formatFichier === 'xlsx') {
+                    fichierTelechargeTraite = await StreamHelpers.processExcelStream(filePath);
+                } else if (formatFichier === 'csv') {
+                    fichierTelechargeTraite = await StreamHelpers.processCsvStream(filePath);
+                } else if (formatFichier === 'json') {
+                    const jsonData = fs.readFileSync(filePath, 'utf-8');
+                    fichierTelechargeTraite = processJsonFile(JSON.parse(jsonData));
+                } else {
+                    throw new Error(`Format '${formatFichier}' non supporté pour le traitement.`);
+                }
+                
+                if (!fichierTelechargeTraite) {
+                    throw new Error("Le parsing du fichier téléchargé n'a retourné aucune donnée.");
+                }
+
+                // --- ÉTAPE 3: LOGIQUE DE FUSION AVEC GESTION DE MÉMOIRE ---
+                if (formatFichier === 'xlsx' || formatFichier === 'csv') {
+                    this.logger.log(`[PERF-OPT] Démarrage de la fusion pour ${sourceDonnee.nomSource}.`);
+                    
+                    // On isole l'ancien fichier et on libère la référence dans l'entité pour aider le GC
+                    let ancienFichierComplet = sourceDonnee.fichier || {};
+                    sourceDonnee.fichier = null;
+
+                    // Appel à une fonction helper pour la logique de fusion, pour garder le code propre
+                    const fichierResultatFusion = fusionnerFichiers(fichierTelechargeTraite, ancienFichierComplet);
+                    
+                    sourceDonnee.fichier = fichierResultatFusion;
+                    this.logger.log(`[PERF-OPT] Fusion terminée pour ${sourceDonnee.nomSource}.`);
+
+                    // Libération explicite des gros objets intermédiaires
+                    ancienFichierComplet = null;
+                    fichierTelechargeTraite = null;
+
+                } else { // Cas JSON ou autre format non fusionné
+                    sourceDonnee.fichier = fichierTelechargeTraite;
+                }
+                
+                const formatEntite = await this.formatservice.getoneByLibelle(formatFichier);
+                if (!formatEntite) {
+                    throw new Error(`Entité Format introuvable pour: '${formatFichier}'.`);
+                }
+
+                sourceDonnee.format = formatEntite;
+                sourceDonnee.libelleformat = formatEntite.libelleFormat;
+                sourceDonnee.derniereMiseAJourReussieSource = new Date();
+
+                // --- ÉTAPE 4: SAUVEGARDE FINALE ---
+                await this.sourcededonneesrepo.save(sourceDonnee);
+                this.logger.log(`[SUCCESS] La source ${sourceDonnee.nomSource} a été mise à jour.`);
+
+            } catch (error) {
+                this.logger.error(`[FAIL] Échec du traitement pour la source ${sourceDonnee.nomSource}: ${error.message}`, error.stack);
+            } finally {
+                // Nettoyage systématique du fichier temporaire
+                if (filePath && fs.existsSync(filePath)) {
+                    try { fs.unlinkSync(filePath); }
+                    catch (e) { this.logger.warn(`[CLEANUP-FAIL] Échec de la suppression du fichier temporaire ${filePath}: ${e.message}`); }
+                }
+            }
         }
-        
-        fichierResultatFusion[sheetName] = resultatFeuille;
-        this.logger.log(`Fusion feuille '${sheetName}' terminée. ${nombreLignesDataFinal} lignes de données traitées.`);
+        this.logger.log('[PERF-OPT] Fin du cycle complet de rafraîchissement.');
     }
-
-    // Gérer les feuilles qui n'existent que dans l'ancien fichier
-    for (const sheetName in ancienFichierComplet) {
-        if (!fichierResultatFusion.hasOwnProperty(sheetName)) {
-            this.logger.log(`Conservation de l'ancienne feuille '${sheetName}' non présente dans le nouveau fichier.`);
-            fichierResultatFusion[sheetName] = ancienFichierComplet[sheetName];
-        }
-    }
-
-    sourceDonnee.fichier = fichierResultatFusion;
-} else { 
-    sourceDonnee.fichier = fichierTelechargeTraite; 
-    this.logger.log(`Format non-fusionnable ou échec du parsing. Écrasement du fichier pour ${sourceDonnee.nomSource}.`);
-}
-        // ----- FIN DE LA LOGIQUE DE FUSION -----
-
-        const formatEntite = await this.formatservice.getoneByLibelle(formatFichier);
-        if (!formatEntite) {
-          this.logger.error(`Entité Format introuvable pour: '${formatFichier}'.`);
-          continue;
-        }
-        
-        // ...
-        sourceDonnee.format = formatEntite;
-        sourceDonnee.libelleformat = formatEntite.libelleFormat;
-        sourceDonnee.derniereMiseAJourReussieSource = new Date();
-        
-        // ÉTAPE 3: Sauvegarde
-        await this.sourcededonneesrepo.save(sourceDonnee);
-        this.logger.log(`SUCCÈS: Source ${sourceDonnee.nomSource} mise à jour.`);
-
-      } catch (error) {
-        this.logger.error(`ERREUR source ${sourceDonnee.nomSource} (ID: ${sourceDonnee.idsourceDonnes}): ${error.message}`, error.stack);
-      } finally {
-        // Nettoyage du fichier temporaire
-        if (filePath && fs.existsSync(filePath)) {
-          try { fs.unlinkSync(filePath); }
-          catch (e) { this.logger.warn(`Échec suppression temp ${filePath}: ${e.message}`); }
-        }
-      }
-    }
-    this.logger.log('Fin rafraîchissement des sources.');
-}
-
 
 
 
@@ -810,7 +917,7 @@ async getSourcesByEnquete(idenquete: string): Promise<SourceDonnee[]> {
 async getSourcesByProjet(idprojet: string): Promise<SourceDonnee[]> {
   return this.sourcededonneesrepo.find({
     where: { enquete: { projet: { idprojet } } },
-    relations: ['enquete', 'enquete.projet'], // Charge les relations imbriquées
+    relations: ['enquete', 'enquete.projet'], 
   });
 }
 
