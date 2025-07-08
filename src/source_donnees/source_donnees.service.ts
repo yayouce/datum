@@ -46,7 +46,7 @@ import { getExcelColumnName } from './utils/generernomcolonne';
 
 import * as JoinHelpers from './utils/join.helpers';
 import * as StreamHelpers from './utils/stream.helpers';
-import { fusionnerFichiers } from './utils/fusion_recup_ligne.helper';
+import { fusionnerFichiers_InPlace } from './utils/fusion_recup_ligne.helper';
 type AuthenticatedUser = {
   iduser: string;
   role: 'admin' | 'client';
@@ -91,7 +91,7 @@ export class SourceDonneesService implements OnModuleInit {
   }
 
 
-  @Cron(CronExpression.EVERY_MINUTE,{ name: 'sync' }) // Si ce service est aussi le scheduler
+  @Cron(CronExpression.EVERY_5_MINUTES,{ name: 'sync' }) // Si ce service est aussi le scheduler
   async handleCron() {
     this.logger.log('CRON: Démarrage du rafraîchissement automatique des sources de données.');
     await this.refreshSourcesAuto3(); // Appel de la méthode de ce service
@@ -165,6 +165,7 @@ export class SourceDonneesService implements OnModuleInit {
         format: format,
         source:source,
         fichier: fichier, 
+        bd_normales:true
       });
 
       // 4. Sauvegarde dans la base de données
@@ -718,45 +719,138 @@ private isTimeToUpdate(sourceDonnee: SourceDonnee): boolean {
 
 
 
+// async refreshSourcesAuto3(): Promise<void> {
+//         // Étape 0 : Récupérer les sources à traiter avec une sélection de colonnes optimisée
+//         const sources = await this.sourcededonneesrepo.find({
+//             where: { source: Not(IsNull()), frequence: Not(IsNull()), libelleunite: Not(IsNull()) },
+//             select: [
+//                 'idsourceDonnes', 'nomSource', 'source', 'frequence', 'libelleunite',
+//                 'derniereMiseAJourReussieSource', 'fichier', 'format', 'typedonnes', 'unitefrequence'
+//             ],
+//             relations: ['format', 'typedonnes', 'unitefrequence'],
+//         });
+
+//         this.logger.log(`[PERF-OPT] Démarrage du cycle de rafraîchissement pour ${sources.length} source(s).`);
+
+//         for (const sourceDonnee of sources) {
+//             if (!this.isTimeToUpdate(sourceDonnee)) {
+//                 continue;
+//             }
+//             this.logger.log(`[PERF-OPT] Traitement de la source: ${sourceDonnee.nomSource} (ID: ${sourceDonnee.idsourceDonnes})`);
+
+//             if (!sourceDonnee.source || !sourceDonnee.source.startsWith('http')) {
+//                 this.logger.warn(`[SKIP] URL invalide pour ${sourceDonnee.nomSource}: ${sourceDonnee.source}.`);
+//                 continue;
+//             }
+
+//             let filePath = '';
+//             try {
+//                 const formatFichier = detectFileFormat(sourceDonnee.source);
+//                 if (!formatFichier) {
+//                     this.logger.error(`[FAIL] Format de fichier non détecté pour l'URL: ${sourceDonnee.source}.`);
+//                     continue;
+//                 }
+
+//                 const tempFileName = `temp_refresh_${sourceDonnee.idsourceDonnes}_${Date.now()}.${formatFichier}`;
+//                 filePath = path.join(this.tempDir, tempFileName);
+
+//                 // --- ÉTAPE 1: TÉLÉCHARGEMENT EN STREAMING (Faible utilisation mémoire) ---
+//                 await StreamHelpers.downloadFileAsStream(sourceDonnee.source, filePath);
+
+//                 // --- ÉTAPE 2: PARSING EN STREAMING (Construit un objet en mémoire, mais de manière optimisée) ---
+//                 let fichierTelechargeTraite: any = null;
+//                 if (formatFichier === 'xlsx') {
+//                     fichierTelechargeTraite = await StreamHelpers.processExcelStream(filePath);
+//                 } else if (formatFichier === 'csv') {
+//                     fichierTelechargeTraite = await StreamHelpers.processCsvStream(filePath);
+//                 } else if (formatFichier === 'json') {
+//                     const jsonData = fs.readFileSync(filePath, 'utf-8');
+//                     fichierTelechargeTraite = processJsonFile(JSON.parse(jsonData));
+//                 } else {
+//                     throw new Error(`Format '${formatFichier}' non supporté pour le traitement.`);
+//                 }
+                
+//                 if (!fichierTelechargeTraite) {
+//                     throw new Error("Le parsing du fichier téléchargé n'a retourné aucune donnée.");
+//                 }
+
+//                 // --- ÉTAPE 3: LOGIQUE DE FUSION AVEC GESTION DE MÉMOIRE ---
+//                 if (formatFichier === 'xlsx' || formatFichier === 'csv') {
+//                     this.logger.log(`[PERF-OPT] Démarrage de la fusion pour ${sourceDonnee.nomSource}.`);
+                    
+//                     // On isole l'ancien fichier et on libère la référence dans l'entité pour aider le GC
+//                     let ancienFichierComplet = sourceDonnee.fichier || {};
+//                     sourceDonnee.fichier = null;
+
+//                     // Appel à une fonction helper pour la logique de fusion, pour garder le code propre
+//                     const fichierResultatFusion = fusionnerFichiers(fichierTelechargeTraite, ancienFichierComplet);
+                    
+//                     sourceDonnee.fichier = fichierResultatFusion;
+//                     this.logger.log(`[PERF-OPT] Fusion terminée pour ${sourceDonnee.nomSource}.`);
+
+//                     // Libération explicite des gros objets intermédiaires
+//                     ancienFichierComplet = null;
+//                     fichierTelechargeTraite = null;
+
+//                 } else { // Cas JSON ou autre format non fusionné
+//                     sourceDonnee.fichier = fichierTelechargeTraite;
+//                 }
+                
+//                 const formatEntite = await this.formatservice.getoneByLibelle(formatFichier);
+//                 if (!formatEntite) {
+//                     throw new Error(`Entité Format introuvable pour: '${formatFichier}'.`);
+//                 }
+
+//                 sourceDonnee.format = formatEntite;
+//                 sourceDonnee.libelleformat = formatEntite.libelleFormat;
+//                 sourceDonnee.derniereMiseAJourReussieSource = new Date();
+
+//                 // --- ÉTAPE 4: SAUVEGARDE FINALE ---
+//                 await this.sourcededonneesrepo.save(sourceDonnee);
+//                 this.logger.log(`[SUCCESS] La source ${sourceDonnee.nomSource} a été mise à jour.`);
+
+//             } catch (error) {
+//                 this.logger.error(`[FAIL] Échec du traitement pour la source ${sourceDonnee.nomSource}: ${error.message}`, error.stack);
+//             } finally {
+//                 // Nettoyage systématique du fichier temporaire
+//                 if (filePath && fs.existsSync(filePath)) {
+//                     try { fs.unlinkSync(filePath); }
+//                     catch (e) { this.logger.warn(`[CLEANUP-FAIL] Échec de la suppression du fichier temporaire ${filePath}: ${e.message}`); }
+//                 }
+//             }
+//         }
+//         this.logger.log('[PERF-OPT] Fin du cycle complet de rafraîchissement.');
+//     }
+
 async refreshSourcesAuto3(): Promise<void> {
-        // Étape 0 : Récupérer les sources à traiter avec une sélection de colonnes optimisée
         const sources = await this.sourcededonneesrepo.find({
             where: { source: Not(IsNull()), frequence: Not(IsNull()), libelleunite: Not(IsNull()) },
-            select: [
-                'idsourceDonnes', 'nomSource', 'source', 'frequence', 'libelleunite',
-                'derniereMiseAJourReussieSource', 'fichier', 'format', 'typedonnes', 'unitefrequence'
-            ],
+            select: [ 'idsourceDonnes', 'nomSource', 'source', 'frequence', 'libelleunite', 'derniereMiseAJourReussieSource', 'fichier' ],
             relations: ['format', 'typedonnes', 'unitefrequence'],
         });
 
-        this.logger.log(`[PERF-OPT] Démarrage du cycle de rafraîchissement pour ${sources.length} source(s).`);
+        this.logger.log(`[IN-PLACE-OPT] Démarrage du cycle pour ${sources.length} source(s).`);
 
         for (const sourceDonnee of sources) {
-            if (!this.isTimeToUpdate(sourceDonnee)) {
-                continue;
-            }
-            this.logger.log(`[PERF-OPT] Traitement de la source: ${sourceDonnee.nomSource} (ID: ${sourceDonnee.idsourceDonnes})`);
+            if (!this.isTimeToUpdate(sourceDonnee)) continue;
+            
+            this.logger.log(`[IN-PLACE-OPT] Traitement de ${sourceDonnee.nomSource}`);
 
             if (!sourceDonnee.source || !sourceDonnee.source.startsWith('http')) {
-                this.logger.warn(`[SKIP] URL invalide pour ${sourceDonnee.nomSource}: ${sourceDonnee.source}.`);
+                this.logger.warn(`[SKIP] URL invalide pour ${sourceDonnee.nomSource}`);
                 continue;
             }
 
             let filePath = '';
             try {
                 const formatFichier = detectFileFormat(sourceDonnee.source);
-                if (!formatFichier) {
-                    this.logger.error(`[FAIL] Format de fichier non détecté pour l'URL: ${sourceDonnee.source}.`);
-                    continue;
-                }
+                if (!formatFichier) throw new Error(`Format de fichier non détecté pour l'URL: ${sourceDonnee.source}.`);
 
                 const tempFileName = `temp_refresh_${sourceDonnee.idsourceDonnes}_${Date.now()}.${formatFichier}`;
                 filePath = path.join(this.tempDir, tempFileName);
 
-                // --- ÉTAPE 1: TÉLÉCHARGEMENT EN STREAMING (Faible utilisation mémoire) ---
                 await StreamHelpers.downloadFileAsStream(sourceDonnee.source, filePath);
 
-                // --- ÉTAPE 2: PARSING EN STREAMING (Construit un objet en mémoire, mais de manière optimisée) ---
                 let fichierTelechargeTraite: any = null;
                 if (formatFichier === 'xlsx') {
                     fichierTelechargeTraite = await StreamHelpers.processExcelStream(filePath);
@@ -766,61 +860,49 @@ async refreshSourcesAuto3(): Promise<void> {
                     const jsonData = fs.readFileSync(filePath, 'utf-8');
                     fichierTelechargeTraite = processJsonFile(JSON.parse(jsonData));
                 } else {
-                    throw new Error(`Format '${formatFichier}' non supporté pour le traitement.`);
+                    throw new Error(`Format '${formatFichier}' non supporté.`);
                 }
                 
-                if (!fichierTelechargeTraite) {
-                    throw new Error("Le parsing du fichier téléchargé n'a retourné aucune donnée.");
-                }
+                if (!fichierTelechargeTraite) throw new Error("Le parsing du fichier téléchargé n'a retourné aucune donnée.");
 
-                // --- ÉTAPE 3: LOGIQUE DE FUSION AVEC GESTION DE MÉMOIRE ---
                 if (formatFichier === 'xlsx' || formatFichier === 'csv') {
-                    this.logger.log(`[PERF-OPT] Démarrage de la fusion pour ${sourceDonnee.nomSource}.`);
+                    this.logger.log(`[IN-PLACE-OPT] Démarrage de la mise à jour pour ${sourceDonnee.nomSource}.`);
                     
-                    // On isole l'ancien fichier et on libère la référence dans l'entité pour aider le GC
-                    let ancienFichierComplet = sourceDonnee.fichier || {};
-                    sourceDonnee.fichier = null;
+                    if (!sourceDonnee.fichier) sourceDonnee.fichier = {}; // Initialiser si null
 
-                    // Appel à une fonction helper pour la logique de fusion, pour garder le code propre
-                    const fichierResultatFusion = fusionnerFichiers(fichierTelechargeTraite, ancienFichierComplet);
+                    // **L'APPEL CLÉ** : On modifie `sourceDonnee.fichier` directement.
+                    fusionnerFichiers_InPlace(fichierTelechargeTraite, sourceDonnee.fichier);
                     
-                    sourceDonnee.fichier = fichierResultatFusion;
-                    this.logger.log(`[PERF-OPT] Fusion terminée pour ${sourceDonnee.nomSource}.`);
-
-                    // Libération explicite des gros objets intermédiaires
-                    ancienFichierComplet = null;
-                    fichierTelechargeTraite = null;
-
-                } else { // Cas JSON ou autre format non fusionné
+                    this.logger.log(`[IN-PLACE-OPT] Mise à jour terminée.`);
+                    
+                } else { // Cas JSON, on écrase
                     sourceDonnee.fichier = fichierTelechargeTraite;
                 }
                 
+                // Libérer la mémoire du fichier téléchargé dès que possible
+                fichierTelechargeTraite = null;
+
                 const formatEntite = await this.formatservice.getoneByLibelle(formatFichier);
-                if (!formatEntite) {
-                    throw new Error(`Entité Format introuvable pour: '${formatFichier}'.`);
-                }
+                if (!formatEntite) throw new Error(`Entité Format introuvable pour: '${formatFichier}'.`);
 
                 sourceDonnee.format = formatEntite;
                 sourceDonnee.libelleformat = formatEntite.libelleFormat;
                 sourceDonnee.derniereMiseAJourReussieSource = new Date();
 
-                // --- ÉTAPE 4: SAUVEGARDE FINALE ---
                 await this.sourcededonneesrepo.save(sourceDonnee);
-                this.logger.log(`[SUCCESS] La source ${sourceDonnee.nomSource} a été mise à jour.`);
+                this.logger.log(`[SUCCESS] ${sourceDonnee.nomSource} a été mise à jour.`);
 
             } catch (error) {
-                this.logger.error(`[FAIL] Échec du traitement pour la source ${sourceDonnee.nomSource}: ${error.message}`, error.stack);
+                this.logger.error(`[FAIL] Échec pour ${sourceDonnee.nomSource}: ${error.message}`, error.stack);
             } finally {
-                // Nettoyage systématique du fichier temporaire
                 if (filePath && fs.existsSync(filePath)) {
                     try { fs.unlinkSync(filePath); }
-                    catch (e) { this.logger.warn(`[CLEANUP-FAIL] Échec de la suppression du fichier temporaire ${filePath}: ${e.message}`); }
+                    catch (e) { this.logger.warn(`[CLEANUP-FAIL] Échec suppression temp ${filePath}: ${e.message}`); }
                 }
             }
         }
-        this.logger.log('[PERF-OPT] Fin du cycle complet de rafraîchissement.');
+        this.logger.log('[IN-PLACE-OPT] Fin du cycle de rafraîchissement.');
     }
-
 
 
 
@@ -1686,11 +1768,6 @@ async applyFunctionAndSave2(
           .join(' + ');
       })
        
-      
-      
-      
-      
-  
       // NB(X;Y;Z) -> Nombre d'éléments non vides
       .replace(/NB\((.*?)\)/g, (_, values) => `(${values.split(";").map(v => `(${v} !== undefined && ${v} !== null ? 1 : 0)`).join(" + ")})`)
   
@@ -1786,16 +1863,6 @@ async applyFunctionAndSave2(
   return await this.sourcededonneesrepo.save(source);
 }
 
-
-@Cron(CronExpression.EVERY_DAY_AT_MIDNIGHT,{ name: 'syncSources' })
-async autoSync() {
-  await this.refreshSourcesAuto();
-}
-
-
-
-
-
 async findById(id: string): Promise<SourceDonnee> {
   const source = await this.sourcededonneesrepo.findOne({
       where: { idsourceDonnes: id },
@@ -1831,529 +1898,6 @@ async findoneById(id: string): Promise<SourceDonnee> { // Assurez-vous que cette
   return source;
 }
 
-
-
-
-
-
-
-
-
-// async getOneConfigurationSource(
-//     projetId: string,
-//     sourceId: string,
-//     bdType: 'normales' | 'jointes' | 'tous',
-//     loggedInUser: MembreStruct,
-//   ): Promise<any> {
-//     console.log(`[getOneConfigurationSource] START - ProjetID: ${projetId}, SourceID: ${sourceId}, BdType: ${bdType}`);
-
-//     const projetExists = await this.projetRepo.findOneBy({ idprojet: projetId });
-//     if (!projetExists) {
-//       throw new NotFoundException(`Projet with ID ${projetId} not found.`);
-//     }
-
-//     const query = this.sourcededonneesrepo
-//       .createQueryBuilder('source')
-//       .innerJoin('source.enquete', 'enqueteFilter')
-//       .innerJoin('enqueteFilter.projet', 'projetFilter', 'projetFilter.idprojet = :projetId', { projetId })
-//       .leftJoinAndSelect('source.enquete', 'enqueteDetails')
-//       .leftJoinAndSelect('enqueteDetails.projet', 'projetDetails')
-//       .leftJoinAndSelect('projetDetails.structure', 'structure')
-//       .leftJoinAndSelect('structure.membres', 'structureMembres')
-//       .where('source.idsourceDonnes = :sourceId', { sourceId });
-
-//     if (bdType === 'normales') {
-//       query.andWhere('source.bd_normales IS NOT NULL');
-//     } else if (bdType === 'jointes') {
-//       query.andWhere('source.bd_jointes IS NOT NULL');
-//     } else if (bdType !== 'tous') {
-//       throw new BadRequestException(`Type de BD "${bdType}" non supporté. Utilisez "normales", "jointes", ou "tous".`);
-//     }
-
-//     const source = await query.getOne();
-//     if (!source) {
-//       throw new NotFoundException(`Aucune source trouvée avec l'ID ${sourceId} pour le projet ${projetId}`);
-//     }
-
-//     // Traitement des autorisations
-//     const allUserIdsFromAutorisations = new Set<string>();
-//     if (source.autorisations) {
-//       (Object.keys(source.autorisations) as Array<keyof AutorisationsSourceDonnee>).forEach(key => {
-//         const ids = source.autorisations![key];
-//         if (Array.isArray(ids)) {
-//           ids.forEach(uid => allUserIdsFromAutorisations.add(uid));
-//         }
-//       });
-//     }
-
-//     let usersFromAutorisationsMap: Map<string, UserEntity> = new Map();
-//     let modified = false;
-//     if (allUserIdsFromAutorisations.size > 0) {
-//       try {
-//         const userDetailsArray = await this.userservice.findby(Array.from(allUserIdsFromAutorisations));
-//         userDetailsArray.forEach(user => {
-//           if (user && user.iduser) {
-//             usersFromAutorisationsMap.set(user.iduser, user);
-//           }
-//         });
-//       } catch (error) {
-//         console.warn(`[getOneConfigurationSource] Certains utilisateurs non trouvés : ${error.message}`);
-//         // Extraire les IDs introuvables de l'erreur
-//         const errorMessage = error.message || '';
-//         const missingIdsMatch = errorMessage.match(/Users not found: ([\w-, ]+)/);
-//         if (missingIdsMatch) {
-//           const missingIds = missingIdsMatch[1].split(', ');
-//           // Supprimer les IDs introuvables des autorisations
-//           if (source.autorisations) {
-//             (Object.keys(source.autorisations) as Array<keyof AutorisationsSourceDonnee>).forEach(key => {
-//               if (Array.isArray(source.autorisations![key])) {
-//                 const initialLength = source.autorisations![key].length;
-//                 source.autorisations![key] = source.autorisations![key].filter(id => !missingIds.includes(id));
-//                 if (source.autorisations![key].length !== initialLength) {
-//                   modified = true;
-//                 }
-//               }
-//             });
-//             // Sauvegarder la source si des modifications ont été faites
-//             if (modified) {
-//               console.log(`[getOneConfigurationSource] Mise à jour des autorisations pour la source ${source.idsourceDonnes}`);
-//               await this.sourcededonneesrepo.save(source);
-//             }
-//           }
-//         }
-//         // Continuer le traitement même en cas d'erreur
-//       }
-//     }
-
-//     const structureEntity = source.enquete?.projet?.structure;
-//     const membresDeStructure: MembreStruct[] = structureEntity?.membres ?? [];
-
-//     const usersDeStructure = membresDeStructure.map((m) => ({
-//       user: m.iduser,
-//       username: `${m.name || ''} ${m.firstname || ''}`.trim(),
-//       role: m.roleMembre,
-//     }));
-
-//     const formatAutorisationsPourOptionB = (type: keyof AutorisationsSourceDonnee) => {
-//       const idsFromSourceAuth = source.autorisations?.[type] ?? [];
-//       return idsFromSourceAuth
-//         .map(userId => {
-//           const userDetail = usersFromAutorisationsMap.get(userId);
-//           if (userDetail) {
-//             const structureMemberInfo = usersDeStructure.find(sm => sm.user === userDetail.iduser);
-//             const roleToDisplay = structureMemberInfo
-//               ? structureMemberInfo.role
-//               : (userDetail as any).roleMembre || (userDetail as any).role || null;
-
-//             return {
-//               user: userDetail.iduser,
-//               username: `${userDetail.name || ''} ${userDetail.firstname || ''}`.trim(),
-//               role: roleToDisplay,
-//             };
-//           }
-//           return null;
-//         })
-//         .filter(user => user !== null);
-//     };
-
-//     const result = {
-//       id: source.idsourceDonnes,
-//       nombd: source.nomSource,
-//       users: usersDeStructure,
-//       autorisation: {
-//         modifier: formatAutorisationsPourOptionB('modifier'),
-//         visualiser: formatAutorisationsPourOptionB('visualiser'),
-//         telecharger: formatAutorisationsPourOptionB('telecharger'),
-//       },
-//     };
-
-//     return result;
-//   }
-
-
-// async getOneConfigurationSource(
-//     projetId: string,
-//     sourceId: string,
-//     bdType: 'normales' | 'jointes' | 'tous',
-//     loggedInUser: MembreStruct,
-//   ): Promise<any> {
-//     console.log(`[getOneConfigurationSource] START - ProjetID: ${projetId}, SourceID: ${sourceId}, BdType: ${bdType}`);
-
-//     // 1. Verify project existence
-//     const projetExists = await this.projetRepo.findOneBy({ idprojet: projetId });
-//     if (!projetExists) {
-//       throw new NotFoundException(`Projet with ID ${projetId} not found.`);
-//     }
-
-//     // 2. Fetch SuperAdmin
-//     const superAdmin = await this.userrepo.findOne({ where: { role: UserRole.SuperAdmin } });
-//     if (!superAdmin) {
-//       console.warn('[getOneConfigurationSource] No SuperAdmin found in the database.');
-//     }
-
-//     // 3. Build the query for the source
-//     const query = this.sourcededonneesrepo
-//       .createQueryBuilder('source')
-//       .innerJoin('source.enquete', 'enqueteFilter')
-//       .innerJoin('enqueteFilter.projet', 'projetFilter', 'projetFilter.idprojet = :projetId', { projetId })
-//       .leftJoinAndSelect('source.enquete', 'enqueteDetails')
-//       .leftJoinAndSelect('enqueteDetails.projet', 'projetDetails')
-//       .leftJoinAndSelect('projetDetails.structure', 'structure')
-//       .leftJoinAndSelect('structure.membres', 'structureMembres')
-//       .where('source.idsourceDonnes = :sourceId', { sourceId });
-
-//     if (bdType === 'normales') {
-//       query.andWhere('source.bd_normales IS NOT NULL');
-//     } else if (bdType === 'jointes') {
-//       query.andWhere('source.bd_jointes IS NOT NULL');
-//     } else if (bdType !== 'tous') {
-//       throw new BadRequestException(`Type de BD "${bdType}" non supporté. Utilisez "normales", "jointes", ou "tous".`);
-//     }
-
-//     const source = await query.getOne();
-//     if (!source) {
-//       throw new NotFoundException(`Aucune source trouvée avec l'ID ${sourceId} pour le projet ${projetId}`);
-//     }
-
-//     // 4. Collect user IDs from autorisations
-//     const allUserIdsFromAutorisations = new Set<string>();
-//     if (source.autorisations) {
-//       (Object.keys(source.autorisations) as Array<keyof AutorisationsSourceDonnee>).forEach(key => {
-//         const ids = source.autorisations![key];
-//         if (Array.isArray(ids)) {
-//           ids.forEach(uid => allUserIdsFromAutorisations.add(uid));
-//         }
-//       });
-//     }
-
-//     // 5. Fetch user details and handle missing IDs
-//     let usersFromAutorisationsMap: Map<string, UserEntity> = new Map();
-//     if (allUserIdsFromAutorisations.size > 0) {
-//       try {
-//         const userDetailsArray = await this.userservice.findby(Array.from(allUserIdsFromAutorisations));
-//         userDetailsArray.forEach(user => {
-//           if (user && user.iduser) {
-//             usersFromAutorisationsMap.set(user.iduser, user);
-//           }
-//         });
-//       } catch (error) {
-//         console.warn(`[getOneConfigurationSource] Certains utilisateurs non trouvés : ${error.message}`);
-//         // Continue without throwing to avoid breaking the response
-//       }
-//     }
-
-//     // 6. Build users array, including SuperAdmin
-//     const structureEntity = source.enquete?.projet?.structure;
-//     const membresDeStructure: MembreStruct[] = structureEntity?.membres ?? [];
-
-//     const usersDeStructure = membresDeStructure.map((m) => ({
-//       user: m.iduser,
-//       username: `${m.name || ''} ${m.firstname || ''}`.trim(),
-//       role: m.roleMembre,
-//     }));
-
-//     // Add SuperAdmin to users if not already included
-//     if (superAdmin && !usersDeStructure.some(u => u.user === superAdmin.iduser)) {
-//       usersDeStructure.push({
-//         user: superAdmin.iduser,
-//         username: `${superAdmin.name || ''} ${superAdmin.firstname || ''}`.trim(),
-//         role: UserRole.SuperAdmin,
-//       });
-//     }
-
-//     const formatAutorisationsPourOptionB = (type: keyof AutorisationsSourceDonnee) => {
-//       const idsFromSourceAuth = source.autorisations?.[type] ?? [];
-//       return idsFromSourceAuth
-//         .map(userId => {
-//           const userDetail = usersFromAutorisationsMap.get(userId) || (userId === superAdmin?.iduser ? superAdmin : null);
-//           if (userDetail) {
-//             const structureMemberInfo = usersDeStructure.find(sm => sm.user === userDetail.iduser);
-//             const roleToDisplay = structureMemberInfo
-//               ? structureMemberInfo.role
-//               : (userDetail as any).roleMembre || (userDetail as any).role || null;
-
-//             return {
-//               user: userDetail.iduser,
-//               username: `${userDetail.name || ''} ${userDetail.firstname || ''}`.trim(),
-//               role: roleToDisplay,
-//             };
-//           }
-//           return null;
-//         })
-//         .filter(user => user !== null);
-//     };
-
-//     const result = {
-//       id: source.idsourceDonnes,
-//       nombd: source.nomSource,
-//       users: usersDeStructure,
-//       autorisation: {
-//         modifier: formatAutorisationsPourOptionB('modifier'),
-//         visualiser: formatAutorisationsPourOptionB('visualiser'),
-//         telecharger: formatAutorisationsPourOptionB('telecharger'),
-//       },
-//     };
-
-//     console.log(`[getOneConfigurationSource] END - Returning processed source for ProjetID: ${projetId}, SourceID: ${sourceId}`);
-//     return result;
-//   }
-
-
-//   async getConfigurationSources(
-//     projetId: string,
-//     bdType: 'normales' | 'jointes' | 'tous',
-//     loggedInUser: MembreStruct, // Still present, potentially for future authorization logic
-//   ): Promise<any[]> {
-//     console.log(`[getConfigurationSources] START - ProjetID: ${projetId}, BdType: ${bdType}`);
-
-//     // Verify project existence
-//     const projetExists = await this.projetRepo.findOneBy({ idprojet: projetId }); // Adjust 'idprojet' if PK name is different
-//     if (!projetExists) {
-//       throw new NotFoundException(`Projet with ID ${projetId} not found.`);
-//     }
-
-//     // 1. Build the initial query for sources
-//     const query = this.sourcededonneesrepo
-//       .createQueryBuilder('source')
-//       // Join to filter by project ID. 'projetRel' is used for the join condition.
-//       .innerJoin('source.enquete', 'enqueteFilter') 
-//       .innerJoin('enqueteFilter.projet', 'projetFilter', 'projetFilter.idprojet = :projetId', { projetId })
-//       .leftJoinAndSelect('source.enquete', 'enqueteDetails')
-//       .leftJoinAndSelect('enqueteDetails.projet', 'projetDetails') // This will be the same project as projetFilter
-//       .leftJoinAndSelect('projetDetails.structure', 'structure')
-//       .leftJoinAndSelect('structure.membres', 'structureMembres');
-
-//     // Add conditions for bdType
-//     if (bdType === 'normales') {
-//       query.andWhere('source.bd_normales IS NOT NULL');
-//     } else if (bdType === 'jointes') {
-//       query.andWhere('source.bd_jointes IS NOT NULL');
-//     } else if (bdType !== 'tous') {
-     
-//       throw new BadRequestException(`Type de BD "${bdType}" non supporté. Utilisez "normales", "jointes", ou "tous".`);
-//     }
-
-//     const sources = await query.getMany();
-
-//     if (sources.length === 0) {
-//       console.log(`[getConfigurationSources] No sources found for ProjetID: ${projetId} and BdType: ${bdType}. Returning empty array.`);
-//       return [];
-//     }
-//     console.log(`[getConfigurationSources] Fetched ${sources.length} sources for ProjetID: ${projetId}, BdType: ${bdType}.`);
-
-//     // 2. Collect all unique user IDs from all source.autorisations (for the filtered sources)
-//     const allUserIdsFromAutorisations = new Set<string>();
-//     sources.forEach(source => {
-//       if (source.autorisations) {
-//         // Iterate over known keys of AutorisationsSourceDonnee
-//         (Object.keys(source.autorisations) as Array<keyof AutorisationsSourceDonnee>).forEach(key => {
-//           const userIdsForPermission = source.autorisations![key];
-//           if (userIdsForPermission && Array.isArray(userIdsForPermission)) {
-//             userIdsForPermission.forEach(userId => allUserIdsFromAutorisations.add(userId));
-//           }
-//         });
-//       }
-//     });
-
-//     // 3. Fetch details for all these users in one batch
-//     let usersFromAutorisationsMap: Map<string, UserEntity> = new Map();
-//     if (allUserIdsFromAutorisations.size > 0) {
-//       const userDetailsArray = await this.userservice.findby(Array.from(allUserIdsFromAutorisations));
-//       userDetailsArray.forEach(user => {
-//         // Ensure user and user.iduser are valid before adding to map
-//         if (user && user.iduser) {
-//             usersFromAutorisationsMap.set(user.iduser, user);
-//         }
-//       });
-//     }
-
-//     // 4. Mapper les sources to the desired output format
-//     const result = sources.map((source) => {
-//       // Get members of the current source's structure
-//       // The path source.enquete.projet.structure should be valid due to the leftJoinAndSelect strategy
-//       const structureEntity = source.enquete?.projet?.structure;
-//       const membresDeStructure: MembreStruct[] = structureEntity?.membres ?? [];
-      
-//       const usersDeStructure = membresDeStructure.map((m) => ({
-//         user: m.iduser,
-//         username: `${m.name || ''} ${m.firstname || ''}`.trim(), // Handle potential null/undefined names
-//         role: m.roleMembre,
-//       }));
-
-// // Function to format the 'autorisation' part based on Option B
-//       const formatAutorisationsPourOptionB = (type: keyof AutorisationsSourceDonnee) => {
-//         const idsFromSourceAuth = source.autorisations?.[type] ?? [];
-//         return idsFromSourceAuth
-//           .map(userId => {
-//             const userDetail = usersFromAutorisationsMap.get(userId);
-//             if (userDetail) {
-//               // Attempt to find if this user is also a structure member to get their specific roleMembre
-//               const structureMemberInfo = usersDeStructure.find(sm => sm.user === userDetail.iduser);
-//               // Prioritize roleMembre if they are a structure member, otherwise use a general role from UserEntity if available
-//               const roleToDisplay = structureMemberInfo 
-//                                     ? structureMemberInfo.role 
-//                                     : (userDetail as any).roleMembre || (userDetail as any).role || null; 
-
-//               return {
-//                 user: userDetail.iduser,
-//                 username: `${userDetail.name || ''} ${userDetail.firstname || ''}`.trim(),
-//                 role: roleToDisplay,
-//               };
-//             }
-//             return null; // User ID was in autorisations but no details found (e.g., deleted user)
-//           })
-//           .filter(user => user !== null); // Remove nulls for users not found
-//       };
-
-//       return {
-//         id: source.idsourceDonnes,
-//         nombd: source.nomSource,
-//         users: usersDeStructure, // Users from the source's specific structure
-//         autorisation: { // Users specifically granted permission in source.autorisations (globally fetched)
-//           modifier: formatAutorisationsPourOptionB('modifier'),
-//           visualiser: formatAutorisationsPourOptionB('visualiser'),
-//           telecharger: formatAutorisationsPourOptionB('telecharger'),
-//         },
-//       };
-//     });
-
-//     // console.log(`[getConfigurationSources] END - Returning ${result.length} processed sources for ProjetID: ${projetId}, BdType: ${bdType}`);
-//     return result;
-//   }
-
-
-
-// async getConfigurationSources(
-//     projetId: string,
-//     bdType: 'normales' | 'jointes' | 'tous',
-//     loggedInUser: MembreStruct,
-//   ): Promise<any[]> {
-//     console.log(`[getConfigurationSources] START - ProjetID: ${projetId}, BdType: ${bdType}`);
-
-//     // 1. Verify project existence
-//     const projetExists = await this.projetRepo.findOneBy({ idprojet: projetId });
-//     if (!projetExists) {
-//       throw new NotFoundException(`Projet with ID ${projetId} not found.`);
-//     }
-
-//     // 2. Fetch SuperAdmin
-//     const superAdmin = await this.userrepo.findOne({ where: { role: UserRole.SuperAdmin } });
-//     if (!superAdmin) {
-//       console.warn('[getConfigurationSources] No SuperAdmin found in the database.');
-//     }
-
-//     // 3. Build the query for sources
-//     const query = this.sourcededonneesrepo
-//       .createQueryBuilder('source')
-//       .innerJoin('source.enquete', 'enqueteFilter')
-//       .innerJoin('enqueteFilter.projet', 'projetFilter', 'projetFilter.idprojet = :projetId', { projetId })
-//       .leftJoinAndSelect('source.enquete', 'enqueteDetails')
-//       .leftJoinAndSelect('enqueteDetails.projet', 'projetDetails')
-//       .leftJoinAndSelect('projetDetails.structure', 'structure')
-//       .leftJoinAndSelect('structure.membres', 'structureMembres');
-
-//     if (bdType === 'normales') {
-//       query.andWhere('source.bd_normales IS NOT NULL');
-//     } else if (bdType === 'jointes') {
-//       query.andWhere('source.bd_jointes IS NOT NULL');
-//     } else if (bdType !== 'tous') {
-//       throw new BadRequestException(`Type de BD "${bdType}" non supporté. Utilisez "normales", "jointes", ou "tous".`);
-//     }
-
-//     const sources = await query.getMany();
-
-//     if (sources.length === 0) {
-//       console.log(`[getConfigurationSources] No sources found for ProjetID: ${projetId} and BdType: ${bdType}. Returning empty array.`);
-//       return [];
-//     }
-//     console.log(`[getConfigurationSources] Fetched ${sources.length} sources for ProjetID: ${projetId}, BdType: ${bdType}.`);
-
-//     // 4. Collect all unique user IDs from autorisations
-//     const allUserIdsFromAutorisations = new Set<string>();
-//     sources.forEach(source => {
-//       if (source.autorisations) {
-//         (Object.keys(source.autorisations) as Array<keyof AutorisationsSourceDonnee>).forEach(key => {
-//           const userIdsForPermission = source.autorisations![key];
-//           if (userIdsForPermission && Array.isArray(userIdsForPermission)) {
-//             userIdsForPermission.forEach(userId => allUserIdsFromAutorisations.add(userId));
-//           }
-//         });
-//       }
-//     });
-
-//     // 5. Fetch user details and handle missing IDs
-//     let usersFromAutorisationsMap: Map<string, UserEntity> = new Map();
-//     if (allUserIdsFromAutorisations.size > 0) {
-//       try {
-//         const userDetailsArray = await this.userservice.findby(Array.from(allUserIdsFromAutorisations));
-//         userDetailsArray.forEach(user => {
-//           if (user && user.iduser) {
-//             usersFromAutorisationsMap.set(user.iduser, user);
-//           }
-//         });
-//       } catch (error) {
-//         console.warn(`[getConfigurationSources] Certains utilisateurs non trouvés : ${error.message}`);
-//         // Continue without throwing to avoid breaking the response
-//       }
-//     }
-
-//     // 6. Map sources to the desired output format
-//     const result = sources.map((source) => {
-//       const structureEntity = source.enquete?.projet?.structure;
-//       const membresDeStructure: MembreStruct[] = structureEntity?.membres ?? [];
-
-//       const usersDeStructure = membresDeStructure.map((m) => ({
-//         user: m.iduser,
-//         username: `${m.name || ''} ${m.firstname || ''}`.trim(),
-//         role: m.roleMembre,
-//       }));
-
-//       // Add SuperAdmin to users if not already included
-//       if (superAdmin && !usersDeStructure.some(u => u.user === superAdmin.iduser)) {
-//         usersDeStructure.push({
-//           user: superAdmin.iduser,
-//           username: `${superAdmin.name || ''} ${superAdmin.firstname || ''}`.trim(),
-//           role: UserRole.SuperAdmin,
-//         });
-//       }
-
-//       const formatAutorisationsPourOptionB = (type: keyof AutorisationsSourceDonnee) => {
-//         const idsFromSourceAuth = source.autorisations?.[type] ?? [];
-//         return idsFromSourceAuth
-//           .map(userId => {
-//             const userDetail = usersFromAutorisationsMap.get(userId) || (userId === superAdmin?.iduser ? superAdmin : null);
-//             if (userDetail) {
-//               const structureMemberInfo = usersDeStructure.find(sm => sm.user === userDetail.iduser);
-//               const roleToDisplay = structureMemberInfo
-//                 ? structureMemberInfo.role
-//                 : (userDetail as any).roleMembre || (userDetail as any).role || null;
-
-//               return {
-//                 user: userDetail.iduser,
-//                 username: `${userDetail.name || ''} ${userDetail.firstname || ''}`.trim(),
-//                 role: roleToDisplay,
-//               };
-//             }
-//             return null;
-//           })
-//           .filter(user => user !== null);
-//       };
-
-//       return {
-//         id: source.idsourceDonnes,
-//         nombd: source.nomSource,
-//         users: usersDeStructure,
-//         autorisation: {
-//           modifier: formatAutorisationsPourOptionB('modifier'),
-//           visualiser: formatAutorisationsPourOptionB('visualiser'),
-//           telecharger: formatAutorisationsPourOptionB('telecharger'),
-//         },
-//       };
-//     });
-
-//     console.log(`[getConfigurationSources] END - Returning ${result.length} processed sources for ProjetID: ${projetId}, BdType: ${bdType}`);
-//     return result;
-//   }
 
 async getOneConfigurationSource(
     projetId: string,

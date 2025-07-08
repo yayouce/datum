@@ -258,14 +258,6 @@ async getAllFeuillesFiltrees(
 
 
 
-
-
-
-
-  
-
-
-
 @UseGuards(JwtAuthGuard)
   @Get('configuration/projet/:projetId')
   async getSourceConfigurations(

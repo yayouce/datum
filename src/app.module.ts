@@ -33,6 +33,10 @@ import { DashboardModule } from './dashboard/dashboard.module';
       database: process.env.DB_NAME,
       entities: ["dist/**/*.entity{.ts,.js}"],
       synchronize: false,
+      extra:{
+        connectionLimit:15,
+        validateConnection:true
+      },
     }),
     ScheduleModule.forRoot(),
     MembreStructModule,
