@@ -110,7 +110,7 @@ export class SourceDonneesController {
       @Param('idprojet') idprojet: string,
       @Query('bd') bdType: 'normales' | 'jointes' | 'tous'|"archive"
     ): Promise<any[]> {
-      return await this.sourceDonneesService.getBdsByProjetWithFilter(idprojet, bdType || 'tous');
+      return await this.sourceDonneesService.getBdsByProjetWithFilter(idprojet, bdType || 'archive');
     }
 
     
