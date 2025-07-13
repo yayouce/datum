@@ -2,10 +2,9 @@
 
 import { HttpException } from '@nestjs/common';
 import { Repository } from 'typeorm';
-import { SourceDonnee } from '../entities/source_donnee.entity';
+import { SourceDonnee } from '../entities/source_donnee.entity'; // Assurez-vous que le chemin est correct
 
-
-// L'interface est aussi exportée pour être utilisée dans le service
+// L'interface pour les options de la fonction de jointure
 export interface FullOuterJoinOptions {
   dataA: Record<string, any>[];
   keyColumnA: string;
@@ -15,12 +14,22 @@ export interface FullOuterJoinOptions {
   headerNamesB: string[];
 }
 
+// --- HELPER INTERNE ---
+/**
+ * Génère un nom de colonne Excel (A, B, ..., Z, AA, AB, ...) à partir d'un index base 0.
+ * @param index L'index de la colonne (0 pour A, 1 pour B, etc.).
+ */
+function getExcelColumnName(index: number): string {
+    let name = '';
+    let i = index;
+    do { name = String.fromCharCode(i % 26 + 65) + name; i = Math.floor(i / 26) - 1; } while (i >= 0);
+    return name;
+}
+
+// --- FONCTIONS EXPORTÉES ---
+
 /**
  * Récupère une paire de SourceDonnee depuis la base de données.
- * @param repo Le repository TypeORM pour interroger la base.
- * @param nomSource1 Nom de la première source.
- * @param nomSource2 Nom de la deuxième source.
- * @param idprojet ID du projet.
  */
 export async function fetchSourcePair(
   repo: Repository<SourceDonnee>,
@@ -121,15 +130,40 @@ export function performFullOuterJoin({ dataA, keyColumnA, headerNamesA, dataB, k
 
 /**
  * Reformate les données jointes dans le format de stockage attendu par la BDD.
+ * VERSION CORRIGÉE : Déduit les en-têtes depuis le résultat de la jointure pour plus de robustesse.
  */
-export function formatJoinedDataForStorage(joinedData: Record<string, any>[], headerNamesA: string[], headerNamesB: string[]): { donnees: any[], colonnes: string[] } {
-  const finalHeaders = [
-    ...headerNamesA.map(h => `${h}_source1`),
-    ...headerNamesB.map(h => `${h}_source2`),
-    'index_jointure'
-  ];
-  
-  const columns = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("").slice(0, finalHeaders.length);
+export function formatJoinedDataForStorage(joinedData: Record<string, any>[]): { donnees: any[], colonnes: string[] } {
+  if (!joinedData || joinedData.length === 0) {
+    return { donnees: [], colonnes: [] };
+  }
+
+  // Étape 1: Déduire tous les en-têtes possibles à partir de TOUTES les lignes jointes.
+  const allKeys = new Set<string>();
+  joinedData.forEach(row => {
+    Object.keys(row).forEach(key => allKeys.add(key));
+  });
+
+  // Étape 2: Créer un ordre d'en-têtes stable et logique.
+  const finalHeaders = Array.from(allKeys).sort((a, b) => {
+    const aIsSource1 = a.endsWith('_source1');
+    const bIsSource1 = b.endsWith('_source1');
+    const aIsSource2 = a.endsWith('_source2');
+    const bIsSource2 = b.endsWith('_source2');
+
+    if (a === 'index_jointure') return 1; // Mettre index_jointure à la fin
+    if (b === 'index_jointure') return -1;
+
+    if (aIsSource1 && !bIsSource1) return -1; // source1 avant tout le reste
+    if (!aIsSource1 && bIsSource1) return 1;
+
+    if (aIsSource2 && bIsSource1) return 1; // source2 après source1
+    if (aIsSource1 && bIsSource2) return -1;
+
+    // Trier alphabétiquement à l'intérieur des groupes
+    return a.localeCompare(b);
+  });
+
+  const columns = finalHeaders.map((_, index) => getExcelColumnName(index));
 
   const headerMapping = finalHeaders.reduce((acc, header, index) => {
     acc[`${columns[index]}1`] = header;
@@ -137,14 +171,17 @@ export function formatJoinedDataForStorage(joinedData: Record<string, any>[], he
   }, {});
 
   const transformedData = joinedData.map((row, rowIndex) => {
-    return finalHeaders.reduce((acc, header, colIndex) => {
-      acc[`${columns[colIndex]}${rowIndex + 2}`] = row[header] ?? null;
-      return acc;
-    }, {});
+    const rowData: Record<string, any> = {};
+    finalHeaders.forEach((header, colIndex) => {
+      // Utiliser row[header] ?? null pour gérer les cas où une colonne
+      // n'existe pas pour une ligne donnée (le principe de la FULL JOIN)
+      rowData[`${columns[colIndex]}${rowIndex + 2}`] = row[header] ?? null;
+    });
+    return rowData;
   });
 
   return {
     donnees: [headerMapping, ...transformedData],
-    colonnes: columns
+    colonnes: columns,
   };
 }

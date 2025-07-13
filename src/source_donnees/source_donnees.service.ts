@@ -208,7 +208,8 @@ async joinSources2(
     }
 
     // ÉTAPE 4: REFORMATAGE POUR STOCKAGE
-    const { donnees, colonnes } = JoinHelpers.formatJoinedDataForStorage(joinedData, headerNamesA, headerNamesB);
+    // const { donnees, colonnes } = JoinHelpers.formatJoinedDataForStorage(joinedData, headerNamesA, headerNamesB);
+    const { donnees, colonnes } = JoinHelpers.formatJoinedDataForStorage(joinedData)
 
     // ÉTAPE 5: CRÉATION ET SAUVEGARDE DE L'ENTITÉ
     const newSource = new SourceDonnee();
@@ -822,88 +823,176 @@ private isTimeToUpdate(sourceDonnee: SourceDonnee): boolean {
 //         this.logger.log('[PERF-OPT] Fin du cycle complet de rafraîchissement.');
 //     }
 
-async refreshSourcesAuto3(): Promise<void> {
-        const sources = await this.sourcededonneesrepo.find({
-            where: { source: Not(IsNull()), frequence: Not(IsNull()), libelleunite: Not(IsNull()) },
-            select: [ 'idsourceDonnes', 'nomSource', 'source', 'frequence', 'libelleunite', 'derniereMiseAJourReussieSource', 'fichier' ],
-            relations: ['format', 'typedonnes', 'unitefrequence'],
-        });
+// async refreshSourcesAuto3(): Promise<void> {
+//         const sources = await this.sourcededonneesrepo.find({
+//             where: { source: Not(IsNull()), frequence: Not(IsNull()), libelleunite: Not(IsNull()) },
+//             select: [ 'idsourceDonnes', 'nomSource', 'source', 'frequence', 'libelleunite', 'derniereMiseAJourReussieSource', 'fichier' ],
+//             relations: ['format', 'typedonnes', 'unitefrequence'],
+//         });
 
-        this.logger.log(`[IN-PLACE-OPT] Démarrage du cycle pour ${sources.length} source(s).`);
+//         this.logger.log(`[IN-PLACE-OPT] Démarrage du cycle pour ${sources.length} source(s).`);
 
-        for (const sourceDonnee of sources) {
-            if (!this.isTimeToUpdate(sourceDonnee)) continue;
+//         for (const sourceDonnee of sources) {
+//             if (!this.isTimeToUpdate(sourceDonnee)) continue;
             
-            this.logger.log(`[IN-PLACE-OPT] Traitement de ${sourceDonnee.nomSource}`);
+//             this.logger.log(`[IN-PLACE-OPT] Traitement de ${sourceDonnee.nomSource}`);
 
-            if (!sourceDonnee.source || !sourceDonnee.source.startsWith('http')) {
-                this.logger.warn(`[SKIP] URL invalide pour ${sourceDonnee.nomSource}`);
-                continue;
-            }
+//             if (!sourceDonnee.source || !sourceDonnee.source.startsWith('http')) {
+//                 this.logger.warn(`[SKIP] URL invalide pour ${sourceDonnee.nomSource}`);
+//                 continue;
+//             }
 
-            let filePath = '';
-            try {
-                const formatFichier = detectFileFormat(sourceDonnee.source);
-                if (!formatFichier) throw new Error(`Format de fichier non détecté pour l'URL: ${sourceDonnee.source}.`);
+//             let filePath = '';
+//             try {
+//                 const formatFichier = detectFileFormat(sourceDonnee.source);
+//                 if (!formatFichier) throw new Error(`Format de fichier non détecté pour l'URL: ${sourceDonnee.source}.`);
 
-                const tempFileName = `temp_refresh_${sourceDonnee.idsourceDonnes}_${Date.now()}.${formatFichier}`;
-                filePath = path.join(this.tempDir, tempFileName);
+//                 const tempFileName = `temp_refresh_${sourceDonnee.idsourceDonnes}_${Date.now()}.${formatFichier}`;
+//                 filePath = path.join(this.tempDir, tempFileName);
 
-                await StreamHelpers.downloadFileAsStream(sourceDonnee.source, filePath);
+//                 await StreamHelpers.downloadFileAsStream(sourceDonnee.source, filePath);
 
-                let fichierTelechargeTraite: any = null;
-                if (formatFichier === 'xlsx') {
-                    fichierTelechargeTraite = await StreamHelpers.processExcelStream(filePath);
-                } else if (formatFichier === 'csv') {
-                    fichierTelechargeTraite = await StreamHelpers.processCsvStream(filePath);
-                } else if (formatFichier === 'json') {
-                    const jsonData = fs.readFileSync(filePath, 'utf-8');
-                    fichierTelechargeTraite = processJsonFile(JSON.parse(jsonData));
-                } else {
-                    throw new Error(`Format '${formatFichier}' non supporté.`);
-                }
+//                 let fichierTelechargeTraite: any = null;
+//               if (formatFichier === 'xlsx') {
+//                     fichierTelechargeTraite = await StreamHelpers.processExcelStream(filePath);
+//                 } else if (formatFichier === 'csv') {
+//                     fichierTelechargeTraite = await StreamHelpers.processCsvStream(filePath);
+//                 } else if (formatFichier === 'json') {
+//                     const jsonData = fs.readFileSync(filePath, 'utf-8');
+//                     fichierTelechargeTraite = processJsonFile(JSON.parse(jsonData));
+//                 } else {
+//                     throw new Error(`Format '${formatFichier}' non supporté.`);
+//                 }
                 
-                if (!fichierTelechargeTraite) throw new Error("Le parsing du fichier téléchargé n'a retourné aucune donnée.");
+//                 if (!fichierTelechargeTraite) throw new Error("Le parsing du fichier téléchargé n'a retourné aucune donnée.");
 
-                if (formatFichier === 'xlsx' || formatFichier === 'csv') {
-                    this.logger.log(`[IN-PLACE-OPT] Démarrage de la mise à jour pour ${sourceDonnee.nomSource}.`);
+//                 if (formatFichier === 'xlsx' || formatFichier === 'csv') {
+//                     this.logger.log(`[IN-PLACE-OPT] Démarrage de la mise à jour pour ${sourceDonnee.nomSource}.`);
                     
-                    if (!sourceDonnee.fichier) sourceDonnee.fichier = {}; // Initialiser si null
+//                     if (!sourceDonnee.fichier) sourceDonnee.fichier = {}; // Initialiser si null
 
-                    // **L'APPEL CLÉ** : On modifie `sourceDonnee.fichier` directement.
-                    fusionnerFichiers_InPlace(fichierTelechargeTraite, sourceDonnee.fichier);
+//                     // **L'APPEL CLÉ** : On modifie `sourceDonnee.fichier` directement.
+//                     fusionnerFichiers_InPlace(fichierTelechargeTraite, sourceDonnee.fichier);
                     
-                    this.logger.log(`[IN-PLACE-OPT] Mise à jour terminée.`);
+//                     this.logger.log(`[IN-PLACE-OPT] Mise à jour terminée.`);
                     
-                } else { // Cas JSON, on écrase
-                    sourceDonnee.fichier = fichierTelechargeTraite;
-                }
+//                 } else { // Cas JSON, on écrase
+//                     sourceDonnee.fichier = fichierTelechargeTraite;
+//                 }
                 
-                // Libérer la mémoire du fichier téléchargé dès que possible
-                fichierTelechargeTraite = null;
+//                 // Libérer la mémoire du fichier téléchargé dès que possible
+//                 fichierTelechargeTraite = null;
 
-                const formatEntite = await this.formatservice.getoneByLibelle(formatFichier);
-                if (!formatEntite) throw new Error(`Entité Format introuvable pour: '${formatFichier}'.`);
+//                 const formatEntite = await this.formatservice.getoneByLibelle(formatFichier);
+//                 if (!formatEntite) throw new Error(`Entité Format introuvable pour: '${formatFichier}'.`);
 
-                sourceDonnee.format = formatEntite;
-                sourceDonnee.libelleformat = formatEntite.libelleFormat;
-                sourceDonnee.derniereMiseAJourReussieSource = new Date();
+//                 sourceDonnee.format = formatEntite;
+//                 sourceDonnee.libelleformat = formatEntite.libelleFormat;
+//                 sourceDonnee.derniereMiseAJourReussieSource = new Date();
 
-                await this.sourcededonneesrepo.save(sourceDonnee);
-                this.logger.log(`[SUCCESS] ${sourceDonnee.nomSource} a été mise à jour.`);
+//                 await this.sourcededonneesrepo.save(sourceDonnee);
+//                 this.logger.log(`[SUCCESS] ${sourceDonnee.nomSource} a été mise à jour.`);
 
-            } catch (error) {
-                this.logger.error(`[FAIL] Échec pour ${sourceDonnee.nomSource}: ${error.message}`, error.stack);
-            } finally {
-                if (filePath && fs.existsSync(filePath)) {
-                    try { fs.unlinkSync(filePath); }
-                    catch (e) { this.logger.warn(`[CLEANUP-FAIL] Échec suppression temp ${filePath}: ${e.message}`); }
-                }
-            }
-        }
-        this.logger.log('[IN-PLACE-OPT] Fin du cycle de rafraîchissement.');
+//             } catch (error) {
+//                 this.logger.error(`[FAIL] Échec pour ${sourceDonnee.nomSource}: ${error.message}`, error.stack);
+//             } finally {
+//                 if (filePath && fs.existsSync(filePath)) {
+//                     try { fs.unlinkSync(filePath); }
+//                     catch (e) { this.logger.warn(`[CLEANUP-FAIL] Échec suppression temp ${filePath}: ${e.message}`); }
+//                 }
+//             }
+//         }
+//         this.logger.log('[IN-PLACE-OPT] Fin du cycle de rafraîchissement.');
+//     }
+
+
+  async refreshSourcesAuto3(): Promise<void> {
+  const sources = await this.sourcededonneesrepo.find({
+    where: { source: Not(IsNull()), frequence: Not(IsNull()), libelleunite: Not(IsNull()) },
+    select: ['idsourceDonnes', 'nomSource', 'source', 'frequence', 'libelleunite', 'derniereMiseAJourReussieSource', 'fichier'],
+    relations: ['format', 'typedonnes', 'unitefrequence'],
+  });
+
+  this.logger.log(`[IN-PLACE-OPT] Démarrage du cycle pour ${sources.length} source(s).`);
+
+  for (const sourceDonnee of sources) {
+    if (!this.isTimeToUpdate(sourceDonnee)) continue;
+
+    this.logger.log(`[IN-PLACE-OPT] Traitement de ${sourceDonnee.nomSource}`);
+
+    if (!sourceDonnee.source || !sourceDonnee.source.startsWith('http')) {
+      this.logger.warn(`[SKIP] URL invalide pour ${sourceDonnee.nomSource}`);
+      continue;
     }
 
+    let filePath = '';
+    try {
+      const formatFichier = detectFileFormat(sourceDonnee.source);
+      if (!formatFichier) throw new Error(`Format de fichier non détecté pour l'URL: ${sourceDonnee.source}.`);
+
+      const tempFileName = `temp_refresh_${sourceDonnee.idsourceDonnes}_${Date.now()}.${formatFichier}`;
+      filePath = path.join(this.tempDir, tempFileName);
+
+      await StreamHelpers.downloadFileAsStream(sourceDonnee.source, filePath);
+
+      let fichierTelechargeTraite: any = null;
+      if (formatFichier === 'xlsx') {
+        fichierTelechargeTraite = await StreamHelpers.processExcelStream(filePath);
+      } else if (formatFichier === 'csv') {
+        fichierTelechargeTraite = await StreamHelpers.processCsvStream(filePath);
+      } else if (formatFichier === 'json') {
+        const jsonData = fs.readFileSync(filePath, 'utf-8');
+        fichierTelechargeTraite = processJsonFile(JSON.parse(jsonData));
+      } else {
+        throw new Error(`Format '${formatFichier}' non supporté.`);
+      }
+
+      if (!fichierTelechargeTraite) throw new Error("Le parsing du fichier téléchargé n'a retourné aucune donnée.");
+
+      if (formatFichier === 'xlsx' || formatFichier === 'csv') {
+        this.logger.log(`[IN-PLACE-OPT] Démarrage de la mise à jour pour ${sourceDonnee.nomSource}`);
+
+        if (!sourceDonnee.fichier) sourceDonnee.fichier = {}; // Initialiser si null
+
+        // Mapper les index des feuilles aux vrais noms de feuilles
+        const existingSheetNames = Object.keys(sourceDonnee.fichier || {});
+        for (const [index, sheetData] of Object.entries(fichierTelechargeTraite)) {
+          const sheetIndex = parseInt(index);
+          const realSheetName = existingSheetNames[sheetIndex] || `Sheet${sheetIndex + 1}`; // Fallback si pas de nom existant
+          sourceDonnee.fichier[realSheetName] = sheetData;
+        }
+
+        // Appeler fusionnerFichiers_InPlace si nécessaire (à implémenter selon vos besoins)
+        fusionnerFichiers_InPlace(fichierTelechargeTraite, sourceDonnee.fichier);
+
+        this.logger.log(`[IN-PLACE-OPT] Mise à jour terminée.`);
+      } else { // Cas JSON, on écrase
+        sourceDonnee.fichier = fichierTelechargeTraite;
+      }
+
+      // Libérer la mémoire du fichier téléchargé dès que possible
+      fichierTelechargeTraite = null;
+
+      const formatEntite = await this.formatservice.getoneByLibelle(formatFichier);
+      if (!formatEntite) throw new Error(`Entité Format introuvable pour: '${formatFichier}'.`);
+
+      sourceDonnee.format = formatEntite;
+      sourceDonnee.libelleformat = formatEntite.libelleFormat;
+      sourceDonnee.derniereMiseAJourReussieSource = new Date();
+
+      await this.sourcededonneesrepo.save(sourceDonnee);
+      this.logger.log(`[SUCCESS] ${sourceDonnee.nomSource} a été mise à jour.`);
+    } catch (error) {
+      this.logger.error(`[FAIL] Échec pour ${sourceDonnee.nomSource}: ${error.message}`, error.stack);
+    } finally {
+      if (filePath && fs.existsSync(filePath)) {
+        try { fs.unlinkSync(filePath); }
+        catch (e) { this.logger.warn(`[CLEANUP-FAIL] Échec suppression temp ${filePath}: ${e.message}`); }
+      }
+    }
+  }
+  this.logger.log('[IN-PLACE-OPT] Fin du cycle de rafraîchissement.');
+}
 
 
 

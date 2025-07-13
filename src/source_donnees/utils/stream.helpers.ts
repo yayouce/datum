@@ -112,12 +112,11 @@ export async function processExcelStream(filePath: string): Promise<FichierData>
   };
 
   const workbookReader = new exceljs.stream.xlsx.WorkbookReader(filePath, options);
-  let sheetCounter = 0; // Compteur pour générer des noms de feuilles
+  let sheetIndex = 0; // Index to track sheet order if needed
 
   try {
     for await (const worksheet of workbookReader) {
-      // Générer un nom de feuille par défaut
-      const sheetName = `Sheet${++sheetCounter}`;
+      const sheetKey = `Sheet${++sheetIndex}`; // Temporary key for processing, to be replaced later
       const donnees: ExcelRowData[] = [];
       const colonnes: string[] = [];
       let headerRow: ExcelRowData = {};
@@ -141,7 +140,7 @@ export async function processExcelStream(filePath: string): Promise<FichierData>
         }
       }
 
-      fichierFinal[sheetName] = {
+      fichierFinal[sheetKey] = {
         colonnes,
         donnees: [headerRow, ...donnees],
       };
@@ -151,4 +150,5 @@ export async function processExcelStream(filePath: string): Promise<FichierData>
   } catch (err) {
     throw new Error(`Erreur lors de la lecture du fichier Excel: ${err.message}`);
   }
+
 }
