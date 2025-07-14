@@ -1093,6 +1093,22 @@ async getSourcesByProjet(idprojet: string): Promise<SourceDonnee[]> {
 }
 
 
+
+async getSourcesByProjet2(idprojet: string, currentUser:MembreStruct| UserEntity): Promise<SourceDonnee[]> {
+    
+    const userId = currentUser.iduser; 
+    const query = this.sourcededonneesrepo
+        .createQueryBuilder('source')
+        .leftJoinAndSelect('source.enquete', 'enquete')
+        .leftJoin('enquete.projet', 'projet')
+        .where('projet.idprojet = :idprojet', { idprojet });
+    query.andWhere(`JSON_CONTAINS(source.autorisations, :userIdJson, '$.visualiser')`, {
+        userIdJson: JSON.stringify(userId)
+    });
+    return await query.getMany();
+}
+
+
 // nombre
 async getBdsCountByProjet(idprojet: string): Promise<{ normales: number; jointes: number; total: number }> {
   // Récupérer toutes les sources du projet
@@ -1847,15 +1863,25 @@ async applyFunctionAndSave2(
       .replace(/ABS\((.*?)\)/g, (_, value) => `Math.abs(${value})`)
   
       // CONCATENER(X;Y;Z) -> (X + Y + Z)
+      // .replace(/CONCATENER\((.*?)\)/g, (_, values) => {
+      //   return values
+      //     .split(";")
+      //     .map(value => {
+      //       const trimmedValue = value.trim();
+      //       return isNaN(trimmedValue) ? `"${trimmedValue}"` : trimmedValue; // Wrap only non-numeric values in quotes
+      //     })
+      //     .join(' + ');
+      // })
+
       .replace(/CONCATENER\((.*?)\)/g, (_, values) => {
-        return values
-          .split(";")
-          .map(value => {
-            const trimmedValue = value.trim();
-            return isNaN(trimmedValue) ? `"${trimmedValue}"` : trimmedValue; // Wrap only non-numeric values in quotes
-          })
-          .join(' + ');
-      })
+            return values
+                .split(";")
+                .map(value => {
+                    const cleanedValue = value.trim().replace(/"/g, '\\"');
+                    return `"${cleanedValue}"`;
+                })
+                .join(' + ');
+        })
        
       // NB(X;Y;Z) -> Nombre d'éléments non vides
       .replace(/NB\((.*?)\)/g, (_, values) => `(${values.split(";").map(v => `(${v} !== undefined && ${v} !== null ? 1 : 0)`).join(" + ")})`)
@@ -1868,11 +1894,11 @@ async applyFunctionAndSave2(
   
       // SI(condition;valeur_si_vrai;valeur_si_faux)
       // NOUVELLE VERSION CORRIGÉE
-.replace(/SI\((.*?);(.*?);(.*?)\)/g, (_, condition, trueVal, falseVal) => {
-    const operatorMatch = condition.match(/(>=|<=|>|<|=)/);
-    if (!operatorMatch) {
-      throw new Error(`Opérateur de comparaison manquant ou condition non gérée dans: ${condition}`);
-    }
+      .replace(/SI\((.*?);(.*?);(.*?)\)/g, (_, condition, trueVal, falseVal) => {
+      const operatorMatch = condition.match(/(>=|<=|>|<|=)/);
+      if (!operatorMatch) {
+        throw new Error(`Opérateur de comparaison manquant ou condition non gérée dans: ${condition}`);
+      }
 
     const operator = operatorMatch[0];
     // CORRECTION 1: Convertir le "=" d'Excel en "==" de JavaScript
@@ -1912,11 +1938,11 @@ async applyFunctionAndSave2(
   sheet.donnees.slice(1).forEach((row, index) => {
     try {
       let evaluatedFormula = formula;
-
-      // Remplacement des valeurs dans la formule
       references.forEach((ref) => {
-        evaluatedFormula = evaluatedFormula.replace(ref, columnValues[ref][index] || 0);
-      });
+    const value = columnValues[ref][index];
+    const replacementValue = (value === null || value === undefined) ? '' : value;
+    evaluatedFormula = evaluatedFormula.replace(new RegExp(ref, 'g'), replacementValue);
+});
 
       // Conversion des fonctions Excel en JS
       evaluatedFormula = convertExcelFunctions(evaluatedFormula);
@@ -2265,7 +2291,7 @@ async getConfigurationSources(
 
 
 
- async togglePermissionsFromArray(
+async togglePermissionsFromArray(
     idSourceDonnee: string,
     permissionOperations: UserPermissionToggleDto[], // Array of actions and users to toggle
     loggedInUser: MembreStruct,

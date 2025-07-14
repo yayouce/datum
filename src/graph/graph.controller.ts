@@ -187,6 +187,37 @@ async importMapFile(
 
 
 
+@Post('import-map2/:existantgraphId')
+@UseInterceptors(FileInterceptor('fichier'))
+async importMapFile2(
+  @Param('existantgraphId') existantgraphId: string,
+  @Body() importMapFileDto: ImportMapFileDto,
+  @UploadedFile() file: Express.Multer.File,
+) {
+  // Validation de l'extension du fichier
+  const allowedExtensions = ['.geojson', '.json', '.kml', '.kmz', '.zip'];
+  const fileExt = '.' + file.originalname.split('.').pop()?.toLowerCase();
+  if (!allowedExtensions.includes(fileExt)) {
+    throw new BadRequestException(`Type de fichier non supporté : ${fileExt}. Attendus : ${allowedExtensions.join(', ')}`);
+  }
+  if (fileExt === '.zip' && file.mimetype !== 'application/zip') {
+    console.warn(`Fichier .zip avec mimetype ${file.mimetype} reçu. Attendu application/zip. Traitement tenté.`);
+  }
+
+  try {
+    return await this.graphService.createMapFromFile2(importMapFileDto,file,existantgraphId ); // Passer l'ID existant
+  } catch (error) {
+    console.error("Erreur contrôleur import-map:", error);
+    if (error instanceof HttpException) {
+      throw error;
+    }
+    throw new InternalServerErrorException("Erreur serveur lors de l'importation de la carte.");
+  }
+}
+
+
+
+
   @UseGuards(JwtAuthGuard) 
     @Post('deleteGraph') 
     async softDeleteStructure(

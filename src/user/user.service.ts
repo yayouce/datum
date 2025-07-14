@@ -231,6 +231,7 @@ async deleteUserOrMember(
   if (currentUser.role !== UserRole.SuperAdmin) {
     throw new ForbiddenException("Vous n'avez pas les droits pour supprimer des utilisateurs.");
   }
+  
 
   // Empêcher un SuperAdmin de se supprimer lui-même
   if (idUserToDelete === currentUser.iduser) {

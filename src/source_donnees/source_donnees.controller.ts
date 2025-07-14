@@ -19,6 +19,7 @@ import { TogglePermissionsArrayDto } from './dto/update-autorisation.dto';
 import { UUID } from 'crypto';
 import { UserEntity } from '@/user/entities/user.entity';
 import { MembreStruct } from '@/membre-struct/entities/membre-struct.entity';
+import { CurrentUser } from '@/decorator/current-user.decorator';
 
 
 @Controller('source-donnees')
@@ -91,11 +92,19 @@ export class SourceDonneesController {
     return this.sourceDonneesService.getSourcesByEnquete(idenquete);
   }
 
-  @Get('projet/:idprojet')
-  async getSourcesByProjet(@Param('idprojet') idprojet: string): Promise<SourceDonnee[]> {
-    return this.sourceDonneesService.getSourcesByProjet(idprojet);
-  }
+  // @Get('projet/:idprojet')
+  // async getSourcesByProjet(@Param('idprojet') idprojet: string): Promise<SourceDonnee[]> {
+  //   return this.sourceDonneesService.getSourcesByProjet(idprojet);
+  // }
 
+
+  @UseGuards(JwtAuthGuard)
+  @Get('projet/:idprojet')
+  async getSourcesByProjet2(
+    @User() CurrentUser:any,
+    @Param('idprojet') idprojet: string): Promise<SourceDonnee[]> {
+    return this.sourceDonneesService.getSourcesByProjet2(idprojet,CurrentUser);
+  }
   //est dans studio ou pas true or false
   @Post("InOutStudio/:idSource")
   async InOutstudio(@Param("idSource") idSource:string){

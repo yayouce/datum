@@ -1056,6 +1056,121 @@ async createMapFromFile(idsource: string, dto: ImportMapFileDto, file: Express.M
   }
 }
 
+async createMapFromFile2(
+        dto: ImportMapFileDto,
+        file: Express.Multer.File,
+        existingGraphId: string,
+    ): Promise<any> {
+        if (!existingGraphId) {
+            throw new BadRequestException("L'ID du graphique à mettre à jour (existingGraphId) est obligatoire.");
+        }
+        
+        this.logger.log(`Début de la mise à jour de la carte pour le graphique ID: ${existingGraphId}`);
+
+        let geoJsonData: FeatureCollection;
+        const fileExt = '.' + file.originalname.split('.').pop()?.toLowerCase();
+
+        try {
+            // --- ÉTAPE 1: CONVERSION DU FICHIER EN GEOJSON ---
+            this.logger.log(`Traitement du fichier ${file.originalname} (type: ${fileExt})`);
+
+            switch (fileExt) {
+                case '.json':
+                case '.geojson':
+                    geoJsonData = JSON.parse(file.buffer.toString('utf-8'));
+                    break;
+
+                case '.kml':
+                    const togeojsonKml = await import('@tmcw/togeojson');
+                    const kmlDom = new DOMParser().parseFromString(file.buffer.toString('utf-8'), 'text/xml');
+                    geoJsonData = togeojsonKml.kml(kmlDom);
+                    break;
+
+                case '.kmz':
+                    const togeojsonKmz = await import('@tmcw/togeojson');
+                    const zipKmz = new AdmZip(file.buffer);
+                    const kmlEntry = zipKmz.getEntries().find(entry => entry.entryName.toLowerCase().endsWith('.kml'));
+                    if (!kmlEntry) {
+                        throw new Error("Aucun fichier .kml trouvé dans l'archive KMZ.");
+                    }
+                    const kmlContent = kmlEntry.getData().toString('utf-8');
+                    const kmzDom = new DOMParser().parseFromString(kmlContent, 'text/xml');
+                    geoJsonData = togeojsonKmz.kml(kmzDom);
+                    break;
+
+                case '.zip':
+                    const receivedZip = new AdmZip(file.buffer);
+                    const zipEntries = receivedZip.getEntries();
+                    const findFileEntry = (extension: string): AdmZip.IZipEntry | undefined => {
+                        return zipEntries.find(e => !e.isDirectory && e.entryName.toLowerCase().endsWith(extension.toLowerCase()));
+                    };
+                    const shpEntry = findFileEntry('.shp');
+                    const dbfEntry = findFileEntry('.dbf');
+                    if (!shpEntry || !dbfEntry) {
+                        throw new Error("Les fichiers .shp et .dbf sont manquants dans l'archive ZIP.");
+                    }
+                    const prjEntry = findFileEntry('.prj');
+                    geoJsonData = await shapefile.read(shpEntry.getData(), dbfEntry.getData(), prjEntry?.getData());
+                    break;
+
+                default:
+                    throw new BadRequestException(`Extension de fichier non supportée: ${fileExt}`);
+            }
+
+            if (!geoJsonData || geoJsonData.type !== 'FeatureCollection' || !geoJsonData.features) {
+                throw new Error("Le fichier converti n'est pas un GeoJSON de type 'FeatureCollection' valide.");
+            }
+            this.logger.log(`Conversion en GeoJSON réussie. ${geoJsonData.features.length} features trouvées.`);
+
+            // --- ÉTAPE 2: RÉCUPÉRATION ET MISE À JOUR DU GRAPHIQUE ---
+            const graphToUpdate = await this.graphRepository.findOne({ where: { idgraph: existingGraphId } });
+            if (!graphToUpdate) {
+                throw new NotFoundException(`Le graphique avec l'ID "${existingGraphId}" est introuvable.`);
+            }
+
+            if (graphToUpdate.typeGraphique !== typegraphiqueEnum.CARTE_IMPORTEE && !this.isGeospatialType(graphToUpdate.typeGraphique)) {
+                throw new BadRequestException(`Le graphique existant (ID: ${existingGraphId}) n'est pas d'un type compatible.`);
+            }
+
+            let existingGeoJson: FeatureCollection;
+            if (graphToUpdate.typeGraphique === typegraphiqueEnum.CARTE_IMPORTEE && graphToUpdate.geoJsonData) {
+                existingGeoJson = graphToUpdate.geoJsonData as FeatureCollection;
+            } else {
+                existingGeoJson = await this.generateGeoJsonForGraph(existingGraphId);
+            }
+
+            const mergedGeoJson = this.mergeGeoJsonData(existingGeoJson, geoJsonData);
+            
+            // Mise à jour des propriétés de l'entité
+            graphToUpdate.titreGraphique = dto.titreGraphique || graphToUpdate.titreGraphique;
+            graphToUpdate.geoJsonData = mergedGeoJson;
+            graphToUpdate.colonnesEtiquettes = dto.colonnesEtiquettes || graphToUpdate.colonnesEtiquettes;
+            graphToUpdate.isHidden = false;
+            
+            const importId = crypto.randomUUID();
+            graphToUpdate.importHistory = graphToUpdate.importHistory || [];
+            graphToUpdate.importHistory.push({ importId, timestamp: new Date(), fileName: file.originalname });
+            
+            // --- ÉTAPE 3: SAUVEGARDE ET RETOUR ---
+            const savedGraph = await this.graphRepository.save(graphToUpdate);
+            this.logger.log(`Graphique ID: ${savedGraph.idgraph} mis à jour avec succès.`);
+            
+            const graphToFormat = await this.graphRepository.findOne({ where: { idgraph: savedGraph.idgraph }, relations: ['sources'] });
+            if (!graphToFormat) {
+                throw new InternalServerErrorException("Erreur critique : le graphique n'a pas été retrouvé après sa mise à jour.");
+            }
+            
+            return formatGraphResponse(graphToFormat);
+
+        } catch (error) {
+            this.logger.error(`Échec du traitement pour le graphique ID ${existingGraphId} avec le fichier ${file.originalname}. Erreur: ${error.message}`, error.stack);
+            if (error instanceof HttpException) {
+                throw error;
+            }
+            throw new BadRequestException(`Échec du traitement du fichier : ${error.message}`);
+        }
+    }
+
 // Méthode pour fusionner les GeoJSON
 // private mergeGeoJsonData(existingGeoJson: FeatureCollection, newGeoJson: FeatureCollection): FeatureCollection {
 //   const mergedFeatures = [...(existingGeoJson.features || []), ...(newGeoJson.features || [])];

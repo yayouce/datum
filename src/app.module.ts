@@ -34,8 +34,10 @@ import { DashboardModule } from './dashboard/dashboard.module';
       entities: ["dist/**/*.entity{.ts,.js}"],
       synchronize: false,
       extra:{
-        connectionLimit:15,
-        validateConnection:true
+        connectionLimit:20,
+        validateConnection:true,
+        connectTimeout: 20000,
+        acquireTimeout: 20000, 
       },
     }),
     ScheduleModule.forRoot(),
