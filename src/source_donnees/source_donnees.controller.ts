@@ -20,6 +20,7 @@ import { UUID } from 'crypto';
 import { UserEntity } from '@/user/entities/user.entity';
 import { MembreStruct } from '@/membre-struct/entities/membre-struct.entity';
 import { CurrentUser } from '@/decorator/current-user.decorator';
+import { DeleteSheetDto } from './dto/DeleteSheetDto.dto';
 
 
 @Controller('source-donnees')
@@ -105,6 +106,25 @@ export class SourceDonneesController {
     @Param('idprojet') idprojet: string): Promise<SourceDonnee[]> {
     return this.sourceDonneesService.getSourcesByProjet2(idprojet,CurrentUser);
   }
+
+  @UseGuards(JwtAuthGuard)
+  @Get('configbd/:idprojet')
+  async getSourcesByProjetconfig(
+    @User() CurrentUser:any,
+    @Param('idprojet') idprojet: string): Promise<SourceDonnee[]> {
+    return this.sourceDonneesService.getSourcesByProjetconfig(idprojet,CurrentUser);
+  }
+
+  @Delete('deletesheet/:idsource') 
+    async deleteSheet(
+        @Param('idsource', ParseUUIDPipe) id: string, 
+        @Body() deleteSheetDto: DeleteSheetDto,
+    ) {
+        return this.sourceDonneesService.deleteSheet(id, deleteSheetDto);
+    }
+
+
+
   //est dans studio ou pas true or false
   @Post("InOutStudio/:idSource")
   async InOutstudio(@Param("idSource") idSource:string){

@@ -1,4 +1,4 @@
-import { BadRequestException, ForbiddenException, HttpException, HttpStatus, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, HttpException, HttpStatus, Injectable, InternalServerErrorException, Logger, NotFoundException } from '@nestjs/common';
 import { CreateSourceDonneeDto } from './dto/create-source_donnee.dto';
 import { InjectRepository } from '@nestjs/typeorm';
 import { SourceDonnee } from './entities/source_donnee.entity';
@@ -47,6 +47,9 @@ import { getExcelColumnName } from './utils/generernomcolonne';
 import * as JoinHelpers from './utils/join.helpers';
 import * as StreamHelpers from './utils/stream.helpers';
 import { fusionnerFichiers_InPlace } from './utils/fusion_recup_ligne.helper';
+import { UUID } from 'crypto';
+import { convertExcelFunctions } from './utils/convertformula.utils';
+import { DeleteSheetDto } from './dto/DeleteSheetDto.dto';
 type AuthenticatedUser = {
   iduser: string;
   role: 'admin' | 'client';
@@ -958,7 +961,7 @@ private isTimeToUpdate(sourceDonnee: SourceDonnee): boolean {
         const existingSheetNames = Object.keys(sourceDonnee.fichier || {});
         for (const [index, sheetData] of Object.entries(fichierTelechargeTraite)) {
           const sheetIndex = parseInt(index);
-          const realSheetName = existingSheetNames[sheetIndex] || `Sheet${sheetIndex + 1}`; // Fallback si pas de nom existant
+          const realSheetName = existingSheetNames[sheetIndex]; // Fallback si pas de nom existant
           sourceDonnee.fichier[realSheetName] = sheetData;
         }
 
@@ -1077,6 +1080,47 @@ private isTimeToUpdate(sourceDonnee: SourceDonnee): boolean {
     }
     
 
+
+    //suppression sheet
+
+  async deleteSheet(idsourceDonnes: string, deleteSheetDto: DeleteSheetDto): Promise<SourceDonnee> {
+        const { nomFeuille } = deleteSheetDto;
+        this.logger.log(`Tentative de suppression de la feuille '${nomFeuille}' de la source ID: ${idsourceDonnes}`);
+
+        // 1. Récupérer la source de données existante
+        const source = await this.getSourceById(idsourceDonnes);
+
+        // 2. Vérifier que l'objet 'fichier' et la feuille existent
+        if (!source.fichier || typeof source.fichier !== 'object') {
+            throw new HttpException("La source de données ne contient pas de données de fichier à modifier.", 400); // 400 Bad Request
+        }
+
+        if (!source.fichier[nomFeuille]) {
+            throw new NotFoundException(`La feuille nommée '${nomFeuille}' n'existe pas dans cette source de données.`);
+        }
+
+        // 3. Supprimer la feuille de l'objet 'fichier'
+        delete source.fichier[nomFeuille];
+
+        // Optionnel : Si c'était la dernière feuille, on peut vider complètement l'objet fichier.
+        if (Object.keys(source.fichier).length === 0) {
+            source.fichier = null;
+            this.logger.log(`La dernière feuille a été supprimée. La propriété 'fichier' est maintenant nulle.`);
+        }
+
+        // 4. Sauvegarder l'entité mise à jour
+        // TypeORM détectera le changement sur la colonne JSON et l'appliquera.
+        try {
+            const updatedSource = await this.sourcededonneesrepo.save(source);
+            this.logger.log(`Feuille '${nomFeuille}' supprimée avec succès pour la source ID: ${idsourceDonnes}`);
+            return updatedSource;
+        } catch (error) {
+            this.logger.error(`Erreur lors de la sauvegarde de la source après suppression de la feuille: ${error.message}`, error.stack);
+            throw new InternalServerErrorException("Une erreur est survenue lors de la sauvegarde des modifications.");
+        }
+    }
+
+
 // sources des données par enquete par projet
 async getSourcesByEnquete(idenquete: string): Promise<SourceDonnee[]> {
   return this.sourcededonneesrepo.find({
@@ -1107,6 +1151,25 @@ async getSourcesByProjet2(idprojet: string, currentUser:MembreStruct| UserEntity
     });
     return await query.getMany();
 }
+
+async getSourcesByProjetconfig(idprojet: string, currentUser:MembreStruct| UserEntity): Promise<SourceDonnee[]> {
+    
+    const userId = currentUser.iduser; 
+    const query = this.sourcededonneesrepo
+        .createQueryBuilder('source')
+        
+        .leftJoinAndSelect('source.enquete', 'enquete')
+        .leftJoin('enquete.projet', 'projet')
+        .select([
+            'source.idsourceDonnes',      
+            'source.nomSource',
+            'source.commentaire',
+            'source.libelleformat',
+            'source.libelletypedonnees'
+        ])
+        .where('projet.idprojet = :idprojet', { idprojet });
+    return await query.getMany();
+}// je vais revoir ça(selection de champs specifiques pour l'affichage)
 
 
 // nombre
@@ -1794,189 +1857,293 @@ async removeColumns(idsource: string, body: removeColumnDto,user:any): Promise<S
 // }
 
 
-async applyFunctionAndSave2(
-  idsourceDonnes: string,
-  applyFunctionDto: ApplyfunctionDto2
-): Promise<SourceDonnee> {
-  const { nomFeuille, formula, targetColumn } = applyFunctionDto;
-
-  // Étape 1 : Récupérer la source de données
-  const source = await this.getSourceById(idsourceDonnes);
-  let fichier = source.fichier;
-
-  // Étape 2 : Récupérer la feuille
-  const targetSheetName = nomFeuille && nomFeuille.trim() ? nomFeuille : Object.keys(fichier)[0];
-  const sheet = fichier[targetSheetName];
-
-  if (!sheet || !sheet.donnees || sheet.donnees.length <= 1) {
-    throw new HttpException(`La feuille spécifiée est vide ou ne contient pas de données.`, 806);
-  }
-
-  // Étape 3 : Extraire les références de cellules (A1, B2, C3, etc.)
-  const regex = /[A-Z]+\d+/g;
-  const references = formula.match(regex);
-
-  if (!references || references.length === 0) {
-    throw new HttpException(`Aucune référence de colonne valide trouvée dans la formule.`, 807);
-  }
-
-  // Étape 4 : Récupérer les valeurs de chaque cellule référencée
-  let columnValues: Record<string, any[]> = {};
-  references.forEach((ref) => {
-    const columnLetter = ref.replace(/\d/g, '');
-    if (!sheet.colonnes.includes(columnLetter)) {
-      throw new HttpException(`La colonne "${columnLetter}" n'existe pas.`, 803);
-    }
-    columnValues[ref] = sheet.donnees.slice(1).map((row, index) => {
-      const cellKey = `${columnLetter}${index + 2}`;
-      return row[cellKey] !== undefined ? row[cellKey] : null;
-    });
-  });
 
 
-  function safeCompare(a: any, b: any): boolean {
-    if (!isNaN(a) && !isNaN(b)) {
-      return Number(a) === Number(b); // Comparaison numérique
-    }
-    return String(a).localeCompare(String(b)) === 0; // Comparaison de texte
-  }
+// async applyFunctionAndSave2(
+//   idsourceDonnes: string,
+//   applyFunctionDto: ApplyfunctionDto2
+// ): Promise<SourceDonnee> {
+//   const { nomFeuille, formula, targetColumn } = applyFunctionDto;
+
+//   // Étape 1 : Récupérer la source de données
+//   const source = await this.getSourceById(idsourceDonnes);
+//   let fichier = source.fichier;
+
+//   // Étape 2 : Récupérer la feuille
+//   const targetSheetName = nomFeuille && nomFeuille.trim() ? nomFeuille : Object.keys(fichier)[0];
+//   const sheet = fichier[targetSheetName];
+
+//   if (!sheet || !sheet.donnees || sheet.donnees.length <= 1) {
+//     throw new HttpException(`La feuille spécifiée est vide ou ne contient pas de données.`, 806);
+//   }
+
+//   // Étape 3 : Extraire les références de cellules (A1, B2, C3, etc.)
+//   const regex = /[A-Z]+\d+/g;
+//   const references = formula.match(regex);
+
+//   if (!references || references.length === 0) {
+//     throw new HttpException(`Aucune référence de colonne valide trouvée dans la formule.`, 807);
+//   }
+
+//   // Étape 4 : Récupérer les valeurs de chaque cellule référencée
+//   let columnValues: Record<string, any[]> = {};
+//   references.forEach((ref) => {
+//     const columnLetter = ref.replace(/\d/g, '');
+//     if (!sheet.colonnes.includes(columnLetter)) {
+//       throw new HttpException(`La colonne "${columnLetter}" n'existe pas.`, 803);
+//     }
+//     columnValues[ref] = sheet.donnees.slice(1).map((row, index) => {
+//       const cellKey = `${columnLetter}${index + 2}`;
+//       return row[cellKey] !== undefined ? row[cellKey] : null;
+//     });
+//   });
+
+
+//   function safeCompare(a: any, b: any): boolean {
+//     if (!isNaN(a) && !isNaN(b)) {
+//       return Number(a) === Number(b); // Comparaison numérique
+//     }
+//     return String(a).localeCompare(String(b)) === 0; // Comparaison de texte
+//   }
 
   
-  function convertExcelFunctions(formula: string): string {
-    const convertedFormula = formula
-      // SOMME(X;Y;Z) -> (X + Y + Z)
-      .replace(/SOMME\((.*?)\)/g, (_, values) => `(${values.replace(/;/g, ' + ')})`)
+//   function convertExcelFunctions(formula: string): string {
+//     const convertedFormula = formula
+//       // SOMME(X;Y;Z) -> (X + Y + Z)
+//       .replace(/SOMME\((.*?)\)/g, (_, values) => `(${values.replace(/;/g, ' + ')})`)
   
-      // MOYENNE(X;Y;Z) -> (X + Y + Z) / nombre de valeurs
-      .replace(/MOYENNE\((.*?)\)/g, (_, values) => {
-        const count = values.split(";").length;
-        return `(${values.replace(/;/g, ' + ')}) / ${count}`;
-      })
+//       // MOYENNE(X;Y;Z) -> (X + Y + Z) / nombre de valeurs
+//       .replace(/MOYENNE\((.*?)\)/g, (_, values) => {
+//         const count = values.split(";").length;
+//         return `(${values.replace(/;/g, ' + ')}) / ${count}`;
+//       })
   
-      // MIN(X;Y;Z) -> Math.min(X, Y, Z)
-      .replace(/MIN\((.*?)\)/g, (_, values) => `Math.min(${values.replace(/;/g, ', ')})`)
+//       // MIN(X;Y;Z) -> Math.min(X, Y, Z)
+//       .replace(/MIN\((.*?)\)/g, (_, values) => `Math.min(${values.replace(/;/g, ', ')})`)
   
-      // MAX(X;Y;Z) -> Math.max(X, Y, Z)
-      .replace(/MAX\((.*?)\)/g, (_, values) => `Math.max(${values.replace(/;/g, ', ')})`)
+//       // MAX(X;Y;Z) -> Math.max(X, Y, Z)
+//       .replace(/MAX\((.*?)\)/g, (_, values) => `Math.max(${values.replace(/;/g, ', ')})`)
   
-      // ABS(X) -> Math.abs(X)
-      .replace(/ABS\((.*?)\)/g, (_, value) => `Math.abs(${value})`)
+//       // ABS(X) -> Math.abs(X)
+//       .replace(/ABS\((.*?)\)/g, (_, value) => `Math.abs(${value})`)
   
-      // CONCATENER(X;Y;Z) -> (X + Y + Z)
-      // .replace(/CONCATENER\((.*?)\)/g, (_, values) => {
-      //   return values
-      //     .split(";")
-      //     .map(value => {
-      //       const trimmedValue = value.trim();
-      //       return isNaN(trimmedValue) ? `"${trimmedValue}"` : trimmedValue; // Wrap only non-numeric values in quotes
-      //     })
-      //     .join(' + ');
-      // })
+//       // CONCATENER(X;Y;Z) -> (X + Y + Z)
+//       // .replace(/CONCATENER\((.*?)\)/g, (_, values) => {
+//       //   return values
+//       //     .split(";")
+//       //     .map(value => {
+//       //       const trimmedValue = value.trim();
+//       //       return isNaN(trimmedValue) ? `"${trimmedValue}"` : trimmedValue; // Wrap only non-numeric values in quotes
+//       //     })
+//       //     .join(' + ');
+//       // })
 
-      .replace(/CONCATENER\((.*?)\)/g, (_, values) => {
-            return values
-                .split(";")
-                .map(value => {
-                    const cleanedValue = value.trim().replace(/"/g, '\\"');
-                    return `"${cleanedValue}"`;
-                })
-                .join(' + ');
-        })
+//       .replace(/CONCATENER\((.*?)\)/g, (_, values) => {
+//             return values
+//                 .split(";")
+//                 .map(value => {
+//                     const cleanedValue = value.trim().replace(/"/g, '\\"');
+//                     return `"${cleanedValue}"`;
+//                 })
+//                 .join(' + ');
+//         })
        
-      // NB(X;Y;Z) -> Nombre d'éléments non vides
-      .replace(/NB\((.*?)\)/g, (_, values) => `(${values.split(";").map(v => `(${v} !== undefined && ${v} !== null ? 1 : 0)`).join(" + ")})`)
+//       // NB(X;Y;Z) -> Nombre d'éléments non vides
+//       .replace(/NB\((.*?)\)/g, (_, values) => `(${values.split(";").map(v => `(${v} !== undefined && ${v} !== null ? 1 : 0)`).join(" + ")})`)
   
-      // ET(A;B;C) -> (A && B && C)
-      .replace(/ET\((.*?)\)/g, (_, values) => `(${values.replace(/;/g, ' && ')})`)
+//       // ET(A;B;C) -> (A && B && C)
+//       .replace(/ET\((.*?)\)/g, (_, values) => `(${values.replace(/;/g, ' && ')})`)
   
-      // OU(A;B;C) -> (A || B || C)
-      .replace(/OU\((.*?)\)/g, (_, values) => `(${values.replace(/;/g, ' || ')})`)
+//       // OU(A;B;C) -> (A || B || C)
+//       .replace(/OU\((.*?)\)/g, (_, values) => `(${values.replace(/;/g, ' || ')})`)
   
-      // SI(condition;valeur_si_vrai;valeur_si_faux)
-      // NOUVELLE VERSION CORRIGÉE
-      .replace(/SI\((.*?);(.*?);(.*?)\)/g, (_, condition, trueVal, falseVal) => {
-      const operatorMatch = condition.match(/(>=|<=|>|<|=)/);
-      if (!operatorMatch) {
-        throw new Error(`Opérateur de comparaison manquant ou condition non gérée dans: ${condition}`);
-      }
+//       // SI(condition;valeur_si_vrai;valeur_si_faux)
+//       // NOUVELLE VERSION CORRIGÉE
+//       .replace(/SI\((.*?);(.*?);(.*?)\)/g, (_, condition, trueVal, falseVal) => {
+//       const operatorMatch = condition.match(/(>=|<=|>|<|=)/);
+//       if (!operatorMatch) {
+//         throw new Error(`Opérateur de comparaison manquant ou condition non gérée dans: ${condition}`);
+//       }
 
-    const operator = operatorMatch[0];
-    // CORRECTION 1: Convertir le "=" d'Excel en "==" de JavaScript
-    const jsOperator = operator === '=' ? '==' : operator;
+//     const operator = operatorMatch[0];
+//     // CORRECTION 1: Convertir le "=" d'Excel en "==" de JavaScript
+//     const jsOperator = operator === '=' ? '==' : operator;
 
-    const parts = condition.split(operator);
-    const left = parts[0].trim();
-    const right = parts[1].trim();
+//     const parts = condition.split(operator);
+//     const left = parts[0].trim();
+//     const right = parts[1].trim();
 
-    // CORRECTION 2: Une fonction helper pour formater correctement les valeurs
-    // Si c'est un nombre, on le laisse tel quel. Sinon, on le met entre guillemets.
-    const formatAsJsValue = (val) => {
-      // isFinite gère les nombres, mais aussi les chaînes qui ne sont que des nombres
-      if (val !== '' && isFinite(Number(val))) {
-        return val; // C'est un nombre, on ne met pas de guillemets
-      }
-      // C'est une chaîne de caractères (ou vide), on met des guillemets
-      return `"${val}"`; 
-    };
+//     // CORRECTION 2: Une fonction helper pour formater correctement les valeurs
+//     // Si c'est un nombre, on le laisse tel quel. Sinon, on le met entre guillemets.
+//     const formatAsJsValue = (val) => {
+//       // isFinite gère les nombres, mais aussi les chaînes qui ne sont que des nombres
+//       if (val !== '' && isFinite(Number(val))) {
+//         return val; // C'est un nombre, on ne met pas de guillemets
+//       }
+//       // C'est une chaîne de caractères (ou vide), on met des guillemets
+//       return `"${val}"`; 
+//     };
 
-    const formattedLeft = formatAsJsValue(left);
-    const formattedRight = formatAsJsValue(right);
-    const formattedTrue = formatAsJsValue(trueVal.trim());
-    const formattedFalse = formatAsJsValue(falseVal.trim());
+//     const formattedLeft = formatAsJsValue(left);
+//     const formattedRight = formatAsJsValue(right);
+//     const formattedTrue = formatAsJsValue(trueVal.trim());
+//     const formattedFalse = formatAsJsValue(falseVal.trim());
 
-    return `( ${formattedLeft} ${jsOperator} ${formattedRight} ? ${formattedTrue} : ${formattedFalse} )`;
-});
+//     return `( ${formattedLeft} ${jsOperator} ${formattedRight} ? ${formattedTrue} : ${formattedFalse} )`;
+// });
   
-    console.log(" Formule Avant :", formula);
-    console.log(" Formule Après :", convertedFormula);
+//     console.log(" Formule Avant :", formula);
+//     console.log(" Formule Après :", convertedFormula);
   
-    return convertedFormula;
-  }
+//     return convertedFormula;
+//   }
   
-  // Étape 5 : Appliquer la formule ligne par ligne
-  const columnResult: any[] = [];
-  sheet.donnees.slice(1).forEach((row, index) => {
-    try {
-      let evaluatedFormula = formula;
-      references.forEach((ref) => {
-    const value = columnValues[ref][index];
-    const replacementValue = (value === null || value === undefined) ? '' : value;
-    evaluatedFormula = evaluatedFormula.replace(new RegExp(ref, 'g'), replacementValue);
-});
+//   // Étape 5 : Appliquer la formule ligne par ligne
+//   const columnResult: any[] = [];
+//   sheet.donnees.slice(1).forEach((row, index) => {
+//     try {
+//       let evaluatedFormula = formula;
+//       references.forEach((ref) => {
+//     const value = columnValues[ref][index];
+//     const replacementValue = (value === null || value === undefined) ? '' : value;
+//     evaluatedFormula = evaluatedFormula.replace(new RegExp(ref, 'g'), replacementValue);
+// });
 
-      // Conversion des fonctions Excel en JS
-      evaluatedFormula = convertExcelFunctions(evaluatedFormula);
+//       // Conversion des fonctions Excel en JS
+//       evaluatedFormula = convertExcelFunctions(evaluatedFormula);
 
-      // 🔍 Logs pour vérifier les formules
-      console.log(`🔄 Ligne ${index + 2} - Formule Finale :`, evaluatedFormula);
+//       // 🔍 Logs pour vérifier les formules
+//       console.log(`🔄 Ligne ${index + 2} - Formule Finale :`, evaluatedFormula);
 
-      //  Évaluation avec `safeCompare` ajouté dans le contexte
-      // columnResult.push(evaluate(evaluatedFormula, { safeCompare }));
-      const safeEval = new Function(`return ${evaluatedFormula};`);
-      columnResult.push(safeEval());
-    } catch (error) {
-      console.error(`❌ Erreur d'évaluation à la ligne ${index + 2}:`, error.message);
-      throw new HttpException(`Erreur lors de l'évaluation de la formule à la ligne ${index + 2}`, 808);
+//       //  Évaluation avec `safeCompare` ajouté dans le contexte
+//       // columnResult.push(evaluate(evaluatedFormula, { safeCompare }));
+//       const safeEval = new Function(`return ${evaluatedFormula};`);
+//       columnResult.push(safeEval());
+//     } catch (error) {
+//       console.error(`❌ Erreur d'évaluation à la ligne ${index + 2}:`, error.message);
+//       throw new HttpException(`Erreur lors de l'évaluation de la formule à la ligne ${index + 2}`, 808);
+//     }
+//   }); 
+
+//   // Vérifier si la colonne cible existe
+//   const targetColumnLetter = targetColumn.replace(/\d/g, '');
+//   if (!sheet.colonnes.includes(targetColumnLetter)) {
+//     throw new HttpException(`La colonne cible "${targetColumnLetter}" n'existe pas.`, 804);
+//   }
+
+//   // Étape 6 : Ajouter les résultats dans la colonne cible
+//   sheet.donnees.slice(1).forEach((row, index) => {
+//     const cellKey = `${targetColumnLetter}${index + 2}`;
+//     row[cellKey] = columnResult[index];
+//   });
+
+//   fichier[targetSheetName] = sheet;
+//   source.fichier = { ...fichier };
+
+//   return await this.sourcededonneesrepo.save(source);
+// }
+
+async applyFunctionAndSave2(
+        idsourceDonnes: string,
+        applyFunctionDto: ApplyfunctionDto2
+    ): Promise<SourceDonnee> {
+        const { nomFeuille, formula, targetColumn } = applyFunctionDto;
+
+        // --- ÉTAPE 1: RÉCUPÉRATION ET VALIDATION DES DONNÉES ---
+        const source = await this.getSourceById(idsourceDonnes);
+        const fichier = source.fichier;
+        const targetSheetName = nomFeuille?.trim() || Object.keys(fichier)[0];
+        const sheet = fichier[targetSheetName];
+
+        if (!sheet || !sheet.donnees || sheet.donnees.length <= 1) {
+            throw new HttpException(`La feuille '${targetSheetName}' est vide ou ne contient pas de données.`, 806);
+        }
+
+        // --- ÉTAPE 2: EXTRACTION DES RÉFÉRENCES ET PRÉPARATION DES DONNÉES ---
+        const regex = /[A-Z]+\d+/g;
+        const references = [...new Set(formula.match(regex) || [])];
+
+        if (references.length === 0) {
+            throw new HttpException(`Aucune référence de colonne valide (ex: A1, B2) trouvée dans la formule.`, 807);
+        }
+
+        const columnValues: Record<string, any[]> = {};
+        references.forEach((ref) => {
+            const columnLetter = ref.replace(/\d+/g, '');
+            if (!sheet.colonnes.includes(columnLetter)) {
+                throw new HttpException(`La colonne "${columnLetter}" référencée dans la formule n'existe pas.`, 803);
+            }
+            columnValues[ref] = sheet.donnees.slice(1).map((row, index) => {
+                const cellKey = `${columnLetter}${index + 2}`;
+                return row[cellKey] ?? null;
+            });
+        });
+
+        // --- ÉTAPE 3: APPLICATION DE LA FORMULE LIGNE PAR LIGNE ---
+        this.logger.log(`Début de l'application de la formule: "${formula}"`);
+        const columnResult: any[] = [];
+        const isConcatFunction = formula.toUpperCase().trim().startsWith('CONCATENER');
+
+        for (let i = 0; i < sheet.donnees.length - 1; i++) {
+            try {
+                // 3.1. Remplacer les références par des placeholders
+                let formulaWithPlaceholders = formula;
+                const valueMap: Record<string, any> = {};
+                references.forEach(ref => {
+                    const placeholder = `__${ref}__`;
+                    formulaWithPlaceholders = formulaWithPlaceholders.replace(new RegExp(ref, 'g'), placeholder);
+                    valueMap[placeholder] = columnValues[ref][i];
+                });
+
+                // 3.2. Convertir la formule "propre" en JavaScript
+                let executableFormula = convertExcelFunctions(formulaWithPlaceholders);
+                
+                // 3.3. Injecter les valeurs réelles avec gestion correcte des types et des null
+                Object.entries(valueMap).forEach(([placeholder, rawValue]) => {
+                    let formattedValue: string;
+                    
+                    if (typeof rawValue === 'string') {
+                        formattedValue = `"${rawValue.replace(/"/g, '\\"')}"`;
+                    } else if (rawValue === null || rawValue === undefined) {
+                        // Si c'est une fonction CONCATENER, null devient une chaîne vide.
+                        // Sinon, null reste la valeur JavaScript null.
+                        formattedValue = isConcatFunction ? '""' : 'null';
+                    } else {
+                        // Nombres et booléens restent tels quels
+                        formattedValue = String(rawValue);
+                    }
+                    executableFormula = executableFormula.replace(new RegExp(placeholder, 'g'), formattedValue);
+                });
+
+                this.logger.debug(`Ligne ${i + 2} - Formule finale: ${executableFormula}`);
+
+                // 3.4. Évaluer la formule finale
+                const safeEval = new Function(`return ${executableFormula};`);
+                columnResult.push(safeEval());
+
+            } catch (error) {
+                this.logger.error(`Erreur d'évaluation à la ligne ${i + 2}: ${error.message}`, error.stack);
+                throw new HttpException(`Erreur lors de l'évaluation de la formule à la ligne ${i + 2}.`, 808);
+            }
+        }
+        this.logger.log("Application de la formule terminée avec succès.");
+
+        // --- ÉTAPE 4: MISE À JOUR DE LA COLONNE CIBLE ET SAUVEGARDE ---
+        const targetColumnLetter = targetColumn.replace(/\d+/g, '');
+        if (!sheet.colonnes.includes(targetColumnLetter)) {
+            throw new HttpException(`La colonne cible "${targetColumnLetter}" n'existe pas.`, 804);
+        }
+
+        sheet.donnees.slice(1).forEach((row, index) => {
+            row[`${targetColumnLetter}${index + 2}`] = columnResult[index];
+        });
+
+        fichier[targetSheetName] = sheet;
+        source.fichier = { ...fichier };
+
+        return await this.sourcededonneesrepo.save(source);
     }
-  });
-
-  // Vérifier si la colonne cible existe
-  const targetColumnLetter = targetColumn.replace(/\d/g, '');
-  if (!sheet.colonnes.includes(targetColumnLetter)) {
-    throw new HttpException(`La colonne cible "${targetColumnLetter}" n'existe pas.`, 804);
-  }
-
-  // Étape 6 : Ajouter les résultats dans la colonne cible
-  sheet.donnees.slice(1).forEach((row, index) => {
-    const cellKey = `${targetColumnLetter}${index + 2}`;
-    row[cellKey] = columnResult[index];
-  });
-
-  fichier[targetSheetName] = sheet;
-  source.fichier = { ...fichier };
-
-  return await this.sourcededonneesrepo.save(source);
-}
+    
 
 async findById(id: string): Promise<SourceDonnee> {
   const source = await this.sourcededonneesrepo.findOne({
