@@ -108,7 +108,7 @@ export class SourceDonneesController {
   }
 
   @UseGuards(JwtAuthGuard)
-  @Get('configbd/:idprojet')
+  @Get('api/configbd/:idprojet')
   async getSourcesByProjetconfig(
     @User() CurrentUser:any,
     @Param('idprojet') idprojet: string): Promise<SourceDonnee[]> {
